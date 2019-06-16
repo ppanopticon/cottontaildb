@@ -3,6 +3,7 @@ package ch.unibas.dmi.dbis.cottontail.server.grpc
 import ch.unibas.dmi.dbis.cottontail.config.ServerConfig
 import ch.unibas.dmi.dbis.cottontail.database.catalogue.Catalogue
 import ch.unibas.dmi.dbis.cottontail.execution.ExecutionEngine
+import ch.unibas.dmi.dbis.cottontail.server.Server
 import ch.unibas.dmi.dbis.cottontail.server.grpc.services.CottonDDLService
 import ch.unibas.dmi.dbis.cottontail.server.grpc.services.CottonDMLService
 import ch.unibas.dmi.dbis.cottontail.server.grpc.services.CottonDQLService
@@ -18,7 +19,7 @@ import java.util.concurrent.*
  * @author Ralph Gasser
  * @version 1.0.1
  */
-internal class CottontailGrpcServer(val config: ServerConfig, val catalogue: Catalogue, val engine: ExecutionEngine) {
+internal class CottontailGrpcServer(val config: ServerConfig, val catalogue: Catalogue, val engine: ExecutionEngine) : Server {
 
     /** The [ThreadPoolExecutor] used for handling the individual GRPC calls. */
     private val executor: ExecutorService = ThreadPoolExecutor(config.coreThreads, config.maxThreads, config.keepAliveTime, TimeUnit.MILLISECONDS, SynchronousQueue())
@@ -49,13 +50,13 @@ internal class CottontailGrpcServer(val config: ServerConfig, val catalogue: Cat
     /**
      * Returns true if this [CottontailGrpcServer] is currently running, and false otherwise.
      */
-    val isRunning: Boolean
+    override val isRunning: Boolean
         get() = !this.server.isShutdown
 
     /**
      * Starts this instance of [CottontailGrpcServer].
      */
-    fun start() {
+    override fun start() {
         this.server.start()
         LOGGER.info("Cottontail DB server is up and running at port ${config.port} ! Hop along...")
     }
@@ -63,7 +64,7 @@ internal class CottontailGrpcServer(val config: ServerConfig, val catalogue: Cat
     /**
      * Stops this instance of [CottontailGrpcServer].
      */
-    fun stop() {
+    override fun stop() {
         this.server.shutdown()
         LOGGER.info("Cottontail DB was shut down. Have a binky day!")
     }

@@ -8,10 +8,7 @@ import ch.unibas.dmi.dbis.cottontail.database.entity.Entity
 import ch.unibas.dmi.dbis.cottontail.database.queries.AtomicBooleanPredicate
 import ch.unibas.dmi.dbis.cottontail.database.queries.BooleanPredicate
 import ch.unibas.dmi.dbis.cottontail.database.queries.Predicate
-import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
-import ch.unibas.dmi.dbis.cottontail.model.basics.Filterable
-import ch.unibas.dmi.dbis.cottontail.model.basics.Record
-import ch.unibas.dmi.dbis.cottontail.model.basics.Tuple
+import ch.unibas.dmi.dbis.cottontail.model.basics.*
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.DatabaseException
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.QueryException
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.TransactionException
@@ -132,7 +129,6 @@ internal class MapDBColumn<T : Any>(override val name: Name, override val parent
      * A [Transaction] that affects this [MapDBColumn].
      */
     inner class Tx constructor(override val readonly: Boolean, override val tid: UUID) : ColumnTransaction<T> {
-
         /** Flag indicating whether or not this [Entity.Tx] was closed */
         @Volatile
         override var status: TransactionStatus = TransactionStatus.CLEAN
@@ -226,6 +222,19 @@ internal class MapDBColumn<T : Any>(override val name: Name, override val parent
         override fun count(): Long = this@MapDBColumn.txLock.read {
             checkValidOrThrow()
             return this@MapDBColumn.header.count
+        }
+
+        /**
+         * Returns an [Iterable] of all tuple IDs used in this [MapDBColumn].
+         *
+         * @return [Iterable] of all tuple IDs.
+         */
+        override fun listTupleIds(): Iterator<Long> {
+            val tupleIds = this@MapDBColumn.store.getAllRecids()
+            if (tupleIds.next() != HEADER_RECORD_ID) {
+                throw TransactionException.TransactionValidationException(this.tid, "The column '${this@MapDBColumn.fqn}' does not seem to contain a valid header record!")
+            }
+            return tupleIds
         }
 
         /**

@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicLong
  * @version 1.0
  */
 internal class Recordset(val columns: Array<ColumnDef<*>>) : Scanable, Filterable {
+
     /** Internal counter for maximum tupleId. */
     private val maxTupleId = AtomicLong(0)
 
@@ -148,6 +149,11 @@ internal class Recordset(val columns: Array<ColumnDef<*>>) : Scanable, Filterabl
      */
     @Synchronized
     operator fun get(tupleId: Long): Record? = this.map[tupleId]
+
+    /**
+     *
+     */
+    override fun listTupleIds(): Iterator<Long> = this.map.keys.iterator()
 
     /**
      * Creates and returns a new [Recordset] by building the union between this and the provided [Recordset]

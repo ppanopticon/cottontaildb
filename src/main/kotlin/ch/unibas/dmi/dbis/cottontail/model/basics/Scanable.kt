@@ -11,6 +11,14 @@ import ch.unibas.dmi.dbis.cottontail.model.recordset.Recordset
  * @version 1.0
  */
 interface Scanable {
+
+    /**
+     * Returns an [Iterable] of all tuple ID's used in this [Scanable].
+     *
+     * @return [Iterable] of all tuple IDs.
+     */
+    fun listTupleIds(): Iterator<Long>
+
     /**
      * Applies the provided action to each [Record] in this [Recordset].
      *

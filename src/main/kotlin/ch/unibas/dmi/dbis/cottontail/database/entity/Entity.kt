@@ -433,6 +433,13 @@ internal class Entity(override val name: String, schema: Schema) : DBO {
         }
 
         /**
+         * Returns an [Iterable] of all tuple ID's used in this [Scanable].
+         *
+         * @return [Iterable] of all tuple IDs.
+         */
+        override fun listTupleIds(): Iterator<Long> = this.columns.values.first().listTupleIds()
+
+        /**
          * Applies the provided function to each entry found in this [Column]. The provided function cannot not change
          * the data stored in the [Column]!
          *

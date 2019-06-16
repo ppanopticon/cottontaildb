@@ -74,11 +74,12 @@ protobuf {
 }
 
 dependencies {
-    ///// Antlr 4 dependency
-    antlr group: 'org.antlr', name: 'antlr4', version: '4.7.2'
-    
     ///// MapDB dependency
     compile group: 'org.mapdb', name: 'mapdb', version: '3.0.7'
+
+    ///// Apache Calcite & Avatica Dependency
+    compile group: 'org.apache.calcite', name: 'calcite-core', version: '1.19.0'
+    compile group: 'org.apache.calcite.avatica', name: 'avatica-server', version: '1.15.0'
 
     /////// GRPC & ProtoBuf
     compile group: 'javax.annotation', name: 'javax.annotation-api', version: '1.2'

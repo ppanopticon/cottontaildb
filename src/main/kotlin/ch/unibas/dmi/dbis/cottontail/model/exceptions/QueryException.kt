@@ -30,7 +30,7 @@ open class QueryException(message: String) : DatabaseException(message) {
 
     /**
      * This kind of exception is thrown whenever a query fails to bind to a specific [DBO]. This is usually
-     *  the case, if [Schema], [Entity] or [Column] names are not spelt correctly.
+      the case, if [Schema], [Entity] or [Column] names are not spelt correctly.
      *
      * @param message Message describing the issue with the query.
      */

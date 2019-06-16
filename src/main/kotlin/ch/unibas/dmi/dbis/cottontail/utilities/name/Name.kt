@@ -2,7 +2,6 @@ package ch.unibas.dmi.dbis.cottontail.utilities.name
 
 import ch.unibas.dmi.dbis.cottontail.database.entity.Entity
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.QueryException
-import javax.annotation.RegEx
 
 /** The separator between Cottontail DB name components. */
 const val COTTONTAIL_NAME_COMPONENT_SEPARATOR = '.'
@@ -15,7 +14,7 @@ typealias Name = String
  *
  * @return true if this [Name] is valid, false otherwise.
  */
-fun Name.isValid(type: NameType = NameType.FQN): Boolean = when(type) {
+internal fun Name.isValid(type: NameType = NameType.FQN): Boolean = when(type) {
     NameType.SIMPLE -> this.matches(Regex("^([a-zA-Z0-9\\-_]+)$"))
     NameType.FQN -> this.matches(Regex("^([a-zA-Z0-9\\-_]+)(\\.[a-zA-Z0-9\\-_]+){0,3}$"))
     NameType.FQN_WILDCARD ->  this.matches(Regex("^([a-zA-Z0-9\\-_]+){1}(\\.([a-zA-Z0-9\\-_]+|\\*)){0,3}\$"))
@@ -28,7 +27,7 @@ fun Name.isValid(type: NameType = NameType.FQN): Boolean = when(type) {
  * @param other The other [Name].
  * @return The concatenated [Name].
  */
-fun Name.append(other: Name): Name = "$this$COTTONTAIL_NAME_COMPONENT_SEPARATOR$other"
+internal fun Name.append(other: Name): Name = "$this$COTTONTAIL_NAME_COMPONENT_SEPARATOR$other"
 
 /**
  * Returns the first [Name] component of this [Name], which is a [Name] again. If this is of [NameType.SIMPLE],
@@ -71,8 +70,6 @@ internal fun Name.isPrefixOf(that: Name): Boolean {
     else
         o.mapIndexed {i,s -> s == t[i]}.all { it }
 }
-
-
 
 /**
  * Checks if the provided [Name] matches this [Name] in terms of Cottontail DB naming. That is, checks if

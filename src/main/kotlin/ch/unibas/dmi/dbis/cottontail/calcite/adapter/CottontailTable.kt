@@ -1,12 +1,10 @@
 package ch.unibas.dmi.dbis.cottontail.calcite.adapter
 
 import ch.unibas.dmi.dbis.cottontail.calcite.expressions.CottontailTableScan
-import ch.unibas.dmi.dbis.cottontail.calcite.operations.CottontailEntityEnumerator
+import ch.unibas.dmi.dbis.cottontail.calcite.enumerators.CottontailEntityEnumerator
 import ch.unibas.dmi.dbis.cottontail.calcite.utilities.Entry
 import ch.unibas.dmi.dbis.cottontail.database.column.*
 import ch.unibas.dmi.dbis.cottontail.database.entity.Entity
-import ch.unibas.dmi.dbis.cottontail.database.schema.Schema
-import ch.unibas.dmi.dbis.cottontail.utilities.name.Name
 import ch.unibas.dmi.dbis.cottontail.utilities.name.last
 import org.apache.calcite.plan.RelOptTable
 import org.apache.calcite.rel.type.RelDataType

@@ -14,7 +14,6 @@ import ch.unibas.dmi.dbis.cottontail.model.values.DoubleValue
 
 import com.github.dexecutor.core.task.Task
 
-import java.util.*
 
 /**
  * A [Task] that executes a parallel boolean kNN on a float [Column] of the specified [Entity].

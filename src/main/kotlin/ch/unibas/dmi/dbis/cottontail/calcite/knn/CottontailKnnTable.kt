@@ -7,7 +7,7 @@ import ch.unibas.dmi.dbis.cottontail.model.values.DoubleValue
 import ch.unibas.dmi.dbis.cottontail.model.values.IntValue
 import ch.unibas.dmi.dbis.cottontail.model.values.Value
 import org.apache.calcite.DataContext
-import org.apache.calcite.linq4j.Enumerable
+import org.apache.calcite.linq4j.*
 import org.apache.calcite.rel.RelCollation
 import org.apache.calcite.rel.RelDistribution
 import org.apache.calcite.rel.RelDistributions
@@ -27,10 +27,12 @@ class CottontailKnnTable (backingList: List<HeapSelect<ComparablePair<Value<*>, 
     val list = backingList.mapIndexed { idx, heap -> heap.heap().map { arrayOf(it.first, DoubleValue(it.second), IntValue(idx)) } }.flatten()
 
     /**
-     * 
+     *
      */
-    override fun scan(root: DataContext?): Enumerable<Array<Any>> {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    override fun scan(root: DataContext?): Enumerable<Array<Any>> = object: AbstractEnumerable<Array<Any>>() {
+        override fun enumerator(): Enumerator<Array<Any>> = object: TransformedEnumerator<Array<Value<*>>, Array<Any>>(Linq4j.iterableEnumerator(this@CottontailKnnTable.list)) {
+            override fun transform(from: Array<Value<*>>?): Array<Any> = from as Array<Any>
+        }
     }
 
     /**

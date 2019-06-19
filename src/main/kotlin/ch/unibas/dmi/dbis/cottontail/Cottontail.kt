@@ -62,15 +62,6 @@ internal object Cottontail {
         }
         server.start()
 
-        val connection = DriverManager.getConnection("jdbc:cottontail:")
-        val stmt = connection.prepareStatement("select knn(select * from features_AverageColor, 250, [1.0, 1.0, 1.0, 1.0]) from cineast.cineast_multimediaobject LIMIT 10")
-        val results = stmt.executeQuery()
-
-        while (results.next()) {
-            println(results.getString(1))
-        }
-
-
         /* Poll, while server is running. */
         while(server.isRunning) {
             Thread.sleep(500)

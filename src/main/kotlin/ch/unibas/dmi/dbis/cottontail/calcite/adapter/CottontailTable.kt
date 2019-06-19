@@ -55,11 +55,8 @@ internal class CottontailTable(private val source: Entity) : AbstractTable(), Tr
     /**
      *
      */
-    fun project(root: DataContext, fields: Array<String>): Enumerable<Array<Value<*>?>> {
-        val cancelFlag = DataContext.Variable.CANCEL_FLAG.get<AtomicBoolean>(root)
-        return object : AbstractEnumerable<Array<Value<*>?>>() {
-            override fun enumerator(): Enumerator<Array<Value<*>?>> = CottontailEntityEnumerator(this@CottontailTable.source, fields, cancelFlag)
-        }
+    fun project(root: DataContext, fields: Array<String>): Enumerable<Array<Value<*>?>> = object : AbstractEnumerable<Array<Value<*>?>>() {
+        override fun enumerator(): Enumerator<Array<Value<*>?>> = CottontailEntityEnumerator(this@CottontailTable.source, fields, DataContext.Variable.CANCEL_FLAG.get<AtomicBoolean>(root))
     }
 
     /**

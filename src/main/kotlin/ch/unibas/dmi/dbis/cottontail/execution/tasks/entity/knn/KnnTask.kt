@@ -1,14 +1,14 @@
 package ch.unibas.dmi.dbis.cottontail.execution.tasks.entity.knn
 
-import ch.unibas.dmi.dbis.cottontail.database.column.DoubleArrayColumnType
-import ch.unibas.dmi.dbis.cottontail.database.column.FloatArrayColumnType
-import ch.unibas.dmi.dbis.cottontail.database.column.IntArrayColumnType
-import ch.unibas.dmi.dbis.cottontail.database.column.LongArrayColumnType
+import ch.unibas.dmi.dbis.cottontail.model.type.DoubleArrayType
+import ch.unibas.dmi.dbis.cottontail.model.type.FloatArrayType
+import ch.unibas.dmi.dbis.cottontail.model.type.IntArrayType
+import ch.unibas.dmi.dbis.cottontail.model.type.LongArrayType
 import ch.unibas.dmi.dbis.cottontail.database.entity.Entity
 import ch.unibas.dmi.dbis.cottontail.database.queries.BooleanPredicate
 import ch.unibas.dmi.dbis.cottontail.database.queries.KnnPredicate
 import ch.unibas.dmi.dbis.cottontail.execution.tasks.basics.ExecutionTask
-import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
+import ch.unibas.dmi.dbis.cottontail.database.column.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.QueryException
 
 internal object KnnTask {
@@ -31,14 +31,14 @@ internal object KnnTask {
         val operations = knnClause.query.first().size * entity.statistics.rows * (knnClause.operations + (whereClause?.operations ?: 0))
         val parallelism = Math.min(Math.floorDiv(operations, KNN_OP_PARALLELISM_THRESHOLD).toInt(), Runtime.getRuntime().availableProcessors()).toShort()
         return when {
-            parallelism > 1 && knnClause.column.type is DoubleArrayColumnType -> ParallelEntityScanDoubleKnnTask(entity, knnClause as KnnPredicate<DoubleArray>, whereClause, parallelism)
-            parallelism > 1 && knnClause.column.type is FloatArrayColumnType -> ParallelEntityScanFloatKnnTask(entity, knnClause as KnnPredicate<FloatArray>, whereClause, parallelism)
-            parallelism > 1 && knnClause.column.type is LongArrayColumnType -> ParallelEntityScanLongKnnTask(entity, knnClause as KnnPredicate<LongArray>, whereClause, parallelism)
-            parallelism > 1 && knnClause.column.type is IntArrayColumnType -> ParallelEntityScanIntKnnTask(entity, knnClause as KnnPredicate<IntArray>, whereClause, parallelism)
-            parallelism <= 1 && knnClause.column.type is DoubleArrayColumnType -> LinearEntityScanDoubleKnnTask(entity, knnClause as KnnPredicate<DoubleArray>, whereClause)
-            parallelism <= 1 && knnClause.column.type is FloatArrayColumnType -> LinearEntityScanFloatKnnTask(entity, knnClause as KnnPredicate<FloatArray>, whereClause)
-            parallelism <= 1 && knnClause.column.type is LongArrayColumnType -> LinearEntityScanLongKnnTask(entity, knnClause as KnnPredicate<LongArray>, whereClause)
-            parallelism <= 1 && knnClause.column.type is IntArrayColumnType -> LinearEntityScanIntKnnTask(entity, knnClause as KnnPredicate<IntArray>, whereClause)
+            parallelism > 1 && knnClause.column.type is DoubleArrayType -> ParallelEntityScanDoubleKnnTask(entity, knnClause as KnnPredicate<DoubleArray>, whereClause, parallelism)
+            parallelism > 1 && knnClause.column.type is FloatArrayType -> ParallelEntityScanFloatKnnTask(entity, knnClause as KnnPredicate<FloatArray>, whereClause, parallelism)
+            parallelism > 1 && knnClause.column.type is LongArrayType -> ParallelEntityScanLongKnnTask(entity, knnClause as KnnPredicate<LongArray>, whereClause, parallelism)
+            parallelism > 1 && knnClause.column.type is IntArrayType -> ParallelEntityScanIntKnnTask(entity, knnClause as KnnPredicate<IntArray>, whereClause, parallelism)
+            parallelism <= 1 && knnClause.column.type is DoubleArrayType -> LinearEntityScanDoubleKnnTask(entity, knnClause as KnnPredicate<DoubleArray>, whereClause)
+            parallelism <= 1 && knnClause.column.type is FloatArrayType -> LinearEntityScanFloatKnnTask(entity, knnClause as KnnPredicate<FloatArray>, whereClause)
+            parallelism <= 1 && knnClause.column.type is LongArrayType -> LinearEntityScanLongKnnTask(entity, knnClause as KnnPredicate<LongArray>, whereClause)
+            parallelism <= 1 && knnClause.column.type is IntArrayType -> LinearEntityScanIntKnnTask(entity, knnClause as KnnPredicate<IntArray>, whereClause)
             else -> throw QueryException.QueryBindException("A column of type '${knnClause.column.type} is not supported for kNN queries.")
         }
     }

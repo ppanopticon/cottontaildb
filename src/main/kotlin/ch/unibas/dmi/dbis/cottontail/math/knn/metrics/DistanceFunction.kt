@@ -12,7 +12,7 @@ interface DistanceFunction {
     /**
      * Estimation of the number of operations required per vector component.
      */
-    val operations: Int;
+    val operations: Int
 
     /**
      * Calculates the weighted distance between two [FloatArray]s

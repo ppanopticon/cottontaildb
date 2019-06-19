@@ -1,8 +1,7 @@
 package ch.unibas.dmi.dbis.cottontail.model.exceptions
 
-import ch.unibas.dmi.dbis.cottontail.database.column.ColumnType
+import ch.unibas.dmi.dbis.cottontail.model.type.Type
 import ch.unibas.dmi.dbis.cottontail.utilities.name.Name
-import org.mapdb.DBException
 
 open class DatabaseException(message: String) : Throwable(message) {
     /**
@@ -72,7 +71,7 @@ open class DatabaseException(message: String) : Throwable(message) {
     /**
      *
      */
-    class ColumnTypeUnexpectedException(column: Name, expected: ColumnType<*>, actual: ColumnType<*>): DatabaseException("Column '$column' has wrong type (expected: ${expected.name}, actual: ${actual.name}).")
+    class ColumnTypeUnexpectedException(column: Name, expected: Type<*>, actual: Type<*>): DatabaseException("Column '$column' has wrong type (expected: ${expected.name}, actual: ${actual.name}).")
 
     /**
      * Thrown when the Cottontail DB engine expects a different type of file.

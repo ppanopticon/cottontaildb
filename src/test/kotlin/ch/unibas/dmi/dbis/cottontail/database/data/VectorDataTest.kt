@@ -2,7 +2,7 @@ package ch.unibas.dmi.dbis.cottontail.database.data
 
 import ch.unibas.dmi.dbis.cottontail.TestConstants
 import ch.unibas.dmi.dbis.cottontail.database.catalogue.Catalogue
-import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
+import ch.unibas.dmi.dbis.cottontail.database.column.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.database.general.begin
 import ch.unibas.dmi.dbis.cottontail.database.schema.Schema
 import ch.unibas.dmi.dbis.cottontail.model.recordset.StandaloneRecord

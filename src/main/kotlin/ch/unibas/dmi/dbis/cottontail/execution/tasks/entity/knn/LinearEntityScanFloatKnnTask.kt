@@ -9,8 +9,9 @@ import ch.unibas.dmi.dbis.cottontail.execution.tasks.basics.ExecutionTask
 
 import ch.unibas.dmi.dbis.cottontail.math.knn.ComparablePair
 import ch.unibas.dmi.dbis.cottontail.math.knn.HeapSelect
-import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
+import ch.unibas.dmi.dbis.cottontail.database.column.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.model.recordset.Recordset
+import ch.unibas.dmi.dbis.cottontail.model.type.TypeFactory
 import ch.unibas.dmi.dbis.cottontail.model.values.DoubleValue
 
 import com.github.dexecutor.core.task.Task
@@ -20,7 +21,7 @@ import com.github.dexecutor.core.task.Task
  * A [Task] that executes a sequential boolean kNN on a long [Column] of the specified [Entity].
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.0.1
  */
 internal class LinearEntityScanFloatKnnTask(val entity: Entity, val knn: KnnPredicate<FloatArray>, val predicate: BooleanPredicate? = null) : ExecutionTask("LinearEntityScanFloatKnnTask[${entity.fqn}][${knn.column.name}][${knn.distance::class.simpleName}][${knn.k}][q=${knn.query.hashCode()}]") {
 
@@ -28,7 +29,7 @@ internal class LinearEntityScanFloatKnnTask(val entity: Entity, val knn: KnnPred
     private val knnSet = this.knn.query.map { HeapSelect<ComparablePair<Long,Double>>(this.knn.k) }
 
     /** List of the [ColumnDef] this instance of [LinearEntityScanDoubleKnnTask] produces. */
-    private val produces: Array<ColumnDef<*>> = arrayOf(ColumnDef("${entity.fqn}.distance", ColumnType.forName("DOUBLE")))
+    private val produces: Array<ColumnDef<*>> = arrayOf(ColumnDef("${entity.fqn}.distance", TypeFactory.forName("DOUBLE")))
 
     /** The cost of this [LinearEntityScanDoubleKnnTask] is constant */
     override val cost = this.entity.statistics.columns * (this.knn.operations * 1e-5 + (this.predicate?.operations ?: 0) * 1e-5).toFloat()

@@ -7,9 +7,12 @@ import ch.unibas.dmi.dbis.cottontail.server.ServerEnum
 import ch.unibas.dmi.dbis.cottontail.server.avatica.CottontailAvaticaServer
 
 import kotlinx.serialization.json.Json
+import org.apache.calcite.schema.impl.TableFunctionImpl
+import org.apache.calcite.tools.Frameworks
 
 import java.nio.file.Files
 import java.nio.file.Paths
+import java.sql.DriverManager
 
 /**
  * Cottontail DB's main class.
@@ -58,6 +61,15 @@ internal object Cottontail {
             else -> TODO("Not implemented yet!")
         }
         server.start()
+
+        val connection = DriverManager.getConnection("jdbc:cottontail:")
+        val stmt = connection.prepareStatement("select knn(select * from features_AverageColor, 250, [1.0, 1.0, 1.0, 1.0]) from cineast.cineast_multimediaobject LIMIT 10")
+        val results = stmt.executeQuery()
+
+        while (results.next()) {
+            println(results.getString(1))
+        }
+
 
         /* Poll, while server is running. */
         while(server.isRunning) {

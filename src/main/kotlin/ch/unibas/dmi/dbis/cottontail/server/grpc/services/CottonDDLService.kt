@@ -1,12 +1,12 @@
 package ch.unibas.dmi.dbis.cottontail.server.grpc.services
 
 import ch.unibas.dmi.dbis.cottontail.database.catalogue.Catalogue
-import ch.unibas.dmi.dbis.cottontail.database.column.ColumnType
 import ch.unibas.dmi.dbis.cottontail.database.index.IndexType
 import ch.unibas.dmi.dbis.cottontail.grpc.CottonDDLGrpc
 import ch.unibas.dmi.dbis.cottontail.grpc.CottontailGrpc
-import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
+import ch.unibas.dmi.dbis.cottontail.database.column.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.DatabaseException
+import ch.unibas.dmi.dbis.cottontail.model.type.TypeFactory
 import ch.unibas.dmi.dbis.cottontail.server.grpc.helper.fqn
 import ch.unibas.dmi.dbis.cottontail.utilities.name.Name
 import ch.unibas.dmi.dbis.cottontail.utilities.name.NameType
@@ -22,7 +22,7 @@ import io.grpc.stub.StreamObserver
  * This is a GRPC service endpoint that handles DDL (=Data Definition Language) request for Cottontail DB.
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.0.1
  */
 internal class CottonDDLService (val catalogue: Catalogue): CottonDDLGrpc.CottonDDLImplBase() {
     /**
@@ -87,7 +87,7 @@ internal class CottonDDLService (val catalogue: Catalogue): CottonDDLGrpc.Cotton
         } else {
             val schema = this.catalogue.schemaForName(request.entity.schema.name)
             val columns = request.columnsList.map {
-                val type = ColumnType.forName(it.type.name)
+                val type = TypeFactory.forName(it.type.name)
                 ColumnDef(it.name, type, it.length, it.nullable)
             }
             schema.createEntity(request.entity.name, *columns.toTypedArray())

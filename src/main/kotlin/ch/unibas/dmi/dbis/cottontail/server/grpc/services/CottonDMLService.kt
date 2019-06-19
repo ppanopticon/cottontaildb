@@ -1,23 +1,22 @@
 package ch.unibas.dmi.dbis.cottontail.server.grpc.services
 
 import ch.unibas.dmi.dbis.cottontail.database.catalogue.Catalogue
-import ch.unibas.dmi.dbis.cottontail.database.column.*
 import ch.unibas.dmi.dbis.cottontail.database.entity.Entity
 import ch.unibas.dmi.dbis.cottontail.database.general.Transaction
 import ch.unibas.dmi.dbis.cottontail.database.general.begin
 import ch.unibas.dmi.dbis.cottontail.grpc.CottonDMLGrpc
 import ch.unibas.dmi.dbis.cottontail.grpc.CottontailGrpc
-import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
+import ch.unibas.dmi.dbis.cottontail.database.column.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.model.recordset.StandaloneRecord
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.DatabaseException
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.ValidationException
+import ch.unibas.dmi.dbis.cottontail.model.type.*
 import ch.unibas.dmi.dbis.cottontail.model.values.Value
 import ch.unibas.dmi.dbis.cottontail.server.grpc.helper.*
 import ch.unibas.dmi.dbis.cottontail.utilities.name.append
 import io.grpc.Status
 import io.grpc.stub.StreamObserver
 import org.slf4j.LoggerFactory
-import java.lang.IllegalStateException
 import java.util.concurrent.ConcurrentHashMap
 
 internal class CottonDMLService (val catalogue: Catalogue): CottonDMLGrpc.CottonDMLImplBase() {
@@ -191,19 +190,19 @@ internal class CottonDMLService (val catalogue: Catalogue): CottonDMLGrpc.Cotton
         null
     } else {
         when (col.type) {
-            is BooleanColumnType -> value.toBooleanValue()
-            is ByteColumnType -> value.toByteValue()
-            is ShortColumnType -> value.toShortValue()
-            is IntColumnType -> value.toIntValue()
-            is LongColumnType -> value.toLongValue()
-            is FloatColumnType -> value.toFloatValue()
-            is DoubleColumnType -> value.toDoubleValue()
-            is StringColumnType -> value.toStringValue()
-            is IntArrayColumnType -> value.toIntVectorValue()
-            is LongArrayColumnType -> value.toLongVectorValue()
-            is FloatArrayColumnType -> value.toFloatVectorValue()
-            is DoubleArrayColumnType -> value.toDoubleVectorValue()
-            is BooleanArrayColumnType -> value.toBooleanVectorValue()
+            is BooleanType -> value.toBooleanValue()
+            is ByteType -> value.toByteValue()
+            is ShortType -> value.toShortValue()
+            is IntType -> value.toIntValue()
+            is LongType -> value.toLongValue()
+            is FloatType -> value.toFloatValue()
+            is DoubleType -> value.toDoubleValue()
+            is StringType -> value.toStringValue()
+            is IntArrayType -> value.toIntVectorValue()
+            is LongArrayType -> value.toLongVectorValue()
+            is FloatArrayType -> value.toFloatVectorValue()
+            is DoubleArrayType -> value.toDoubleVectorValue()
+            is BooleanArrayType -> value.toBooleanVectorValue()
         }
     }
 }

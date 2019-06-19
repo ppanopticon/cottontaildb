@@ -1,6 +1,6 @@
 package ch.unibas.dmi.dbis.cottontail.model.exceptions
 
-import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
+import ch.unibas.dmi.dbis.cottontail.database.column.ColumnDef
 import org.mapdb.DBException
 import java.util.*
 

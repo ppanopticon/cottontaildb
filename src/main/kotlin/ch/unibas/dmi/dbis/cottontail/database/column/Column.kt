@@ -2,12 +2,15 @@ package ch.unibas.dmi.dbis.cottontail.database.column
 
 import ch.unibas.dmi.dbis.cottontail.database.column.mapdb.MapDBColumn
 import ch.unibas.dmi.dbis.cottontail.database.general.DBO
-import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
+import ch.unibas.dmi.dbis.cottontail.model.type.Type
 
 import java.util.*
 
 /**
+ * Methods exposed by a Cottontail DB [Column] regardless of how the underlying data is being stored.
  *
+ * @author Ralph Gasser
+ * @version 1.0
  */
 internal interface Column<T: Any> : DBO {
     /**
@@ -18,11 +21,11 @@ internal interface Column<T: Any> : DBO {
     val columnDef: ColumnDef<T>
 
     /**
-     * This [Column]'s type.
+     * This [Column]'s [Type], which is given by its [ColumnDef].
      *
-     * @return The [ColumnType] of this [Column].
+     * @return The [Type] of this [Column].
      */
-    val type: ColumnType<T>
+    val type: Type<T>
         get() = this.columnDef.type
 
     /**
@@ -42,8 +45,6 @@ internal interface Column<T: Any> : DBO {
      */
     val nullable: Boolean
         get() = this.columnDef.nullable
-
-
 
     /**
      * Creates a new [ColumnTransaction] and returns it.

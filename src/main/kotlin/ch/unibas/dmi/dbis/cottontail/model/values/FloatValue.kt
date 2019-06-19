@@ -1,6 +1,12 @@
 package ch.unibas.dmi.dbis.cottontail.model.values
 
+import ch.unibas.dmi.dbis.cottontail.model.type.Type
+import ch.unibas.dmi.dbis.cottontail.model.type.FloatType
+
 inline class FloatValue(override val value: Float) : Value<Float> {
+    override val type: Type<Float>
+        get() = FloatType
+
     override val numeric: Boolean
         get() = true
 

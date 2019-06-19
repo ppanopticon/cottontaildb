@@ -1,11 +1,9 @@
 package ch.unibas.dmi.dbis.cottontail.database.column.mapdb
 
 import ch.unibas.dmi.dbis.cottontail.database.column.*
-import ch.unibas.dmi.dbis.cottontail.database.general.DBO
 import ch.unibas.dmi.dbis.cottontail.database.general.Transaction
 import ch.unibas.dmi.dbis.cottontail.database.general.TransactionStatus
 import ch.unibas.dmi.dbis.cottontail.database.entity.Entity
-import ch.unibas.dmi.dbis.cottontail.database.queries.AtomicBooleanPredicate
 import ch.unibas.dmi.dbis.cottontail.database.queries.BooleanPredicate
 import ch.unibas.dmi.dbis.cottontail.database.queries.Predicate
 import ch.unibas.dmi.dbis.cottontail.model.basics.*
@@ -13,6 +11,7 @@ import ch.unibas.dmi.dbis.cottontail.model.exceptions.DatabaseException
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.QueryException
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.TransactionException
 import ch.unibas.dmi.dbis.cottontail.model.recordset.Recordset
+import ch.unibas.dmi.dbis.cottontail.model.type.Type
 import ch.unibas.dmi.dbis.cottontail.model.values.Value
 import ch.unibas.dmi.dbis.cottontail.utilities.name.Name
 import kotlinx.coroutines.*
@@ -61,7 +60,7 @@ internal class MapDBColumn<T : Any>(override val name: Name, override val parent
      */
     @Suppress("UNCHECKED_CAST")
     override val columnDef: ColumnDef<T>
-        get() = this.header.let { ColumnDef(this.fqn, it.type as ColumnType<T>, it.size, it.nullable) }
+        get() = this.header.let { ColumnDef(this.fqn, it.type as Type<T>, it.size, it.nullable) }
 
     /**
      * Status indicating whether this [MapDBColumn] is open or closed.

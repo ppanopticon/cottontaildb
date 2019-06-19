@@ -1,6 +1,7 @@
 package ch.unibas.dmi.dbis.cottontail.database.entity
 
 import ch.unibas.dmi.dbis.cottontail.database.column.Column
+import ch.unibas.dmi.dbis.cottontail.database.column.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.database.general.DBO
 import ch.unibas.dmi.dbis.cottontail.database.general.TransactionStatus
 import ch.unibas.dmi.dbis.cottontail.database.column.ColumnTransaction
@@ -296,9 +297,9 @@ internal class Entity(override val name: String, schema: Schema) : DBO {
     inner class Tx(override val readonly: Boolean, override val tid: UUID = UUID.randomUUID(), columns: Array<ColumnDef<*>>? = null, ommitIndex: Boolean = false) : EntityTransaction {
         /** List of [ColumnTransaction]s associated with this [Entity.Tx]. */
         private val columns: Map<ColumnDef<*>, ColumnTransaction<*>> = if (columns != null && this.readonly) {
-            this@Entity.columns.filter{columns.contains(it.columnDef)}.associateBy({ColumnDef(it.fqn, it.type, it.size)}, {it.newTransaction(readonly, tid)})
+            this@Entity.columns.filter{columns.contains(it.columnDef)}.associateBy({ ColumnDef(it.fqn, it.type, it.size) }, {it.newTransaction(readonly, tid)})
         } else {
-            this@Entity.columns.associateBy({ColumnDef(it.fqn, it.type, it.size)}, {it.newTransaction(readonly, tid)})
+            this@Entity.columns.associateBy({ ColumnDef(it.fqn, it.type, it.size) }, {it.newTransaction(readonly, tid)})
         }
 
         /** List of [IndexTransaction] associated with this [Entity.Tx]. */

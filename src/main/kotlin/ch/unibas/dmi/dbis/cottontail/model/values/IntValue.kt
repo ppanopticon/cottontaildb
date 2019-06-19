@@ -1,6 +1,12 @@
 package ch.unibas.dmi.dbis.cottontail.model.values
 
+import ch.unibas.dmi.dbis.cottontail.model.type.Type
+import ch.unibas.dmi.dbis.cottontail.model.type.IntType
+
 inline class IntValue(override val value: Int) : Value<Int> {
+    override val type: Type<Int>
+        get() = IntType
+
     override val numeric: Boolean
         get() = true
 

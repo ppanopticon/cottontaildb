@@ -1,5 +1,6 @@
 package ch.unibas.dmi.dbis.cottontail.model.basics
 
+import ch.unibas.dmi.dbis.cottontail.database.column.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.model.values.Value
 import java.lang.IllegalArgumentException
 

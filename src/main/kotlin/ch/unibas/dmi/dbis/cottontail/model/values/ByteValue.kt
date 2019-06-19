@@ -1,6 +1,12 @@
 package ch.unibas.dmi.dbis.cottontail.model.values
 
+import ch.unibas.dmi.dbis.cottontail.model.type.ByteType
+import ch.unibas.dmi.dbis.cottontail.model.type.Type
+
 inline class ByteValue(override val value: Byte) : Value<Byte> {
+    override val type: Type<Byte>
+        get() = ByteType
+
     override val numeric: Boolean
         get() = true
 

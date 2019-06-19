@@ -1,6 +1,12 @@
 package ch.unibas.dmi.dbis.cottontail.model.values
 
+import ch.unibas.dmi.dbis.cottontail.model.type.Type
+import ch.unibas.dmi.dbis.cottontail.model.type.DoubleType
+
 inline class DoubleValue(override val value: Double) : Value<Double> {
+    override val type: Type<Double>
+        get() = DoubleType
+
     override val numeric: Boolean
         get() = true
 

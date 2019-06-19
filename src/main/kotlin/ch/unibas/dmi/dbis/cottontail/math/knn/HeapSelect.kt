@@ -1,5 +1,8 @@
 package ch.unibas.dmi.dbis.cottontail.math.knn
 
+import java.util.*
+import kotlin.collections.ArrayList
+
 /**
  * A [HeapSelect] implementation inspired by the Smile library (@see https://github.com/haifengl/smile)
  *
@@ -25,6 +28,7 @@ class HeapSelect<T: Comparable<T>> (val k: Int) {
     /** The array list containing the heap for this [HeapSelect]. */
     private val heap = ArrayList<T>(k)
 
+
     /**
      * Adds a new element to this [HeapSelect].
      *
@@ -43,7 +47,7 @@ class HeapSelect<T: Comparable<T>> (val k: Int) {
             this.added += 1
             if (data < this.heap[0]) {
                 this.heap[0] = data
-                siftDown(0, this.k-1);
+                siftDown(0, this.k-1)
             }
         }
     }
@@ -80,6 +84,14 @@ class HeapSelect<T: Comparable<T>> (val k: Int) {
         return this.heap[this.k - 1 - i]
     }
 
+    /**
+     * Returns an unmodifiable version of the heap. The list returned by this function is backed by the heap and changes
+     * to the heap will cause the list to change.
+     *
+     * @return Unmodifiable version of the heap.
+     */
+    @Synchronized
+    fun heap(): List<T> = Collections.unmodifiableList(this.heap)
 
     /**
      * Sorts the heap so that the smallest values move to the top of the [HeapSelect].

@@ -1,6 +1,12 @@
 package ch.unibas.dmi.dbis.cottontail.model.values
 
+import ch.unibas.dmi.dbis.cottontail.model.type.Type
+import ch.unibas.dmi.dbis.cottontail.model.type.ShortType
+
 inline class ShortValue(override val value: Short) : Value<Short> {
+    override val type: Type<Short>
+        get() = ShortType
+
     override val numeric: Boolean
         get() = true
 

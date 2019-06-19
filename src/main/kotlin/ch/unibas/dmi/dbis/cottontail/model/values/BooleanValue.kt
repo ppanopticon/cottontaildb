@@ -1,6 +1,12 @@
 package ch.unibas.dmi.dbis.cottontail.model.values
 
+import ch.unibas.dmi.dbis.cottontail.model.type.BooleanType
+import ch.unibas.dmi.dbis.cottontail.model.type.Type
+
 inline class BooleanValue(override val value: Boolean) : Value<Boolean> {
+    override val type: Type<Boolean>
+        get() = BooleanType
+
     override val numeric: Boolean
         get() = true
 

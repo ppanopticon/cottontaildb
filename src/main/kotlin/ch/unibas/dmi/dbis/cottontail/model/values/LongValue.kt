@@ -1,6 +1,12 @@
 package ch.unibas.dmi.dbis.cottontail.model.values
 
+import ch.unibas.dmi.dbis.cottontail.model.type.Type
+import ch.unibas.dmi.dbis.cottontail.model.type.LongType
+
 inline class LongValue(override val value: Long) : Value<Long> {
+    override val type: Type<Long>
+        get() = LongType
+
     override val numeric: Boolean
         get() = true
 

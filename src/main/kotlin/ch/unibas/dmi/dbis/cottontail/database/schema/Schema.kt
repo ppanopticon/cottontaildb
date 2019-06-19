@@ -3,7 +3,7 @@ package ch.unibas.dmi.dbis.cottontail.database.schema
 import ch.unibas.dmi.dbis.cottontail.database.catalogue.Catalogue
 import ch.unibas.dmi.dbis.cottontail.database.column.mapdb.MapDBColumn
 import ch.unibas.dmi.dbis.cottontail.database.general.DBO
-import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
+import ch.unibas.dmi.dbis.cottontail.database.column.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.database.entity.Entity
 import ch.unibas.dmi.dbis.cottontail.database.entity.EntityHeader
 import ch.unibas.dmi.dbis.cottontail.database.entity.EntityHeaderSerializer

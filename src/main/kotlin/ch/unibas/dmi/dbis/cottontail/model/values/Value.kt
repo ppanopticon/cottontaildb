@@ -1,16 +1,21 @@
 package ch.unibas.dmi.dbis.cottontail.model.values
 
+import ch.unibas.dmi.dbis.cottontail.model.type.Type
+
 
 /**
- * This is an abstraction over the existing primitive types provided by Kotlin. It allows for the advanced  type system implemented by Cottontail DB.
+ * This is an abstraction over the existing primitive types provided by Kotlin. It allows for the advanced type system implemented by Cottontail DB.
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.1
  */
-interface Value<T> {
+interface Value<T : Any> {
 
     /** Actual value of this [Value]. */
     val value: T
+
+    /** The [Type] of the [Value]. */
+    val type: Type<T>
 
     /** Size of this [Value]. -1 for all types except for vector types. */
     val size

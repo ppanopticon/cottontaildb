@@ -20,11 +20,11 @@ import kotlin.reflect.full.safeCast
  */
 sealed class Type<T : Any> {
     abstract val name : String
-    abstract val type: KClass<out Value<T>>
+    abstract val kotlinType: KClass<out Value<T>>
     abstract val numeric: Boolean
 
-    fun cast(value: Value<*>?) : Value<T>? = this.type.safeCast(value)
-    fun compatible(value: Value<*>) = this.type.isInstance(value)
+    fun cast(value: Value<*>?) : Value<T>? = this.kotlinType.safeCast(value)
+    fun compatible(value: Value<*>) = this.kotlinType.isInstance(value)
 
     /**
      * Returns a [Serializer] for this [Type]. Some [Type] require a size attribute
@@ -53,7 +53,7 @@ sealed class Type<T : Any> {
 object BooleanType : Type<Boolean>() {
     override val name = "BOOLEAN"
     override val numeric = true
-    override val type: KClass<BooleanValue> = BooleanValue::class
+    override val kotlinType: KClass<BooleanValue> = BooleanValue::class
     override fun serializer(size: Int): Serializer<Value<Boolean>> = BooleanValueSerializer as Serializer<Value<Boolean>>
 }
 
@@ -61,7 +61,7 @@ object BooleanType : Type<Boolean>() {
 object ByteType : Type<Byte>() {
     override val name = "BYTE"
     override val numeric = true
-    override val type: KClass<ByteValue> = ByteValue::class
+    override val kotlinType: KClass<ByteValue> = ByteValue::class
     override fun serializer(size: Int): Serializer<Value<Byte>> = ByteValueSerializer as Serializer<Value<Byte>>
 }
 
@@ -69,7 +69,7 @@ object ByteType : Type<Byte>() {
 object ShortType : Type<Short>() {
     override val name = "SHORT"
     override val numeric = true
-    override val type: KClass<ShortValue> = ShortValue::class
+    override val kotlinType: KClass<ShortValue> = ShortValue::class
     override fun serializer(size: Int): Serializer<Value<Short>> = ShortValueSerializer  as Serializer<Value<Short>>
 }
 
@@ -77,7 +77,7 @@ object ShortType : Type<Short>() {
 object IntType : Type<Int>() {
     override val name = "INTEGER"
     override val numeric = true
-    override val type: KClass<IntValue> = IntValue::class
+    override val kotlinType: KClass<IntValue> = IntValue::class
     override fun serializer(size: Int): Serializer<Value<Int>> = IntValueSerializer  as Serializer<Value<Int>>
 }
 
@@ -85,7 +85,7 @@ object IntType : Type<Int>() {
 object LongType : Type<Long>() {
     override val name = "LONG"
     override val numeric = true
-    override val type: KClass<LongValue> = LongValue::class
+    override val kotlinType: KClass<LongValue> = LongValue::class
     override fun serializer(size: Int): Serializer<Value<Long>> = LongValueSerializer  as Serializer<Value<Long>>
 }
 
@@ -93,7 +93,7 @@ object LongType : Type<Long>() {
 object FloatType : Type<Float>() {
     override val name = "FLOAT"
     override val numeric = true
-    override val type: KClass<FloatValue> = FloatValue::class
+    override val kotlinType: KClass<FloatValue> = FloatValue::class
     override fun serializer(size: Int): Serializer<Value<Float>> = FloatValueSerializer  as Serializer<Value<Float>>
 }
 
@@ -101,7 +101,7 @@ object FloatType : Type<Float>() {
 object DoubleType : Type<Double>() {
     override val name = "DOUBLE"
     override val numeric = true
-    override val type: KClass<DoubleValue> = DoubleValue::class
+    override val kotlinType: KClass<DoubleValue> = DoubleValue::class
     override fun serializer(size: Int): Serializer<Value<Double>> = DoubleValueSerializer as Serializer<Value<Double>>
 }
 
@@ -109,7 +109,7 @@ object DoubleType : Type<Double>() {
 object StringType : Type<String>() {
     override val name = "STRING"
     override val numeric = false
-    override val type: KClass<StringValue> = StringValue::class
+    override val kotlinType: KClass<StringValue> = StringValue::class
     override fun serializer(size: Int): Serializer<Value<String>> = StringValueSerializer as Serializer<Value<String>>
 }
 
@@ -117,7 +117,7 @@ object StringType : Type<String>() {
 object IntArrayType : Type<IntArray>() {
     override val name = "INT_VEC"
     override val numeric = false
-    override val type: KClass<IntArrayValue> = IntArrayValue::class
+    override val kotlinType: KClass<IntArrayValue> = IntArrayValue::class
     override fun serializer(size: Int): Serializer<Value<IntArray>> {
         if (size <= 0) throw IllegalArgumentException("Size attribute for a $name type must be > 0 (is $size).")
         return FixedIntArraySerializer(size) as Serializer<Value<IntArray>>
@@ -128,7 +128,7 @@ object IntArrayType : Type<IntArray>() {
 object LongArrayType : Type<LongArray>() {
     override val name = "LONG_VEC"
     override val numeric = false
-    override val type: KClass<LongArrayValue> = LongArrayValue::class
+    override val kotlinType: KClass<LongArrayValue> = LongArrayValue::class
     override fun serializer(size: Int): Serializer<Value<LongArray>> {
         if (size <= 0) throw IllegalArgumentException("Size attribute for a $name type must be > 0 (is $size).")
         return FixedLongArraySerializer(size) as Serializer<Value<LongArray>>
@@ -139,7 +139,7 @@ object LongArrayType : Type<LongArray>() {
 object FloatArrayType : Type<FloatArray>() {
     override val name = "FLOAT_VEC"
     override val numeric = false
-    override val type: KClass<FloatArrayValue> = FloatArrayValue::class
+    override val kotlinType: KClass<FloatArrayValue> = FloatArrayValue::class
     override fun serializer(size: Int): Serializer<Value<FloatArray>> {
         if (size <= 0) throw IllegalArgumentException("Size attribute for a $name type must be > 0 (is $size).")
         return FixedFloatVectorSerializer(size) as Serializer<Value<FloatArray>>
@@ -150,7 +150,7 @@ object FloatArrayType : Type<FloatArray>() {
 object DoubleArrayType : Type<DoubleArray>() {
     override val name = "DOUBLE_VEC"
     override val numeric = false
-    override val type: KClass<DoubleArrayValue> = DoubleArrayValue::class
+    override val kotlinType: KClass<DoubleArrayValue> = DoubleArrayValue::class
     override fun serializer(size: Int): Serializer<Value<DoubleArray>> {
         if (size <= 0) throw IllegalArgumentException("Size attribute for a $name type must be > 0 (is $size).")
         return FixedDoubleVectorSerializer(size) as Serializer<Value<DoubleArray>>
@@ -161,7 +161,7 @@ object DoubleArrayType : Type<DoubleArray>() {
 object BooleanArrayType : Type<BooleanArray>() {
     override val name = "BOOLEAN_VEC"
     override val numeric = false
-    override val type: KClass<BooleanArrayValue> = BooleanArrayValue::class
+    override val kotlinType: KClass<BooleanArrayValue> = BooleanArrayValue::class
     override fun serializer(size: Int): Serializer<Value<BooleanArray>> {
         if (size <= 0) throw IllegalArgumentException("Size attribute for a $name type must be > 0 (is $size).")
         return FixedBooleanVectorSerializer(size) as Serializer<Value<BooleanArray>>

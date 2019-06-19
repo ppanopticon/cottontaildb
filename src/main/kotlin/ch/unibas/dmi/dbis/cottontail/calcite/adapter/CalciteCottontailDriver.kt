@@ -1,13 +1,13 @@
 package ch.unibas.dmi.dbis.cottontail.calcite.adapter
 
-import ch.unibas.dmi.dbis.cottontail.Cottontail
 import org.apache.calcite.avatica.util.Casing
 import org.apache.calcite.config.CalciteConnectionProperty
-import org.apache.calcite.config.Lex
+
 import java.sql.SQLException
+
 import org.apache.calcite.jdbc.CalciteConnection
 import org.apache.calcite.jdbc.Driver
-import org.apache.calcite.sql.parser.impl.SqlParserImplConstants.DOUBLE_QUOTE
+
 import java.sql.Connection
 import java.util.*
 

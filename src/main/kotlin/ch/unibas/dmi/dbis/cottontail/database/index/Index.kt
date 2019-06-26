@@ -28,7 +28,7 @@ import java.util.concurrent.locks.StampedLock
  * @see Entity.Tx
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.1
  */
 internal abstract class Index : DBO {
 

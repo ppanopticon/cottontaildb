@@ -49,7 +49,7 @@ import java.util.stream.Collectors
  * @see Entity.Tx
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.1
  */
 internal class Entity(override val name: String, schema: Schema) : DBO {
     /** The [Path] to the [Entity]'s main folder. */

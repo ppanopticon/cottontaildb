@@ -34,7 +34,7 @@ import kotlin.collections.ArrayList
  * @param <T> Type of the value held by this [MapDBColumn].
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.1
  */
 internal class MapDBColumn<T : Any>(override val name: Name, override val parent: Entity) : Column<T> {
     /** The [Path] to the [Entity]'s main folder. */

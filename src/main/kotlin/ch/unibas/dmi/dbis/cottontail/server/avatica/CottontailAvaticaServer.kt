@@ -11,9 +11,13 @@ import org.apache.calcite.avatica.server.HttpServer
 import org.apache.log4j.LogManager
 import org.apache.log4j.Logger
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.system.exitProcess
 
 /**
+ * Implementation of Cottontail DB's Apache Avatica Server.
  *
+ * @version 1.0
+ * @author Ralph Gasser
  */
 class CottontailAvaticaServer(val config: ServerConfig) : Server {
 
@@ -38,7 +42,7 @@ class CottontailAvaticaServer(val config: ServerConfig) : Server {
      * Returns true if this [CottontailAvaticaServer] is currently running, and false otherwise.
      */
     override val isRunning: Boolean
-        get() = !this.running.get()
+        get() = this.running.get()
 
     /**
      * Starts this instance of [CottontailAvaticaServer].
@@ -48,11 +52,11 @@ class CottontailAvaticaServer(val config: ServerConfig) : Server {
             if (!this.running.get()) {
                 this.server.start()
                 this.running.set(true)
-                LOGGER.info("Cottontail DB Avatica server is up and running at port ${this.config.port} ! Hop along...")
+                LOGGER.info("Cottontail DB Avatica server is up and running at port ${this.config.port}! Hop along...")
             }
         } catch (e: Exception) {
             LOGGER.info("Cottontail DB Avatica server could not be started due to an exception: ${e.message}.")
-            System.exit(2)
+            exitProcess(2)
         }
     }
 
@@ -63,6 +67,6 @@ class CottontailAvaticaServer(val config: ServerConfig) : Server {
         this.server.stop()
         this.running.set(false)
         CottontailGrpcServer.LOGGER.info("Cottontail DB was shut down. Have a binky day!")
-        System.exit(0)
+        exitProcess(0)
     }
 }

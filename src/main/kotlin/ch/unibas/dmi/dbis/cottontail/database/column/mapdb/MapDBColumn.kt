@@ -14,17 +14,16 @@ import ch.unibas.dmi.dbis.cottontail.model.recordset.Recordset
 import ch.unibas.dmi.dbis.cottontail.model.type.Type
 import ch.unibas.dmi.dbis.cottontail.model.values.Value
 import ch.unibas.dmi.dbis.cottontail.utilities.name.Name
+import ch.unibas.dmi.dbis.cottontail.utilities.write
 import kotlinx.coroutines.*
 import org.mapdb.*
 import org.mapdb.volume.MappedFileVol
 
 import java.nio.file.Path
 import java.util.*
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantReadWriteLock
+import java.util.concurrent.locks.StampedLock
 import kotlin.collections.ArrayList
-import kotlin.concurrent.read
-import kotlin.concurrent.write
 
 /**
  * Represents a single column in the Cottontail DB model. A [MapDBColumn] record is identified by a tuple ID (long)
@@ -69,11 +68,11 @@ internal class MapDBColumn<T : Any>(override val name: Name, override val parent
     override var closed: Boolean = false
         private set
 
-    /** A internal lock that is used to synchronize [MapDBColumn.Tx]s affecting this [MapDBColumn]. */
-    private val txLock = ReentrantReadWriteLock()
+    /** An internal lock that is used to synchronize concurrent read & write access to this [MapDBColumn] by different [MapDBColumn.Tx]. */
+    private val txLock = StampedLock()
 
-    /** A internal lock that is used to synchronize closing of an [MapDBColumn] with running [MapDBColumn.Tx]. */
-    private val globalLock = ReentrantReadWriteLock()
+    /** An internal lock that is used to synchronize structural changes to an [MapDBColumn] (e.g. closing or deleting) with running [MapDBColumn.Tx]. */
+    private val globalLock = StampedLock()
 
     /**
      * Closes the [MapDBColumn]. Closing an [MapDBColumn] is a delicate matter since ongoing [MapDBColumn.Tx]  are involved.
@@ -141,7 +140,16 @@ internal class MapDBColumn<T : Any>(override val name: Name, override val parent
             if (this@MapDBColumn.closed) {
                 throw TransactionException.TransactionDBOClosedException(tid)
             }
-            this@MapDBColumn.globalLock.readLock().lock()
+        }
+
+        /** Obtains a global (non-exclusive) read-lock on [MapDBColumn]. Prevents enclosing [MapDBColumn] from being closed while this [MapDBColumn.Tx] is still in use. */
+        private val globalStamp = this@MapDBColumn.globalLock.readLock()
+
+        /** Obtains transaction lock on [MapDBColumn]. Prevents concurrent read & write access to the enclosing [MapDBColumn]. */
+        private val txStamp = if (this.readonly) {
+            this@MapDBColumn.txLock.readLock()
+        } else {
+            this@MapDBColumn.txLock.writeLock()
         }
 
         /**
@@ -152,7 +160,6 @@ internal class MapDBColumn<T : Any>(override val name: Name, override val parent
             if (this.status == TransactionStatus.DIRTY) {
                 this@MapDBColumn.store.commit()
                 this.status = TransactionStatus.CLEAN
-                this@MapDBColumn.txLock.writeLock().unlock()
             }
         }
 
@@ -165,7 +172,6 @@ internal class MapDBColumn<T : Any>(override val name: Name, override val parent
             if (this.status == TransactionStatus.DIRTY || this.status == TransactionStatus.ERROR) {
                 this@MapDBColumn.store.rollback()
                 this.status = TransactionStatus.CLEAN
-                this@MapDBColumn.txLock.writeLock().unlock()
             }
         }
 
@@ -179,7 +185,8 @@ internal class MapDBColumn<T : Any>(override val name: Name, override val parent
                     this.rollback()
                 }
                 this.status = TransactionStatus.CLOSED
-                this@MapDBColumn.globalLock.readLock().unlock()
+                this@MapDBColumn.txLock.unlock(this.txStamp)
+                this@MapDBColumn.globalLock.unlockRead(this.globalStamp)
             }
         }
 
@@ -191,7 +198,7 @@ internal class MapDBColumn<T : Any>(override val name: Name, override val parent
          *
          * @throws DatabaseException If the tuple with the desired ID doesn't exist OR is invalid.
          */
-        override fun read(tupleId: Long): Value<T>? = this@MapDBColumn.txLock.read {
+        override fun read(tupleId: Long): Value<T>? {
             checkValidOrThrow()
             checkValidTupleId(tupleId)
             return this@MapDBColumn.store.get(tupleId, this.serializer)
@@ -205,9 +212,9 @@ internal class MapDBColumn<T : Any>(override val name: Name, override val parent
          *
          * @throws DatabaseException If the tuple with the desired ID doesn't exist OR is invalid.
          */
-        override fun readAll(tupleIds: Collection<Long>): Collection<Value<T>?> = this@MapDBColumn.txLock.read {
+        override fun readAll(tupleIds: Collection<Long>): Collection<Value<T>?> {
             checkValidOrThrow()
-            tupleIds.map {
+            return tupleIds.map {
                 checkValidTupleId(it)
                 this@MapDBColumn.store.get(it, this.serializer)
             }
@@ -218,7 +225,7 @@ internal class MapDBColumn<T : Any>(override val name: Name, override val parent
          *
          * @return The number of entries in this [MapDBColumn].
          */
-        override fun count(): Long = this@MapDBColumn.txLock.read {
+        override fun count(): Long {
             checkValidOrThrow()
             return this@MapDBColumn.header.count
         }
@@ -242,7 +249,7 @@ internal class MapDBColumn<T : Any>(override val name: Name, override val parent
          *
          * @param action The function that should be applied.
          */
-        override fun forEach(action: (Record) -> Unit) = this@MapDBColumn.txLock.read {
+        override fun forEach(action: (Record) -> Unit) {
             checkValidOrThrow()
             val recordIds = this@MapDBColumn.store.getAllRecids()
             if (recordIds.next() != HEADER_RECORD_ID) {
@@ -260,7 +267,7 @@ internal class MapDBColumn<T : Any>(override val name: Name, override val parent
          * @param action The mapping function that should be applied.
          * @return A collection of Pairs mapping the tupleId to the generated value.
          */
-        override fun <R> map(action: (Record) -> R): Collection<R> = this@MapDBColumn.txLock.read {
+        override fun <R> map(action: (Record) -> R): Collection<R> {
             checkValidOrThrow()
             val list = mutableListOf<R>()
             this@MapDBColumn.store.getAllRecids().forEach {
@@ -286,7 +293,7 @@ internal class MapDBColumn<T : Any>(override val name: Name, override val parent
          * @param predicate The tasks that should be applied.
          * @return A filtered [Recordset] of [Record]s that passed the test.
          */
-        override fun filter(predicate: Predicate): Recordset = this@MapDBColumn.txLock.read {
+        override fun filter(predicate: Predicate): Recordset {
             if (predicate is BooleanPredicate) {
                 checkValidOrThrow()
                 val recordset = Recordset(arrayOf(this@MapDBColumn.columnDef))
@@ -313,7 +320,7 @@ internal class MapDBColumn<T : Any>(override val name: Name, override val parent
          *
          * @throws QueryException.UnsupportedPredicateException If predicate is not a [BooleanPredicate].
          */
-        override fun forEach(predicate: Predicate, action: (Record) -> Unit) = this@MapDBColumn.txLock.read {
+        override fun forEach(predicate: Predicate, action: (Record) -> Unit) {
             if (predicate is BooleanPredicate) {
                 checkValidOrThrow()
                 val recordIds = this@MapDBColumn.store.getAllRecids()
@@ -366,7 +373,7 @@ internal class MapDBColumn<T : Any>(override val name: Name, override val parent
          * @param parallelism The desired amount of parallelism (i.e. the number of co-routines to spawn).
          * @param action The function that should be applied.*
          */
-        override fun forEach(parallelism: Short, action: (Record) -> Unit) = this@MapDBColumn.txLock.read {
+        override fun forEach(parallelism: Short, action: (Record) -> Unit) {
             runBlocking {
                 checkValidOrThrow()
                 val list = ArrayList<Long>(this@Tx.count().toInt())
@@ -398,8 +405,8 @@ internal class MapDBColumn<T : Any>(override val name: Name, override val parent
          *
          * @return List of results
          */
-        override fun <R> map(parallelism: Short, action: (Record) -> R): Collection<R> = this@MapDBColumn.txLock.read {
-            runBlocking {
+        override fun <R> map(parallelism: Short, action: (Record) -> R): Collection<R> {
+            return runBlocking {
                 checkValidOrThrow()
                 val list = ArrayList<Long>(this@Tx.count().toInt())
                 /** TODO: only works if column contains at most MAX_INT entries */
@@ -433,7 +440,7 @@ internal class MapDBColumn<T : Any>(override val name: Name, override val parent
          *
          * @throws QueryException.UnsupportedPredicateException If predicate is not supported by data structure.
          */
-        override fun forEach(parallelism: Short, predicate: Predicate, action: (Record) -> Unit) = this@MapDBColumn.txLock.read {
+        override fun forEach(parallelism: Short, predicate: Predicate, action: (Record) -> Unit) {
             if (predicate is BooleanPredicate) {
                 runBlocking {
                     checkValidOrThrow()
@@ -469,9 +476,9 @@ internal class MapDBColumn<T : Any>(override val name: Name, override val parent
          * @param action The function to apply to each [MapDBColumn] entry.
          * @return Collection of results.
          */
-        override fun <R> map(parallelism: Short, predicate: Predicate, action: (Record) -> R): Collection<R> = this@MapDBColumn.txLock.read {
+        override fun <R> map(parallelism: Short, predicate: Predicate, action: (Record) -> R): Collection<R> {
             if (predicate is BooleanPredicate) {
-                runBlocking {
+                return runBlocking {
                     checkValidOrThrow()
                     val list = ArrayList<Long>(this@Tx.count().toInt())
                     /** TODO: only works if column contains at most MAX_INT entries */
@@ -508,9 +515,9 @@ internal class MapDBColumn<T : Any>(override val name: Name, override val parent
          * @param predicate The tasks that should be applied.
          * @return A filtered collection [MapDBColumn] values that passed the test.
          */
-        override fun filter(parallelism: Short, predicate: Predicate): Recordset = this@MapDBColumn.txLock.read {
+        override fun filter(parallelism: Short, predicate: Predicate): Recordset {
             if (predicate is BooleanPredicate) {
-                runBlocking {
+                return runBlocking {
                     checkValidOrThrow()
                     val list = ArrayList<Long>(this@Tx.count().toInt())
                     val recordset = Recordset(arrayOf(this@MapDBColumn.columnDef))
@@ -548,7 +555,7 @@ internal class MapDBColumn<T : Any>(override val name: Name, override val parent
          * @return The tupleId of the inserted record OR the allocated space in case of a null value.
          */
         override fun insert(record: Value<T>?): Long = try {
-            acquireWriteLock()
+            prepareWriteOperation()
             val tupleId = if (record == null) {
                 this@MapDBColumn.store.preallocate()
             } else {
@@ -574,7 +581,7 @@ internal class MapDBColumn<T : Any>(override val name: Name, override val parent
          * @return The tupleId of the inserted record OR the allocated space in case of a null value.
          */
         override fun insertAll(records: Collection<Value<T>?>): Collection<Long> = try {
-            acquireWriteLock()
+            prepareWriteOperation()
 
 
             val tupleIds = records.map {
@@ -604,7 +611,7 @@ internal class MapDBColumn<T : Any>(override val name: Name, override val parent
          * @param value The new value.
          */
         override fun update(tupleId: Long, value: Value<T>?) = try {
-            acquireWriteLock()
+            prepareWriteOperation()
             checkValidTupleId(tupleId)
             this@MapDBColumn.store.update(tupleId, value, this.serializer)
         } catch (e: DBException) {
@@ -621,7 +628,7 @@ internal class MapDBColumn<T : Any>(override val name: Name, override val parent
          * @param expected The value expected to be there.
          */
         override fun compareAndUpdate(tupleId: Long, value: Value<T>?, expected: Value<T>?): Boolean = try {
-            acquireWriteLock()
+            prepareWriteOperation()
             checkValidTupleId(tupleId)
             this@MapDBColumn.store.compareAndSwap(tupleId, expected, value, this.serializer)
         } catch (e: DBException) {
@@ -636,7 +643,7 @@ internal class MapDBColumn<T : Any>(override val name: Name, override val parent
          * @param tupleId The ID of the record that should be deleted
          */
         override fun delete(tupleId: Long) = try {
-            acquireWriteLock()
+            prepareWriteOperation()
             checkValidTupleId(tupleId)
             this@MapDBColumn.store.delete(tupleId, this.serializer)
 
@@ -657,7 +664,7 @@ internal class MapDBColumn<T : Any>(override val name: Name, override val parent
          * @param tupleIds The IDs of the records that should be deleted.
          */
         override fun deleteAll(tupleIds: Collection<Long>) = try {
-            acquireWriteLock()
+            prepareWriteOperation()
             tupleIds.forEach {
                 checkValidTupleId(it)
                 this@MapDBColumn.store.delete(it, this.serializer)
@@ -695,16 +702,12 @@ internal class MapDBColumn<T : Any>(override val name: Name, override val parent
          * Tries to acquire a write-lock. If method fails, an exception will be thrown
          */
         @Synchronized
-        private fun acquireWriteLock() {
+        private fun prepareWriteOperation() {
             if (this.readonly) throw TransactionException.TransactionReadOnlyException(tid)
             if (this.status == TransactionStatus.CLOSED) throw TransactionException.TransactionClosedException(tid)
             if (this.status == TransactionStatus.ERROR) throw TransactionException.TransactionInErrorException(tid)
             if (this.status != TransactionStatus.DIRTY) {
-                if (this@MapDBColumn.txLock.writeLock().tryLock(1, TimeUnit.SECONDS)) {
-                    this.status = TransactionStatus.DIRTY
-                } else {
-                    throw TransactionException.TransactionWriteLockException(this.tid)
-                }
+                this.status = TransactionStatus.DIRTY
             }
         }
     }

@@ -14,6 +14,7 @@ import ch.unibas.dmi.dbis.cottontail.model.recordset.StandaloneRecord
 import ch.unibas.dmi.dbis.cottontail.model.type.TypeFactory
 import ch.unibas.dmi.dbis.cottontail.model.values.*
 import ch.unibas.dmi.dbis.cottontail.utilities.name.Name
+import ch.unibas.dmi.dbis.cottontail.utilities.write
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer
 import org.apache.lucene.document.*

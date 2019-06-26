@@ -24,6 +24,8 @@ import ch.unibas.dmi.dbis.cottontail.model.exceptions.TransactionException
 import ch.unibas.dmi.dbis.cottontail.model.values.Value
 import ch.unibas.dmi.dbis.cottontail.utilities.name.*
 import ch.unibas.dmi.dbis.cottontail.utilities.name.type
+import ch.unibas.dmi.dbis.cottontail.utilities.read
+import ch.unibas.dmi.dbis.cottontail.utilities.write
 
 import org.mapdb.*
 import org.mapdb.volume.MappedFileVol
@@ -31,12 +33,9 @@ import java.lang.IllegalArgumentException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.*
-import java.util.concurrent.TimeUnit
 
-import java.util.concurrent.locks.ReentrantReadWriteLock
+import java.util.concurrent.locks.StampedLock
 import java.util.stream.Collectors
-import kotlin.concurrent.read
-import kotlin.concurrent.write
 
 /**
  * Represents a single entity in the Cottontail DB data model. An [Entity] has name that must remain unique within a [Schema].
@@ -71,11 +70,11 @@ internal class Entity(override val name: String, schema: Schema) : DBO {
         get() = this.store.get(HEADER_RECORD_ID, EntityHeaderSerializer)
                 ?: throw DatabaseException.DataCorruptionException("Failed to open header of entity '$fqn'!")
 
-    /** A internal lock that is used to synchronize [Entity.Tx] affecting this [Entity]. */
-    private val txLock = ReentrantReadWriteLock()
+    /** An internal lock that is used to synchronize concurrent read & write access to this [Entity] by different [Entity.Tx]. */
+    private val txLock = StampedLock()
 
-    /** A internal lock that is used to synchronize closing of an [Entity] with running [Entity.Tx]. */
-    private val globalLock = ReentrantReadWriteLock()
+    /** An internal lock that is used to synchronize structural changes to an [Entity] (e.g. closing or deleting) with running [Entity.Tx]. */
+    private val globalLock = StampedLock()
 
     /** List of all the [Column]s associated with this [Entity]. */
     private val columns: Collection<Column<*>> = this.header.columns.map {
@@ -319,7 +318,16 @@ internal class Entity(override val name: String, schema: Schema) : DBO {
             if (this@Entity.closed) {
                 throw TransactionException.TransactionDBOClosedException(tid)
             }
-            this@Entity.globalLock.readLock().lock()
+        }
+
+        /** Obtains a global (non-exclusive) read-lock on [Entity]. Prevents enclosing [Entity] from being closed while this [Entity.Tx] is still in use. */
+        private val globalStamp = this@Entity.globalLock.readLock()
+
+        /** Obtains transaction lock on [Entity]. Prevents concurrent read & write access to the enclosing [Entity]. */
+        private val txStamp = if (this.readonly) {
+            this@Entity.txLock.readLock()
+        } else {
+            this@Entity.txLock.writeLock()
         }
 
         /**
@@ -330,7 +338,6 @@ internal class Entity(override val name: String, schema: Schema) : DBO {
             if (this.status == TransactionStatus.DIRTY) {
                 this.columns.values.forEach { it.commit() }
                 this@Entity.store.commit()
-                this@Entity.txLock.writeLock().unlock()
                 this.status = TransactionStatus.CLEAN
             }
         }
@@ -343,7 +350,6 @@ internal class Entity(override val name: String, schema: Schema) : DBO {
             if (this.status == TransactionStatus.DIRTY) {
                 this.columns.values.forEach { it.rollback() }
                 this@Entity.store.rollback()
-                this@Entity.txLock.writeLock().unlock()
                 this.status = TransactionStatus.CLEAN
             }
         }
@@ -360,7 +366,8 @@ internal class Entity(override val name: String, schema: Schema) : DBO {
                 this.indexes.forEach { it.close() }
                 this.columns.values.forEach { it.close() }
                 this.status = TransactionStatus.CLOSED
-                this@Entity.globalLock.readLock().unlock()
+                this@Entity.txLock.unlock(this.txStamp)
+                this@Entity.globalLock.unlockRead(this.globalStamp)
             }
         }
 
@@ -372,14 +379,14 @@ internal class Entity(override val name: String, schema: Schema) : DBO {
          *
          * @throws DatabaseException If tuple with the desired ID doesn't exist OR is invalid.
          */
-        fun read(tupleId: Long): Record = this@Entity.txLock.read {
+        fun read(tupleId: Long): Record {
             checkValidOrThrow()
             checkValidTupleId(tupleId)
 
 
             /* Return value of all the desired columns. */
             val columns = this.columns.keys.toTypedArray()
-            StandaloneRecord(tupleId, columns).assign(columns.map { this.columns.getValue(it).read(tupleId) }.toTypedArray() )
+            return StandaloneRecord(tupleId, columns).assign(columns.map { this.columns.getValue(it).read(tupleId) }.toTypedArray() )
         }
 
         /**
@@ -390,7 +397,7 @@ internal class Entity(override val name: String, schema: Schema) : DBO {
          *
          * @throws DatabaseException If tuple with the desired ID doesn't exist OR is invalid.
          */
-        fun readMany(tupleIds: Collection<Long>): Recordset = this@Entity.txLock.read {
+        fun readMany(tupleIds: Collection<Long>): Recordset {
             checkValidOrThrow()
             val columns = this.columns.keys.toTypedArray()
             val dataset = Recordset(columns)
@@ -398,7 +405,7 @@ internal class Entity(override val name: String, schema: Schema) : DBO {
                 checkValidTupleId(tid)
                 dataset.addRowUnsafe(tid, columns.map { this.columns.getValue(it).read(tid) }.toTypedArray())
             }
-            dataset
+            return dataset
         }
 
         /**
@@ -406,7 +413,7 @@ internal class Entity(override val name: String, schema: Schema) : DBO {
          *
          * @return The resulting [Recordset].
          */
-        fun readAll(): Recordset = this@Entity.txLock.read {
+        fun readAll(): Recordset {
             checkValidOrThrow()
 
             val columns = this.columns.keys.toTypedArray()
@@ -428,7 +435,7 @@ internal class Entity(override val name: String, schema: Schema) : DBO {
          *
          * @return The number of entries in this [Entity].
          */
-        override fun count(): Long = this@Entity.txLock.read {
+        override fun count(): Long {
             checkValidOrThrow()
             return this@Entity.header.size
         }
@@ -446,7 +453,7 @@ internal class Entity(override val name: String, schema: Schema) : DBO {
          *
          * @param action The function to apply to each [Column] entry.
          */
-        override fun forEach(action: (Record) -> Unit) = this@Entity.txLock.read {
+        override fun forEach(action: (Record) -> Unit) {
             checkValidOrThrow()
             val columns = this.columns.keys.toTypedArray()
             val data = Array<Value<*>?>(columns.size) { null }
@@ -467,7 +474,7 @@ internal class Entity(override val name: String, schema: Schema) : DBO {
          *
          * @return A collection of Pairs mapping the tupleId to the generated value.
          */
-        override fun <R> map(action: (Record) -> R) = this@Entity.txLock.read {
+        override fun <R> map(action: (Record) -> R): Collection<R> {
             checkValidOrThrow()
 
             val columns = this.columns.keys.toTypedArray()
@@ -481,7 +488,7 @@ internal class Entity(override val name: String, schema: Schema) : DBO {
                 }
                 list.add(action(StandaloneRecord(it.tupleId, columns).assign(data)))
             }
-            list
+            return list
         }
 
         /**
@@ -501,7 +508,7 @@ internal class Entity(override val name: String, schema: Schema) : DBO {
          * @param predicate The [BooleanPredicate] to apply. Only columns contained in that [BooleanPredicate] will be read.
          * @return The resulting [Recordset].
          */
-        override fun filter(predicate: Predicate): Recordset = this@Entity.txLock.read {
+        override fun filter(predicate: Predicate): Recordset {
             checkValidOrThrow()
             checkColumnsExist(*predicate.columns.toTypedArray())
 
@@ -528,7 +535,7 @@ internal class Entity(override val name: String, schema: Schema) : DBO {
                 }
                 else -> throw QueryException.UnsupportedPredicateException("The provided predicate of type '${predicate::class.java.simpleName}' is not supported for invocation of filter() on entity '${this@Entity.fqn}'.")
             }
-            dataset
+            return dataset
         }
 
         /**
@@ -537,7 +544,7 @@ internal class Entity(override val name: String, schema: Schema) : DBO {
          * @param predicate [Predicate] to filter [Record]s.
          * @param action The action that should be applied.
          */
-        override fun forEach(predicate: Predicate, action: (Record) -> Unit)= this@Entity.txLock.read {
+        override fun forEach(predicate: Predicate, action: (Record) -> Unit) {
             checkValidOrThrow()
             checkColumnsExist(*predicate.columns.toTypedArray())
 
@@ -584,7 +591,7 @@ internal class Entity(override val name: String, schema: Schema) : DBO {
          * @param action The mapping function that should be applied.
          * @return Collection of the results of the mapping function.
          */
-        override fun <R> map(predicate: Predicate, action: (Record) -> R): Collection<R> = this@Entity.txLock.read {
+        override fun <R> map(predicate: Predicate, action: (Record) -> R): Collection<R> {
             checkValidOrThrow()
             checkColumnsExist(*predicate.columns.toTypedArray())
 
@@ -622,7 +629,7 @@ internal class Entity(override val name: String, schema: Schema) : DBO {
                 }
                 else -> throw QueryException.UnsupportedPredicateException("The provided predicate of type '${predicate::class.java.simpleName}' is not supported for invocation of map() on entity '${this@Entity.fqn}'.")
             }
-            list
+            return list
         }
 
         /**
@@ -634,7 +641,7 @@ internal class Entity(override val name: String, schema: Schema) : DBO {
          * @param action The function to apply to each [Column] entry.
          * @param parallelism The desired amount of parallelism (i.e. the number of co-routines to spawn).
          */
-        override fun forEach(parallelism: Short, action: (Record) -> Unit) = this@Entity.txLock.read {
+        override fun forEach(parallelism: Short, action: (Record) -> Unit) {
             checkValidOrThrow()
             val columns = this.columns.keys.toTypedArray()
             this.columns.getValue(columns[0]).forEach(parallelism) {
@@ -654,7 +661,7 @@ internal class Entity(override val name: String, schema: Schema) : DBO {
          * @param action The mapping function that should be applied.
          * @return Collection of the results of the mapping function.
          */
-        override fun <R> map(parallelism: Short, action: (Record) -> R): Collection<R> = this@Entity.txLock.read {
+        override fun <R> map(parallelism: Short, action: (Record) -> R): Collection<R> {
             checkValidOrThrow()
             val columns = this.columns.keys.toTypedArray()
             val results = Collections.synchronizedList(mutableListOf<R>())
@@ -666,7 +673,7 @@ internal class Entity(override val name: String, schema: Schema) : DBO {
                 }
                 results.add(action(StandaloneRecord(it.tupleId, columns).assign(data)))
             }
-            results
+            return results
         }
 
         /**
@@ -692,7 +699,7 @@ internal class Entity(override val name: String, schema: Schema) : DBO {
          */
         fun insert(record: Record): Long? {
             checkColumnsExist(*record.columns) /* Perform sanity check on columns before locking. */
-            acquireWriteLock()
+            prepareWriteOperation()
             try {
                 var lastRecId: Long? = null
                 for ((column, tx) in this.columns) {
@@ -732,7 +739,7 @@ internal class Entity(override val name: String, schema: Schema) : DBO {
          */
         fun insertAll(tuples: Collection<Record>): Collection<Long?> {
             tuples.forEach { checkColumnsExist(*it.columns) }  /* Perform sanity check on columns before locking. */
-            acquireWriteLock()
+            prepareWriteOperation()
             try {
                 /* Perform delete on each column. */
                 val tuplesIds = tuples.map {
@@ -774,7 +781,7 @@ internal class Entity(override val name: String, schema: Schema) : DBO {
          * @throws DatabaseException If a general database error occurs during the insert.
          */
         override fun delete(tupleId: Long) {
-            acquireWriteLock()
+            prepareWriteOperation()
             try {
                 /* Perform delete on each column. */
                 this.columns.values.forEach { it.delete(tupleId) }
@@ -801,7 +808,7 @@ internal class Entity(override val name: String, schema: Schema) : DBO {
          * @throws DatabaseException If a general database error occurs during the insert.
          */
         override  fun deleteAll(tupleIds: Collection<Long>) {
-            acquireWriteLock()
+            prepareWriteOperation()
             try {
                 /* Perform delete on each column. */
                 tupleIds.forEach { tupleId ->
@@ -852,16 +859,12 @@ internal class Entity(override val name: String, schema: Schema) : DBO {
          * Tries to acquire a write-lock. If method fails, an exception will be thrown
          */
         @Synchronized
-        private fun acquireWriteLock() {
+        private fun prepareWriteOperation() {
             if (this.readonly) throw TransactionException.TransactionReadOnlyException(tid)
             if (this.status == TransactionStatus.CLOSED) throw TransactionException.TransactionClosedException(tid)
             if (this.status == TransactionStatus.ERROR) throw TransactionException.TransactionInErrorException(tid)
             if (this.status != TransactionStatus.DIRTY) {
-                if (this@Entity.txLock.writeLock().tryLock(1, TimeUnit.SECONDS)) {
-                    this.status = TransactionStatus.DIRTY
-                } else {
-                    throw TransactionException.TransactionWriteLockException(this.tid)
-                }
+                this.status = TransactionStatus.DIRTY
             }
         }
     }

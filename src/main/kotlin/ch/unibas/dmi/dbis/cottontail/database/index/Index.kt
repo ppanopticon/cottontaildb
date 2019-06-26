@@ -11,9 +11,9 @@ import ch.unibas.dmi.dbis.cottontail.database.column.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.model.basics.Record
 import ch.unibas.dmi.dbis.cottontail.model.recordset.Recordset
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.TransactionException
+import ch.unibas.dmi.dbis.cottontail.utilities.read
 import java.util.*
-import java.util.concurrent.locks.ReentrantReadWriteLock
-import kotlin.concurrent.read
+import java.util.concurrent.locks.StampedLock
 
 
 /**
@@ -31,11 +31,12 @@ import kotlin.concurrent.read
  * @version 1.0
  */
 internal abstract class Index : DBO {
-    /** A internal lock that is used to synchronize read/write access to this [Index]. */
-    protected val txLock = ReentrantReadWriteLock()
 
-    /** A internal lock that is used to synchronize closing of an [Index]. */
-    protected val globalLock = ReentrantReadWriteLock()
+    /** An internal lock that is used to synchronize structural changes to an [Index] (e.g. closing or deleting) with running [Index.Tx]. */
+    protected val globalLock = StampedLock()
+
+    /** An internal lock that is used to synchronize concurrent read & write access to this [Index] by different [Index.Tx]. */
+    protected val txLock = StampedLock()
 
     /** Reference to the [Entity], this index belongs to. */
     abstract override val parent: Entity
@@ -156,7 +157,17 @@ internal abstract class Index : DBO {
             if (this@Index.closed) {
                 throw TransactionException.TransactionDBOClosedException(tid)
             }
-            this@Index.globalLock.readLock().lock()
+        }
+
+        /** Obtains a global (non-exclusive) read-lock on [Index]. Prevents enclosing [Index] from being closed while this [Index.Tx] is still in use. */
+        private val globalStamp = this@Index.globalLock.readLock()
+
+        /** Obtains tx lock on [Index]. Prevents concurrent read & write access to the enclosing [Index]. */
+        private val txStamp = if (this.readonly) {
+            this@Index.txLock.readLock()
+        } else {
+            this@Index.txLock.writeLock()
+
         }
 
         /** The [ColumnDef]s covered by the [Index] that underpins this [IndexTransaction]. */
@@ -167,9 +178,7 @@ internal abstract class Index : DBO {
         override val produces: Array<ColumnDef<*>>
             get() = this@Index.produces
 
-        /**
-         * The [IndexType] of the [Index] that underpins this [IndexTransaction].
-         */
+        /** he [IndexType] of the [Index] that underpins this [IndexTransaction]. */
         override val type: IndexType
             get() = this@Index.type
 
@@ -197,7 +206,7 @@ internal abstract class Index : DBO {
          *
          * @throws DatabaseException.PredicateNotSupportedBxIndexException If predicate is not supported by [Index].
          */
-        override fun filter(predicate: Predicate): Recordset = this@Index.txLock.read {
+        override fun filter(predicate: Predicate): Recordset {
             return this@Index.filter(predicate)
         }
 
@@ -209,7 +218,7 @@ internal abstract class Index : DBO {
          *
          * @throws DatabaseException.PredicateNotSupportedBxIndexException If predicate is not supported by [Index].
          */
-        override fun forEach(predicate: Predicate, action: (Record) -> Unit) = this@Index.txLock.read {
+        override fun forEach(predicate: Predicate, action: (Record) -> Unit) {
             this@Index.forEach(predicate, action)
         }
 
@@ -221,7 +230,7 @@ internal abstract class Index : DBO {
          *
          * @throws DatabaseException.PredicateNotSupportedBxIndexException If predicate is not supported by [Index].
          */
-        override fun <R> map(predicate: Predicate, action: (Record) -> R): Collection<R> = this@Index.txLock.read {
+        override fun <R> map(predicate: Predicate, action: (Record) -> R): Collection<R> {
             return this@Index.map(predicate, action)
         }
 
@@ -234,18 +243,14 @@ internal abstract class Index : DBO {
          *
          * @throws DatabaseException.PredicateNotSupportedBxIndexException If predicate is not supported by [Index].
          */
-        override fun lookupParallel(predicate: Predicate, parallelism: Short): Recordset = this@Index.txLock.read {
+        override fun lookupParallel(predicate: Predicate, parallelism: Short): Recordset {
             return this@Index.lookupParallel(predicate, parallelism)
         }
 
-        /**
-         * Has no effect since updating an [Index] takes immediate effect.
-         */
+        /** Has no effect since updating an [Index] takes immediate effect. */
         override fun commit() {}
 
-        /**
-         * Has no effect since updating an [Index] takes immediate effect.
-         */
+        /** Has no effect since updating an [Index] takes immediate effect. */
         override fun rollback() {}
 
         /**
@@ -254,11 +259,9 @@ internal abstract class Index : DBO {
         @Synchronized
         override fun close() {
             if (this.status != TransactionStatus.CLOSED) {
-                if (this.status == TransactionStatus.DIRTY) {
-                    this@Index.txLock.writeLock().unlock()
-                }
                 this.status = TransactionStatus.CLOSED
-                this@Index.globalLock.readLock().unlock()
+                this@Index.txLock.unlock(this.txStamp)
+                this@Index.globalLock.unlockRead(this.globalStamp)
             }
         }
 
@@ -270,13 +273,6 @@ internal abstract class Index : DBO {
             if (this.readonly) throw TransactionException.TransactionReadOnlyException(tid)
             if (this.status == TransactionStatus.CLOSED) throw TransactionException.TransactionClosedException(tid)
             if (this.status == TransactionStatus.ERROR) throw TransactionException.TransactionInErrorException(tid)
-            if (this.status != TransactionStatus.DIRTY) {
-                if (this@Index.txLock.writeLock().tryLock()) {
-                    this.status = TransactionStatus.DIRTY
-                } else {
-                    throw TransactionException.TransactionWriteLockException(this.tid)
-                }
-            }
         }
     }
 }

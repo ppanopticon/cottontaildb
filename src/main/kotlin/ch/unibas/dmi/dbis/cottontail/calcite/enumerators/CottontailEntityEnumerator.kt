@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * @author Ralph Gasser
  * @version 1.0
  */
-internal class CottontailEntityEnumerator (entity: Entity, fields: Array<String>, private val cancelFlag: AtomicBoolean) : Enumerator<Array<Value<*>?>> {
+internal class CottontailEntityEnumerator (entity: Entity, fields: Array<String>, private val cancelFlag: AtomicBoolean) : Enumerator<Array<Any?>> {
 
     /** Fields that should be scanned by this [CottontailEntityEnumerator]. */
     private val fields = fields.map { entity.columnForName(it) ?: throw QueryException.QueryBindException("The field $it does not exist on entity ${entity.fqn}.")}.toTypedArray()
@@ -34,7 +34,7 @@ internal class CottontailEntityEnumerator (entity: Entity, fields: Array<String>
 
     /** Internal cache to prevent repeated I/O to the same row. */
     @Volatile
-    private var cached: Array<Value<*>?>? = null
+    private var cached: Array<Any?>? = null
 
     /** The pointer to the */
     @Volatile
@@ -68,12 +68,12 @@ internal class CottontailEntityEnumerator (entity: Entity, fields: Array<String>
      *
      * @return The value at the current pointer.
      */
-    override fun current(): Array<Value<*>?> {
+    override fun current(): Array<Any?> {
         if (this.pointer == Enumerators.EOF_FLAG || this.pointer == Enumerators.BOF_FLAG) {
             throw NoSuchElementException()
         }
         if (cached == null) {
-            cached = this.tx.read(pointer).values
+            cached = this.tx.read(pointer).values.map { it?.value }.toTypedArray()
         }
         return this.cached!!
     }

@@ -3,12 +3,15 @@ package ch.unibas.dmi.dbis.cottontail.calcite.adapter
 import ch.unibas.dmi.dbis.cottontail.calcite.knn.UnaryScanningKnn
 import ch.unibas.dmi.dbis.cottontail.calcite.knn.WeightedUnaryScanningKnn
 import ch.unibas.dmi.dbis.cottontail.database.catalogue.Catalogue
+import com.google.common.collect.ImmutableMap
 import com.google.common.collect.ImmutableMultimap
 import com.google.common.collect.Multimap
 import org.apache.calcite.schema.Function
 import org.apache.calcite.schema.Schema
+import org.apache.calcite.schema.Table
 import org.apache.calcite.schema.impl.AbstractSchema
 import org.apache.calcite.schema.impl.TableFunctionImpl
+
 /**
  * Part of Cottontail DB's Apache Calcite adapter. Exposes Cottontail DB's [Catalogue] class.
  *
@@ -16,8 +19,6 @@ import org.apache.calcite.schema.impl.TableFunctionImpl
  * @version 1.0
  */
 internal class CottontailCatalogue (private val catalogue: Catalogue) : AbstractSchema() {
-
-
     /**
      * Initialises the available functions (Calcite UDFs).
      */
@@ -33,7 +34,11 @@ internal class CottontailCatalogue (private val catalogue: Catalogue) : Abstract
      *
      * @return Map of [CottontailSchema] implementations.
      */
-    override fun getSubSchemaMap(): Map<String, Schema> = this.catalogue.schemas.map { it to CottontailSchema(this.catalogue.schemaForName(it)) }.toMap()
+    override fun getSubSchemaMap(): Map<String, Schema> {
+        val builder = ImmutableMap.builder<String, Schema>()
+        this.catalogue.schemas.forEach { builder.put(it, CottontailSchema(it, catalogue)) }
+        return builder.build()
+    }
 
     /**
      * Returns all the [Function] implementations available from this [CottontailCatalogue].

@@ -4,6 +4,7 @@ import ch.unibas.dmi.dbis.cottontail.calcite.expressions.CottontailTableScan
 import ch.unibas.dmi.dbis.cottontail.calcite.enumerators.CottontailEntityEnumerator
 import ch.unibas.dmi.dbis.cottontail.calcite.utilities.Entry
 import ch.unibas.dmi.dbis.cottontail.database.entity.Entity
+import ch.unibas.dmi.dbis.cottontail.database.schema.Schema
 import ch.unibas.dmi.dbis.cottontail.model.type.*
 import ch.unibas.dmi.dbis.cottontail.model.values.Value
 import ch.unibas.dmi.dbis.cottontail.utilities.name.last
@@ -31,7 +32,11 @@ import java.lang.reflect.Type
  * @author Ralph Gasser
  * @version 1.0
  */
-internal class CottontailTable(private val source: Entity) : AbstractTable(), TranslatableTable, QueryableTable {
+internal class CottontailTable(name: String, schema: Schema) : AbstractTable(), TranslatableTable, QueryableTable {
+
+    /** Reference to the Cottontail DB [Entity] that acts as data source. */
+    val source = schema.entityForName(name)
+
     /**
      * Returns the type of the relations (rows) returned by this instance of [CottontailTable].
      *
@@ -55,8 +60,8 @@ internal class CottontailTable(private val source: Entity) : AbstractTable(), Tr
     /**
      *
      */
-    fun project(root: DataContext, fields: Array<String>): Enumerable<Array<Value<*>?>> = object : AbstractEnumerable<Array<Value<*>?>>() {
-        override fun enumerator(): Enumerator<Array<Value<*>?>> = CottontailEntityEnumerator(this@CottontailTable.source, fields, DataContext.Variable.CANCEL_FLAG.get<AtomicBoolean>(root))
+    fun project(root: DataContext, fields: Array<String>): Enumerable<Array<Any?>> = object : AbstractEnumerable<Array<Any?>>() {
+        override fun enumerator(): Enumerator<Array<Any?>> = CottontailEntityEnumerator(this@CottontailTable.source, fields, DataContext.Variable.CANCEL_FLAG.get(root))
     }
 
     /**
@@ -69,7 +74,7 @@ internal class CottontailTable(private val source: Entity) : AbstractTable(), Tr
     /**
      *
      */
-    override fun getElementType(): Type = Array<Any>::class.java
+    override fun getElementType(): Type = Array<Any?>::class.java
 
     /**
      *

@@ -78,7 +78,7 @@ dependencies {
     compile group: 'org.mapdb', name: 'mapdb', version: '3.0.7'
 
     ///// Apache Calcite & Avatica Dependency
-    compile group: 'org.apache.calcite', name: 'calcite-core', version: '1.19.0'
+    compile group: 'org.apache.calcite', name: 'calcite-core', version: '1.20.0'
     compile group: 'org.apache.calcite.avatica', name: 'avatica-server', version: '1.15.0'
 
     /////// GRPC & ProtoBuf

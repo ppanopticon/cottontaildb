@@ -1,18 +1,14 @@
 package ch.unibas.dmi.dbis.cottontail
 
-import ch.unibas.dmi.dbis.cottontail.calcite.adapter.CalciteCottontailDriver
 import ch.unibas.dmi.dbis.cottontail.config.Config
 import ch.unibas.dmi.dbis.cottontail.database.catalogue.Catalogue
 import ch.unibas.dmi.dbis.cottontail.server.ServerEnum
 import ch.unibas.dmi.dbis.cottontail.server.avatica.CottontailAvaticaServer
 
 import kotlinx.serialization.json.Json
-import org.apache.calcite.schema.impl.TableFunctionImpl
-import org.apache.calcite.tools.Frameworks
 
 import java.nio.file.Files
 import java.nio.file.Paths
-import java.sql.DriverManager
 
 /**
  * Cottontail DB's main class.
@@ -36,9 +32,6 @@ internal object Cottontail {
      */
     @JvmStatic
     fun main(args: Array<String>) {
-        /* Trick to load the JDBC driver. */
-        Class.forName(CalciteCottontailDriver::class.java.canonicalName)
-
         /* Check, if args were set properly. */
         val path = Paths.get(if (args.isEmpty()) {
             System.err.println("No config path specified, taking default config at config.json")

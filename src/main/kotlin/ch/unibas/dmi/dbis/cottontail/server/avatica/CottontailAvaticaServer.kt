@@ -1,6 +1,6 @@
 package ch.unibas.dmi.dbis.cottontail.server.avatica
 
-import ch.unibas.dmi.dbis.cottontail.calcite.adapter.CottontailCatalogueFactory
+import ch.unibas.dmi.dbis.cottontail.calcite.adapter.CottontailSchemaFactory
 import ch.unibas.dmi.dbis.cottontail.config.ServerConfig
 import ch.unibas.dmi.dbis.cottontail.server.Server
 import ch.unibas.dmi.dbis.cottontail.server.grpc.CottontailGrpcServer
@@ -11,9 +11,10 @@ import org.apache.calcite.avatica.remote.LocalService
 import org.apache.calcite.avatica.server.HttpServer
 import org.apache.calcite.avatica.util.Casing
 import org.apache.calcite.config.CalciteConnectionProperty
-import org.apache.calcite.model.JsonSchema
 import org.apache.log4j.LogManager
 import org.apache.log4j.Logger
+import java.nio.file.Files
+import java.nio.file.Paths
 
 import java.util.*
 import java.util.concurrent.atomic.AtomicBoolean
@@ -37,8 +38,9 @@ class CottontailAvaticaServer(val config: ServerConfig) : Server {
         val INFO: Properties = Properties()
         init {
             INFO[CalciteConnectionProperty.SCHEMA.camelName()] = "warren"
-            INFO[CalciteConnectionProperty.SCHEMA_TYPE.camelName()] = JsonSchema.Type.CUSTOM.toString()
             INFO[CalciteConnectionProperty.SCHEMA_FACTORY.camelName()] = CottontailCatalogueFactory::class.java.name
+            INFO[CalciteConnectionProperty.SCHEMA_TYPE.camelName()] = "custom"
+            INFO[CalciteConnectionProperty.SCHEMA_FACTORY.camelName()] = CottontailSchemaFactory::class.java.name
             INFO[CalciteConnectionProperty.QUOTING.camelName()] = "DOUBLE_QUOTE"
             INFO[CalciteConnectionProperty.UNQUOTED_CASING.camelName()] = Casing.TO_LOWER.toString()
             INFO[CalciteConnectionProperty.QUOTED_CASING.camelName()] = Casing.TO_LOWER.toString()

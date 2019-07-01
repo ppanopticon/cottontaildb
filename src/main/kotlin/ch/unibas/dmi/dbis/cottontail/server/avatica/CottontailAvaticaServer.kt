@@ -38,7 +38,7 @@ class CottontailAvaticaServer(val config: ServerConfig) : Server {
         val INFO: Properties = Properties()
         init {
             INFO[CalciteConnectionProperty.SCHEMA.camelName()] = "warren"
-^            INFO[CalciteConnectionProperty.SCHEMA_TYPE.camelName()] = "custom"
+            INFO[CalciteConnectionProperty.SCHEMA_TYPE.camelName()] = "custom"
             INFO[CalciteConnectionProperty.SCHEMA_FACTORY.camelName()] = CottontailSchemaFactory::class.java.name
             INFO[CalciteConnectionProperty.QUOTING.camelName()] = "DOUBLE_QUOTE"
             INFO[CalciteConnectionProperty.UNQUOTED_CASING.camelName()] = Casing.TO_LOWER.toString()

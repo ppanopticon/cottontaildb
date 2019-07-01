@@ -2,6 +2,7 @@ package ch.unibas.dmi.dbis.cottontail.math.knn
 
 import java.util.*
 import kotlin.collections.ArrayList
+import kotlin.math.min
 
 /**
  * A [HeapSelect] implementation inspired by the Smile library (@see https://github.com/haifengl/smile)
@@ -23,11 +24,10 @@ class HeapSelect<T: Comparable<T>> (val k: Int) {
 
     /** Returns the current size of this [HeapSelect], i.e. the number of items contained in the heap. */
     val size
-        @Synchronized get() = Math.min(this.k, this.added)
+        @Synchronized get() = min(this.k, this.added)
 
     /** The array list containing the heap for this [HeapSelect]. */
     private val heap = ArrayList<T>(k)
-
 
     /**
      * Adds a new element to this [HeapSelect].
@@ -69,7 +69,7 @@ class HeapSelect<T: Comparable<T>> (val k: Int) {
      */
     @Synchronized
     operator fun get(i: Int): T {
-        if (i > Math.min(k, this.added) - 1) {
+        if (i > min(k, this.added) - 1) {
             throw IllegalArgumentException("HeapSelect i is greater than the number of data received so far.")
         }
 
@@ -97,7 +97,7 @@ class HeapSelect<T: Comparable<T>> (val k: Int) {
      * Sorts the heap so that the smallest values move to the top of the [HeapSelect].
      */
     private fun sort() {
-        val n = Math.min(this.k, this.added)
+        val n = min(this.k, this.added)
         var inc = 1
         do {
             inc *= 3

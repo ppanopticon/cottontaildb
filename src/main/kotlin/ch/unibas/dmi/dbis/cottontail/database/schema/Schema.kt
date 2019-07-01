@@ -45,7 +45,10 @@ import kotlin.concurrent.write
  * @author Ralph Gasser
  * @version 1.0
  */
-internal class Schema(override val name: Name, override val path: Path, override val parent: Catalogue) : DBO {
+internal class Schema(n: Name, override val path: Path, override val parent: Catalogue) : DBO {
+
+    /** Name of this [Entity]. */
+    override val name: Name = n.toLowerCase()
 
     /** Internal reference to the [Store] underpinning this [MapDBColumn]. */
     private val store: StoreWAL = try {
@@ -66,7 +69,7 @@ internal class Schema(override val name: Name, override val path: Path, override
 
     /** Returns a list of [Entity] held by this [Schema]. */
     val entities: List<String>
-        get() = header.entities.map { this.store.get(it, Serializer.STRING) ?: throw DatabaseException.DataCorruptionException("Failed to read schema $fqn ($path): Could not find entity name of ID $it.") }
+        get() = header.entities.map { this.store.get(it, Serializer.STRING)?.toLowerCase() ?: throw DatabaseException.DataCorruptionException("Failed to read schema $fqn ($path): Could not find entity name of ID $it.") }
 
     /** Size of the [Schema] in terms of [Entity] objects it contains. */
     val size

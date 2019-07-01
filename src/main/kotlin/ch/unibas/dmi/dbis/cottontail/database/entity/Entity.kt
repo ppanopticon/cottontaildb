@@ -51,7 +51,10 @@ import java.util.stream.Collectors
  * @author Ralph Gasser
  * @version 1.1
  */
-internal class Entity(override val name: String, schema: Schema) : DBO {
+internal class Entity(n: Name, schema: Schema) : DBO {
+    /** Name of this [Entity]. */
+    override val name: Name = n.toLowerCase()
+
     /** The [Path] to the [Entity]'s main folder. */
     override val path: Path = schema.path.resolve("entity_$name")
 

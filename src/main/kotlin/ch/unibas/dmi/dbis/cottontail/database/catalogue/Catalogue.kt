@@ -109,7 +109,8 @@ internal class Catalogue(val config: Config): DBO {
             if (!Files.exists(path)) {
                 throw DatabaseException.DataCorruptionException("Broken catalogue entry for schema '${schema.name}'. Path $path does not exist!")
             }
-            this.registry[schema.name] = Schema(schema.name, path, this)
+            val s = Schema(schema.name, path, this)
+            this.registry[s.name] = s
         }
     }
 
@@ -167,7 +168,8 @@ internal class Catalogue(val config: Config): DBO {
         }
 
         /* Add schema to local map. */
-        this.registry[name] = Schema(name, path, this)
+        val s = Schema(name, path, this)
+        this.registry[s.name] = s
     }
 
     /**
@@ -215,7 +217,7 @@ internal class Catalogue(val config: Config): DBO {
      * @param name [Name] of the [Schema].
      */
     fun schemaForName(name: Name): Schema = this.lock.read {
-        if (name.type() != NameType.SIMPLE ) {
+        if (name.type() != NameType.SIMPLE) {
             throw IllegalArgumentException("The provided name '$name' is of type '${name.type()} and cannot be used to access a schema.")
         }
         this.registry[name] ?: throw DatabaseException.SchemaDoesNotExistException(name)

@@ -1,10 +1,12 @@
 package ch.unibas.dmi.dbis.cottontail.calcite.enumerators
 
+
+import ch.unibas.dmi.dbis.cottontail.database.column.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.database.entity.Entity
-import ch.unibas.dmi.dbis.cottontail.model.exceptions.QueryException
-import ch.unibas.dmi.dbis.cottontail.model.values.Value
+import ch.unibas.dmi.dbis.cottontail.database.queries.Predicate
 
 import org.apache.calcite.linq4j.Enumerator
+import org.apache.calcite.util.Pair
 
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -18,16 +20,22 @@ import java.util.concurrent.atomic.AtomicBoolean
  * @author Ralph Gasser
  * @version 1.0
  */
-internal class CottontailEntityEnumerator (entity: Entity, fields: Array<String>, private val cancelFlag: AtomicBoolean) : Enumerator<Array<Any?>> {
+internal class CottontailEntityEnumerator (entity: Entity, val fields: List<String>, val selectFields: List<Pair<ColumnDef<*>, String>> = emptyList(), val where: List<Predicate> = emptyList(), val limit: Long = Enumerators.LIMIT_NO_LIMIT, val offset: Long = 0) : Enumerator<Array<Any?>> {
 
     /** Fields that should be scanned by this [CottontailEntityEnumerator]. */
-    private val fields = fields.map { entity.columnForName(it) ?: throw QueryException.QueryBindException("The field $it does not exist on entity ${entity.fqn}.")}.toTypedArray()
-
-    /** Fields that should be scanned by this [CottontailEntityEnumerator]. */
-    private val tx = entity.Tx(readonly = true, columns = this.fields)
+    private val tx = entity.Tx(readonly = true, columns = this.selectFields.map { it.key }.toTypedArray())
 
     /** Snapshot of the tuple IDs held by this [Entity]. Required for iteration. */
-    private val cursor = this.tx.listTupleIds()
+    private val cursor = this.tx.listTupleIds().asSequence().let {
+        var sequence = it
+        if (offset > 0) {
+            sequence = sequence.drop(this.offset.toInt())
+        }
+        if (limit > Enumerators.LIMIT_NO_LIMIT) {
+            sequence = sequence.take(this.limit.toInt())
+        }
+        sequence.iterator()
+    }
 
     /** A flag indicating whether this [CottontailEntityEnumerator] has been closed. */
     private val closed = AtomicBoolean(false)
@@ -36,7 +44,7 @@ internal class CottontailEntityEnumerator (entity: Entity, fields: Array<String>
     @Volatile
     private var cached: Array<Any?>? = null
 
-    /** The pointer to the */
+    /** The pointer to the current entry. */
     @Volatile
     var pointer = Enumerators.BOF_FLAG
         private set
@@ -48,9 +56,6 @@ internal class CottontailEntityEnumerator (entity: Entity, fields: Array<String>
      * @return true, if pointer was moved successfully, false otherwise.
      */
     override fun moveNext(): Boolean {
-        if (this.cancelFlag.get() || this.closed.get()) {
-            return false
-        }
         return if (this.cursor.hasNext()) {
             this.pointer = this.cursor.next()
             this.cached = null

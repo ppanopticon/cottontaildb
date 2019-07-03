@@ -1,8 +1,8 @@
-package ch.unibas.dmi.dbis.cottontail.model.basics
+package ch.unibas.dmi.dbis.cottontail.database.column
 
-import ch.unibas.dmi.dbis.cottontail.database.column.*
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.DatabaseException
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.ValidationException
+import ch.unibas.dmi.dbis.cottontail.model.type.*
 import ch.unibas.dmi.dbis.cottontail.model.values.*
 import ch.unibas.dmi.dbis.cottontail.utilities.name.Name
 
@@ -14,7 +14,7 @@ import java.lang.RuntimeException
  * @author Ralph Gasser
  * @version 1.1
  */
-class ColumnDef<T: Any> (name: Name, val type: ColumnType<T>, val size: Int = -1, val nullable: Boolean = true) {
+class ColumnDef<T: Any> (name: Name, val type: Type<T>, val size: Int = -1, val nullable: Boolean = true) {
 
     /**
      * Companion object with some convenience methods.
@@ -28,7 +28,7 @@ class ColumnDef<T: Any> (name: Name, val type: ColumnType<T>, val size: Int = -1
          * @param size Size of the new [Column] (e.g. for vectors), where eligible.
          * @param nullable Whether or not the [Column] should be nullable.
          */
-        fun withAttributes(name: Name, type: String, size: Int = -1, nullable: Boolean = true): ColumnDef<*> = ColumnDef(name.toLowerCase(), ColumnType.forName(type), size, nullable)
+        fun withAttributes(name: Name, type: String, size: Int = -1, nullable: Boolean = true): ColumnDef<*> = ColumnDef(name.toLowerCase(), TypeFactory.forName(type), size, nullable)
     }
 
     /** The [Name] of this [ColumnDef]. Lower-case values are enforced since Cottontail DB is not case-sensitive! */
@@ -86,18 +86,18 @@ class ColumnDef<T: Any> (name: Name, val type: ColumnType<T>, val size: Int = -1
      */
     fun defaultValue(): Value<*>? = when {
         this.nullable -> null
-        this.type is StringColumnType -> StringValue("")
-        this.type is FloatColumnType -> FloatValue(0.0f)
-        this.type is DoubleColumnType -> DoubleValue(0.0)
-        this.type is IntColumnType -> IntValue(0)
-        this.type is LongColumnType -> LongValue(0L)
-        this.type is ShortColumnType -> ShortValue(0.toShort())
-        this.type is ByteColumnType -> ByteValue(0.toByte())
-        this.type is BooleanColumnType -> BooleanValue(false)
-        this.type is DoubleArrayColumnType -> DoubleArrayValue(DoubleArray(this.size))
-        this.type is FloatArrayColumnType -> FloatArrayValue(FloatArray(this.size))
-        this.type is LongArrayColumnType -> LongArrayValue(LongArray(this.size))
-        this.type is IntArrayColumnType -> IntArrayValue(IntArray(this.size))
+        this.type is StringType -> StringValue("")
+        this.type is FloatType -> FloatValue(0.0f)
+        this.type is DoubleType -> DoubleValue(0.0)
+        this.type is IntType -> IntValue(0)
+        this.type is LongType -> LongValue(0L)
+        this.type is ShortType -> ShortValue(0.toShort())
+        this.type is ByteType -> ByteValue(0.toByte())
+        this.type is BooleanType -> BooleanValue(false)
+        this.type is DoubleArrayType -> DoubleArrayValue(DoubleArray(this.size))
+        this.type is FloatArrayType -> FloatArrayValue(FloatArray(this.size))
+        this.type is LongArrayType -> LongArrayValue(LongArray(this.size))
+        this.type is IntArrayType -> IntArrayValue(IntArray(this.size))
         else -> throw RuntimeException("Default value for the specified type $type has not been specified yet!")
     }
 

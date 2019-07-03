@@ -22,6 +22,11 @@ internal fun Name.isValid(type: NameType = NameType.FQN): Boolean = when(type) {
 }
 
 /**
+ * Normalizes the provided name by making it lower case. In the future, normalization might involve further steps.
+ */
+fun Name.normalize() = this.toLowerCase()
+
+/**
  * Appends the other [Name] to this [Name].
  *
  * @param other The other [Name].

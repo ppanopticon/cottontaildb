@@ -52,8 +52,8 @@ import java.util.stream.Collectors
  * @version 1.1
  */
 internal class Entity(n: Name, schema: Schema) : DBO {
-    /** Name of this [Entity]. */
-    override val name: Name = n.toLowerCase()
+    /** The [Name] of this [Entity]. Lower-case values are enforced since Cottontail DB is not case-sensitive! */
+    override val name: Name = n.normalize()
 
     /** The [Path] to the [Entity]'s main folder. */
     override val path: Path = schema.path.resolve("entity_$name")
@@ -136,7 +136,7 @@ internal class Entity(n: Name, schema: Schema) : DBO {
      * @param name The [Name] of the [Column].
      * @return [ColumnDef] of the [Column].
      */
-    fun columnForName(name: Name): ColumnDef<*>? = this.columns.find { it.name == name.last() }?.columnDef
+    fun columnForName(name: Name): ColumnDef<*>? = this.columns.find { it.name == name.normalize().last() }?.columnDef
 
     /**
      * Checks, if this [Entity] has an index for the given [ColumnDef] and (optionally) of the given [IndexType]
@@ -156,18 +156,19 @@ internal class Entity(n: Name, schema: Schema) : DBO {
      */
     fun createIndex(name: Name, type: IndexType, columns: Array<ColumnDef<*>>, params: Map<String,String> = emptyMap()) = this.globalLock.write {
         /* Check the type of name. */
-        if (name.type() != NameType.SIMPLE) {
-            throw IllegalArgumentException("The provided name '$name' is of type '${name.type()}  and cannot be used to access an index through an entity.")
+        val nameNormalized = name.normalize()
+        if (nameNormalized.type() != NameType.SIMPLE) {
+            throw IllegalArgumentException("The provided name '$nameNormalized' is of type '${name.type()}  and cannot be used to access an index through an entity.")
         }
 
         val indexEntry = this.header.indexes.map {
-            Pair(it, this.store.get(it, IndexEntrySerializer) ?: throw DatabaseException.DataCorruptionException("Failed to create index '$fqn.$name': Could not read index definition at position $it!"))
-        }.find { it.second.name == name }
+            Pair(it, this.store.get(it, IndexEntrySerializer) ?: throw DatabaseException.DataCorruptionException("Failed to create index '$fqn.$nameNormalized': Could not read index definition at position $it!"))
+        }.find { it.second.name == nameNormalized }
 
-        if (indexEntry != null) throw DatabaseException.IndexAlreadyExistsException("$fqn.$name")
+        if (indexEntry != null) throw DatabaseException.IndexAlreadyExistsException("$fqn.$nameNormalized")
 
         /* Creates and opens the index. */
-        val index = type.create(name, this, columns, params)
+        val index = type.create(nameNormalized, this, columns, params)
         this.indexes.add(index)
 
         /* Rebuilds the index. */
@@ -178,13 +179,13 @@ internal class Entity(n: Name, schema: Schema) : DBO {
         } catch (e: Throwable) {
             val pathsToDelete = Files.walk(index.path).sorted(Comparator.reverseOrder()).collect(Collectors.toList())
             pathsToDelete.forEach { Files.delete(it) }
-            throw DatabaseException("Failed to create index '$.fqn.$name' due to a build failure: ${e.message}")
+            throw DatabaseException("Failed to create index '$.fqn.$nameNormalized' due to a build failure: ${e.message}")
         }
 
         /* Update catalogue + header. */
         try {
             /* Update catalogue. */
-            val sid = this.store.put(IndexEntry(name, type, false, columns.map { it.name }.toTypedArray()), IndexEntrySerializer)
+            val sid = this.store.put(IndexEntry(nameNormalized, type, false, columns.map { it.name }.toTypedArray()), IndexEntrySerializer)
 
             /* Update header. */
             val new = this.header.let { EntityHeader(it.size, it.created, System.currentTimeMillis(), it.columns, it.indexes.copyOf(it.indexes.size + 1)) }
@@ -195,7 +196,7 @@ internal class Entity(n: Name, schema: Schema) : DBO {
             this.store.rollback()
             val pathsToDelete = Files.walk(index.path).sorted(Comparator.reverseOrder()).collect(Collectors.toList())
             pathsToDelete.forEach { Files.delete(it) }
-            throw DatabaseException("Failed to create index '$.fqn.$name' due to a storage exception: ${e.message}")
+            throw DatabaseException("Failed to create index '$.fqn.$nameNormalized' due to a storage exception: ${e.message}")
         }
     }
 
@@ -206,15 +207,16 @@ internal class Entity(n: Name, schema: Schema) : DBO {
      */
     fun dropIndex(name: Name) = this.globalLock.write {
         /* Check the type of name. */
-        if (name.type() != NameType.SIMPLE) {
-            throw IllegalArgumentException("The provided name '$name' is of type '${name.type()}  and cannot be used to access an index through an entity.")
+        val nameNormalized = name.normalize()
+        if (nameNormalized.type() != NameType.SIMPLE) {
+            throw IllegalArgumentException("The provided name '$nameNormalized' is of type '${nameNormalized.type()}  and cannot be used to access an index through an entity.")
         }
 
         val indexEntry = this.header.indexes.map {
-            Pair(it, this.store.get(it, IndexEntrySerializer) ?: throw DatabaseException.DataCorruptionException("Failed to drop index '$fqn.$name': Could not read index definition at position $it!"))
-        }.find { it.second.name == name }?.let { ie ->
+            Pair(it, this.store.get(it, IndexEntrySerializer) ?: throw DatabaseException.DataCorruptionException("Failed to drop index '$fqn.$nameNormalized': Could not read index definition at position $it!"))
+        }.find { it.second.name == nameNormalized }?.let { ie ->
             Triple(ie.first, ie.second, this.indexes.find { it.name == ie.second.name })
-        } ?: throw DatabaseException.IndexDoesNotExistException("$fqn.$name")
+        } ?: throw DatabaseException.IndexDoesNotExistException("$fqn.$nameNormalized")
 
         /* Close index. */
         indexEntry.third!!.close()
@@ -227,7 +229,7 @@ internal class Entity(n: Name, schema: Schema) : DBO {
             this.store.commit()
         } catch (e: DBException) {
             this.store.rollback()
-            throw DatabaseException("Failed to drop index '$fqn.$name' due to a storage exception: ${e.message}")
+            throw DatabaseException("Failed to drop index '$fqn.$nameNormalized' due to a storage exception: ${e.message}")
         }
 
         /* Delete files that belong to the index. */
@@ -243,11 +245,12 @@ internal class Entity(n: Name, schema: Schema) : DBO {
      * @param name The name of the [Index]
      */
     fun updateIndex(name: Name) = this.globalLock.read {
-        val index = this.indexes.find { it.name == name }
+        val nameNormalized = name.normalize()
+        val index = this.indexes.find { it.name == nameNormalized }
         if (index != null) {
             index.Tx(false).rebuild()
         } else {
-            throw DatabaseException.IndexDoesNotExistException(this.fqn.append(name))
+            throw DatabaseException.IndexDoesNotExistException(this.fqn.append(nameNormalized))
         }
     }
 

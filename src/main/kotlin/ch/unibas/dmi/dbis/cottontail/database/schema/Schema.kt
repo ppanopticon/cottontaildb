@@ -8,10 +8,7 @@ import ch.unibas.dmi.dbis.cottontail.database.entity.Entity
 import ch.unibas.dmi.dbis.cottontail.database.entity.EntityHeader
 import ch.unibas.dmi.dbis.cottontail.database.entity.EntityHeaderSerializer
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.DatabaseException
-import ch.unibas.dmi.dbis.cottontail.utilities.name.Name
-import ch.unibas.dmi.dbis.cottontail.utilities.name.NameType
-import ch.unibas.dmi.dbis.cottontail.utilities.name.append
-import ch.unibas.dmi.dbis.cottontail.utilities.name.type
+import ch.unibas.dmi.dbis.cottontail.utilities.name.*
 
 import org.mapdb.*
 import org.mapdb.volume.MappedFileVol
@@ -28,7 +25,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock
 import java.util.stream.Collectors
 
 import kotlin.concurrent.read
-
 import kotlin.concurrent.write
 
 /**
@@ -43,12 +39,12 @@ import kotlin.concurrent.write
  * @see MapDBColumn
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.1
  */
 internal class Schema(n: Name, override val path: Path, override val parent: Catalogue) : DBO {
 
-    /** Name of this [Entity]. */
-    override val name: Name = n.toLowerCase()
+    /** [Name] of this [Schema]. Lower-case values are enforced since Cottontail DB is not case-sensitive! */
+    override val name: Name = n.normalize()
 
     /** Internal reference to the [Store] underpinning this [MapDBColumn]. */
     private val store: StoreWAL = try {
@@ -87,25 +83,26 @@ internal class Schema(n: Name, override val path: Path, override val parent: Cat
      */
     fun createEntity(name: Name, vararg columns: ColumnDef<*>) = this.lock.write {
         /* Check the type of name. */
-        if (name.type() != NameType.SIMPLE) {
-            throw IllegalArgumentException("The provided name '$name' is of type '${name.type()} and cannot be used to access an entity through a schema.")
+        val normalizedName = name.normalize()
+        if (normalizedName.type() != NameType.SIMPLE) {
+            throw IllegalArgumentException("The provided name '$normalizedName' is of type '${normalizedName.type()} and cannot be used to access an entity through a schema.")
         }
 
-        if (entities.contains(name)) throw DatabaseException.EntityAlreadyExistsException(this.fqn.append(name))
-        if (columns.map { it.name }.distinct().size != columns.size) throw DatabaseException.DuplicateColumnException("$fqn.$name", columns.map { it.name })
+        if (entities.contains(normalizedName)) throw DatabaseException.EntityAlreadyExistsException(this.fqn.append(normalizedName))
+        if (columns.map { it.name }.distinct().size != columns.size) throw DatabaseException.DuplicateColumnException("$fqn.$normalizedName", columns.map { it.name })
 
         /* Create empty folder for entity. */
-        val data = path.resolve("entity_$name")
+        val data = path.resolve("entity_$normalizedName")
 
         try {
             if (!Files.exists(data)) {
                 Files.createDirectories(data)
             } else {
-                throw DatabaseException("Failed to create entity '$fqn.$name'. Data directory '$data' seems to be occupied.")
+                throw DatabaseException("Failed to create entity '$fqn.$normalizedName'. Data directory '$data' seems to be occupied.")
             }
 
             /* Store entry for new entity. */
-            val recId = this.store.put(name, Serializer.STRING)
+            val recId = this.store.put(normalizedName, Serializer.STRING)
 
             /* Generate the entity. */
             val store = StoreWAL.make(file = data.resolve(Entity.FILE_CATALOGUE).toString(), volumeFactory = MappedFileVol.FACTORY, fileLockWait = parent.config.lockTimeout)
@@ -133,9 +130,9 @@ internal class Schema(n: Name, override val path: Path, override val parent: Cat
             this.store.rollback()
             val pathsToDelete = Files.walk(data).sorted(Comparator.reverseOrder()).collect(Collectors.toList())
             pathsToDelete.forEach { Files.delete(it) }
-            throw DatabaseException("Failed to create entity '$fqn.$name' due to error in the underlying data store: {${e.message}")
+            throw DatabaseException("Failed to create entity '$fqn.$normalizedName' due to error in the underlying data store: {${e.message}")
         } catch (e: IOException) {
-            throw DatabaseException("Failed to create entity '$fqn.$name' due to an IO exception: {${e.message}")
+            throw DatabaseException("Failed to create entity '$fqn.$normalizedName' due to an IO exception: {${e.message}")
         }
     }
 
@@ -146,14 +143,15 @@ internal class Schema(n: Name, override val path: Path, override val parent: Cat
      */
     fun dropEntity(name: Name) = this.lock.write {
         /* Check the type of name. */
-        if (name.type() != NameType.SIMPLE) {
-            throw IllegalArgumentException("The provided name '$name' is of type '${name.type()} and cannot be used to access an entity through a schema.")
+        val normalizedName = name.normalize()
+        if (normalizedName.type() != NameType.SIMPLE) {
+            throw IllegalArgumentException("The provided name '$normalizedName' is of type '${normalizedName.type()} and cannot be used to access an entity through a schema.")
         }
 
-        val entityRecId = this.header.entities.find { this.store.get(it, Serializer.STRING) == name } ?: throw DatabaseException.EntityDoesNotExistException("$fqn.$name")
+        val entityRecId = this.header.entities.find { this.store.get(it, Serializer.STRING) == normalizedName } ?: throw DatabaseException.EntityDoesNotExistException("$fqn.$normalizedName")
 
         /* Unload the entity and remove it. */
-        this.unload(name)
+        this.unload(normalizedName)
 
         /* Remove entity. */
         try {
@@ -170,11 +168,11 @@ internal class Schema(n: Name, override val path: Path, override val parent: Cat
             this.store.commit()
         } catch (e: DBException) {
             this.store.rollback()
-            throw DatabaseException("Entity '$fqn.$name' could not be dropped, because of an error in the underlying data store: ${e.message}!")
+            throw DatabaseException("Entity '$fqn.$normalizedName' could not be dropped, because of an error in the underlying data store: ${e.message}!")
         }
 
         /* Delete all files associated with the entity. */
-        val pathsToDelete = Files.walk(this.path.resolve("entity_$name")).sorted(Comparator.reverseOrder()).collect(Collectors.toList())
+        val pathsToDelete = Files.walk(this.path.resolve("entity_$normalizedName")).sorted(Comparator.reverseOrder()).collect(Collectors.toList())
         pathsToDelete.forEach { Files.deleteIfExists(it) }
     }
 
@@ -187,13 +185,14 @@ internal class Schema(n: Name, override val path: Path, override val parent: Cat
      */
     fun entityForName(name: Name): Entity = this.lock.read {
         /* Check the type of name. */
-        if (name.type() != NameType.SIMPLE) {
-            throw IllegalArgumentException("The provided name '$name' is of type '${name.type()}  and cannot be used to access an entity through a schema.")
+        val normalizedName = name.normalize()
+        if (normalizedName.type() != NameType.SIMPLE) {
+            throw IllegalArgumentException("The provided name '$normalizedName' is of type '${normalizedName.type()}  and cannot be used to access an entity through a schema.")
         }
 
-        if (!this.entities.contains(name)) throw DatabaseException.EntityDoesNotExistException("$fqn.$name")
-        return this.loaded[name]?.get() ?: Entity(name, this).also {
-            this.loaded[name] = SoftReference(it)
+        if (!this.entities.contains(normalizedName)) throw DatabaseException.EntityDoesNotExistException("$fqn.$normalizedName")
+        return this.loaded[normalizedName]?.get() ?: Entity(normalizedName, this).also {
+            this.loaded[normalizedName] = SoftReference(it)
         }
     }
 
@@ -216,7 +215,7 @@ internal class Schema(n: Name, override val path: Path, override val parent: Cat
     /**
      * Explicitly unloads (closes) an instance of [Entity] if such an instance exists. Otherwise, this function has now effect.
      */
-    private fun unload(name: String) = this.lock.write {
+    private fun unload(name: Name) = this.lock.write {
         this.loaded[name]?.get()?.close() /* BLOCK! */
         this.loaded.remove(name)
     }

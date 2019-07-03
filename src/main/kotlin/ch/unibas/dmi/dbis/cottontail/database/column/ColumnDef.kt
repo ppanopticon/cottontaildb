@@ -1,31 +1,38 @@
-package ch.unibas.dmi.dbis.cottontail.database.column
+package ch.unibas.dmi.dbis.cottontail.model.basics
 
+import ch.unibas.dmi.dbis.cottontail.database.column.*
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.DatabaseException
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.ValidationException
-import ch.unibas.dmi.dbis.cottontail.model.type.*
 import ch.unibas.dmi.dbis.cottontail.model.values.*
 import ch.unibas.dmi.dbis.cottontail.utilities.name.Name
+
 import java.lang.RuntimeException
 
 /**
- * A definition class for a Cottontail DB [Column] be it in a DB or in-memory context. Specifies all the properties of such a [Column] and facilitates validation.
+ * A definition class for a Cottontail DB column be it in a DB or in-memory context.  Specifies all the properties of such a and facilitates validation.
  *
  * @author Ralph Gasser
  * @version 1.1
  */
-class ColumnDef<T: Any>(val name: Name, val type: Type<T>, val size: Int = -1, val nullable: Boolean = true) {
+class ColumnDef<T: Any> (name: Name, val type: ColumnType<T>, val size: Int = -1, val nullable: Boolean = true) {
+
+    /**
+     * Companion object with some convenience methods.
+     */
     companion object {
         /**
-         * Returns a [ColumnDef] with the provided attributes. The only difference as compared to using the constructor,
-         * is that the [Type] can be provided by name.
+         * Returns a [ColumnDef] with the provided attributes. The only difference as compared to using the constructor, is that the [ColumnType] can be provided by name.
          *
-         * @param column Name of the new [Column]
-         * @param type Name of the [Type] of the new [Column]
+         * @param name Name of the new [Column]
+         * @param type Name of the [ColumnType] of the new [Column]
          * @param size Size of the new [Column] (e.g. for vectors), where eligible.
          * @param nullable Whether or not the [Column] should be nullable.
          */
-        fun withAttributes(column: Name, type: String, size: Int = -1, nullable: Boolean = true): ColumnDef<*> = ColumnDef(column, TypeFactory.forName(type), size, nullable)
+        fun withAttributes(name: Name, type: String, size: Int = -1, nullable: Boolean = true): ColumnDef<*> = ColumnDef(name.toLowerCase(), ColumnType.forName(type), size, nullable)
     }
+
+    /** The [Name] of this [ColumnDef]. Lower-case values are enforced since Cottontail DB is not case-sensitive! */
+    val name = name.toLowerCase()
 
     /**
      * Validates a value with regard to this [ColumnDef] and throws an Exception, if validation fails.
@@ -79,18 +86,18 @@ class ColumnDef<T: Any>(val name: Name, val type: Type<T>, val size: Int = -1, v
      */
     fun defaultValue(): Value<*>? = when {
         this.nullable -> null
-        this.type is StringType -> StringValue("")
-        this.type is FloatType -> FloatValue(0.0f)
-        this.type is DoubleType -> DoubleValue(0.0)
-        this.type is IntType -> IntValue(0)
-        this.type is LongType -> LongValue(0L)
-        this.type is ShortType -> ShortValue(0.toShort())
-        this.type is ByteType -> ByteValue(0.toByte())
-        this.type is BooleanType -> BooleanValue(false)
-        this.type is DoubleArrayType -> DoubleArrayValue(DoubleArray(this.size))
-        this.type is FloatArrayType -> FloatArrayValue(FloatArray(this.size))
-        this.type is LongArrayType -> LongArrayValue(LongArray(this.size))
-        this.type is IntArrayType -> IntArrayValue(IntArray(this.size))
+        this.type is StringColumnType -> StringValue("")
+        this.type is FloatColumnType -> FloatValue(0.0f)
+        this.type is DoubleColumnType -> DoubleValue(0.0)
+        this.type is IntColumnType -> IntValue(0)
+        this.type is LongColumnType -> LongValue(0L)
+        this.type is ShortColumnType -> ShortValue(0.toShort())
+        this.type is ByteColumnType -> ByteValue(0.toByte())
+        this.type is BooleanColumnType -> BooleanValue(false)
+        this.type is DoubleArrayColumnType -> DoubleArrayValue(DoubleArray(this.size))
+        this.type is FloatArrayColumnType -> FloatArrayValue(FloatArray(this.size))
+        this.type is LongArrayColumnType -> LongArrayValue(LongArray(this.size))
+        this.type is IntArrayColumnType -> IntArrayValue(IntArray(this.size))
         else -> throw RuntimeException("Default value for the specified type $type has not been specified yet!")
     }
 

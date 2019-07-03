@@ -1,4 +1,4 @@
-package ch.unibas.dmi.dbis.cottontail.calcite.rules
+package ch.unibas.dmi.dbis.cottontail.calcite.rules.convert
 
 import ch.unibas.dmi.dbis.cottontail.calcite.rel.CottontailProject
 
@@ -15,7 +15,7 @@ import org.apache.calcite.plan.RelOptRuleCall
  * @author Ralph Gasser
  * @version 1.0
  */
-object CottontailProjectRule : CottontailConverterRule<LogicalProject>(LogicalProject::class.java, "CottontailProjectRule") {
+object CottontailProjectRule : CottontailConverterRule<LogicalProject>(LogicalProject::class.java, "CtProject") {
 
     /**
      * This rule only matches, of the projected fields are all actual columns found in the [Entity]

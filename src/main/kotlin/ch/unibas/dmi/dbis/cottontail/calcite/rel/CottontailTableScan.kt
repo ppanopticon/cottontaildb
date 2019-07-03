@@ -1,8 +1,8 @@
 package ch.unibas.dmi.dbis.cottontail.calcite.rel
 
 import ch.unibas.dmi.dbis.cottontail.calcite.adapter.CottontailTable
-import ch.unibas.dmi.dbis.cottontail.calcite.rules.CottontailLimitRule
-import ch.unibas.dmi.dbis.cottontail.calcite.rules.CottontailProjectRule
+import ch.unibas.dmi.dbis.cottontail.calcite.rules.convert.CottontailLimitRule
+import ch.unibas.dmi.dbis.cottontail.calcite.rules.convert.CottontailProjectRule
 import ch.unibas.dmi.dbis.cottontail.calcite.rules.CottontailToEnumerableConverterRule
 
 import org.apache.calcite.plan.RelOptCluster
@@ -49,10 +49,10 @@ internal class CottontailTableScan(cluster: RelOptCluster, traitSet: RelTraitSet
      *
      */
     override fun register(planner: RelOptPlanner) {
-        planner.addRule(CottontailToEnumerableConverterRule.INSTANCE)
         planner.addRule(CottontailProjectRule)
         planner.addRule(CottontailLimitRule)
-
+        planner.addRule(CottontailToEnumerableConverterRule.INSTANCE)
+        super.register(planner)
     }
 
     /**

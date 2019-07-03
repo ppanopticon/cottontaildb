@@ -4,9 +4,6 @@ import org.apache.calcite.rel.RelWriter
 import org.apache.calcite.rex.RexLiteral
 import org.apache.calcite.rel.RelNode
 import org.apache.calcite.plan.RelTraitSet
-import org.apache.calcite.rel.metadata.RelMetadataQuery
-import org.apache.calcite.plan.RelOptPlanner
-import org.apache.calcite.plan.RelOptCost
 import org.apache.calcite.rex.RexNode
 import org.apache.calcite.plan.RelOptCluster
 import org.apache.calcite.rel.AbstractRelNode
@@ -24,13 +21,6 @@ internal class CottontailLimit(cluster: RelOptCluster, traitSet: RelTraitSet, in
 
     init {
         assert(convention === input.convention)
-    }
-
-    /**
-     *
-     */
-    override fun computeSelfCost(planner: RelOptPlanner, mq: RelMetadataQuery): RelOptCost {
-        return planner.costFactory.makeZeroCost()
     }
 
     /**

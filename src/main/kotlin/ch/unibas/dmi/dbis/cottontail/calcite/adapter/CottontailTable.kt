@@ -4,11 +4,10 @@ import ch.unibas.dmi.dbis.cottontail.calcite.rel.CottontailTableScan
 import ch.unibas.dmi.dbis.cottontail.calcite.enumerators.CottontailEntityEnumerator
 import ch.unibas.dmi.dbis.cottontail.calcite.enumerators.Enumerators
 import ch.unibas.dmi.dbis.cottontail.calcite.rel.CottontailRel
-import ch.unibas.dmi.dbis.cottontail.calcite.utilities.Entry
-import ch.unibas.dmi.dbis.cottontail.database.column.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.database.entity.Entity
 import ch.unibas.dmi.dbis.cottontail.database.queries.Predicate
 import ch.unibas.dmi.dbis.cottontail.database.schema.Schema
+import ch.unibas.dmi.dbis.cottontail.model.exceptions.QueryException
 
 import org.apache.calcite.plan.RelOptTable
 import org.apache.calcite.rel.type.RelDataType
@@ -22,11 +21,12 @@ import org.apache.calcite.linq4j.*
 import org.apache.calcite.linq4j.tree.Expression
 import org.apache.calcite.rel.*
 import org.apache.calcite.util.ImmutableBitSet
-import java.lang.reflect.Type
 import org.apache.calcite.linq4j.Enumerable
 import org.apache.calcite.linq4j.QueryProvider
 import org.apache.calcite.schema.impl.AbstractTableQueryable
 import org.apache.calcite.util.Pair
+
+import java.lang.reflect.Type
 
 
 /**
@@ -63,9 +63,11 @@ internal class CottontailTable(name: String, schema: Schema) : AbstractTable(), 
     /**
      *
      */
-    fun query(fields: List<String> = emptyList(), selectFields: List<Pair<ColumnDef<*>, String>> = emptyList(), where: List<Predicate> = emptyList(), offset: Long = 0, limit: Long = -1): Enumerable<Array<Any?>> = object : AbstractEnumerable<Array<Any?>>() {
-        /* TODO: Fix. */
-        override fun enumerator(): Enumerator<Array<Any?>> = CottontailEntityEnumerator(this@CottontailTable.source, fields, selectFields, where, offset, limit)
+    fun query(fields: List<Pair<String,Class<*>>> = emptyList(), selectFields: List<Pair<String, String>> = emptyList(), where: List<Predicate> = emptyList(), offset: Long = 0, limit: Long = Enumerators.LIMIT_NO_LIMIT): Enumerable<Array<Any?>> = object : AbstractEnumerable<Array<Any?>>() {
+        val resolvedFields = fields.map {  Pair(this@CottontailTable.source.columnForName(it.left) ?: throw QueryException.QueryBindException("Failed to bind column '$it' to a column in entity ${this@CottontailTable.source.fqn}."), it.right) }
+        val resolvedSelectFields = selectFields.map { Pair(this@CottontailTable.source.columnForName(it.left) ?: throw QueryException.QueryBindException("Failed to bind column '$it' to a column in entity ${this@CottontailTable.source.fqn}."), it.right) }
+
+        override fun enumerator(): Enumerator<Array<Any?>> = CottontailEntityEnumerator(this@CottontailTable.source, resolvedFields, resolvedSelectFields, offset, limit)
     }
 
     /**
@@ -107,8 +109,8 @@ internal class CottontailTable(name: String, schema: Schema) : AbstractTable(), 
         /**
          * Called via code-generation.
          */
-        fun query(fields: List<String>, selectFields: List<Pair<ColumnDef<*>, String>>, predicates: List<Predicate>, offset: Long = 0, fetch: Long = Enumerators.LIMIT_NO_LIMIT): Enumerable<Array<Any?>> {
-            return (this.table as CottontailTable).query(fields, selectFields, predicates, offset, fetch)
+        fun query(fields: List<Pair<String,Class<*>>>, selectFields: List<Pair<String, String>>, predicates: List<Predicate>, offset: Long = 0, limit: Long = Enumerators.LIMIT_NO_LIMIT): Enumerable<Array<Any?>> {
+            return (this.table as CottontailTable).query(fields, selectFields, predicates, offset, limit)
         }
     }
 }

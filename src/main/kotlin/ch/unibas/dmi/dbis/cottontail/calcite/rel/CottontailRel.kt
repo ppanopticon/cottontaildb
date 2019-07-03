@@ -4,13 +4,10 @@ import ch.unibas.dmi.dbis.cottontail.calcite.adapter.CottontailTable
 import ch.unibas.dmi.dbis.cottontail.calcite.enumerators.Enumerators
 import ch.unibas.dmi.dbis.cottontail.database.column.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.database.queries.Predicate
+
 import org.apache.calcite.rel.RelNode
 import org.apache.calcite.plan.RelOptTable
 import org.apache.calcite.plan.Convention
-
-
-
-
 
 /**
  * @author Ralph Gasser
@@ -38,7 +35,7 @@ internal interface CottontailRel : RelNode {
         var cottontailTable: CottontailTable? = null
 
         /** List of fields that should be projected to. */
-        val projections: MutableMap<ColumnDef<*>,String> = mutableMapOf()
+        val projections: MutableMap<String,String> = mutableMapOf()
 
         /** List of [Predicate] that are connected by AND operations. */
         val predicates: MutableList<Predicate> = mutableListOf()
@@ -57,12 +54,12 @@ internal interface CottontailRel : RelNode {
         fun addPredicate(predicate: Predicate) = this.predicates.add(predicate)
 
         /**
-         * Adds a [ColumnDef] to this list of [ColumnDef]s (projections).
+         * Adds a named column to the list of projection columns.
          *
-         * @param column [ColumnDef] to add.
+         * @param column Name of the column to add.
          * @param alias The alias for the specified [ColumnDef].
          */
-        fun addProjection(column: ColumnDef<*>, alias: String) = this.projections.put(column, alias)
+        fun addProjection(column: String, alias: String) = this.projections.put(column, alias)
 
         /**
          *

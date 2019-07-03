@@ -3,6 +3,7 @@ package ch.unibas.dmi.dbis.cottontail.calcite.rules
 import ch.unibas.dmi.dbis.cottontail.calcite.adapter.CottontailTable
 import ch.unibas.dmi.dbis.cottontail.calcite.rel.CottontailMethod
 import ch.unibas.dmi.dbis.cottontail.calcite.rel.CottontailRel
+import ch.unibas.dmi.dbis.cottontail.calcite.rules.convert.CottontailConverterRule
 import ch.unibas.dmi.dbis.cottontail.database.queries.Predicate
 import com.google.common.collect.Lists
 import org.apache.calcite.adapter.enumerable.*
@@ -58,7 +59,7 @@ internal class CottontailToEnumerableConverter(cluster: RelOptCluster, traits: R
         val fields = list.append("fields", constantArrayList(CottontailConverterRule.cottontailFieldNames(rowType).mapIndexed { i, v -> Pair(v, physType.fieldClass(i)) }, Pair::class.java))
 
         /* Extract projections (projected fields + alias) and transform them to ENUMERABLE convention. */
-        val selectList = cottontailImplementor.projections.map { Pair(it.key.toString(), it.value) }
+        val selectList = cottontailImplementor.projections.map { Pair(it.key, it.value) }
         val selectFields = list.append("selectFields", constantArrayList(selectList, Pair::class.java))
 
         /* */
@@ -76,8 +77,8 @@ internal class CottontailToEnumerableConverter(cluster: RelOptCluster, traits: R
 
         /* Map to enumerable and return. */
         val enumerable = list.append("enumerable", Expressions.call(table, CottontailMethod.COTTONTAIL_QUERYABLE_QUERY.method, fields, selectFields, predicates, offset, limit))
-        list.add(Expressions.return_(null, enumerable));
-        return implementor.result(physType, list.toBlock());
+        list.add(Expressions.return_(null, enumerable))
+        return implementor.result(physType, list.toBlock())
     }
 
 

@@ -1,4 +1,4 @@
-package ch.unibas.dmi.dbis.cottontail.calcite.rules
+package ch.unibas.dmi.dbis.cottontail.calcite.rules.convert
 
 import ch.unibas.dmi.dbis.cottontail.calcite.rel.CottontailRel
 
@@ -31,7 +31,7 @@ abstract class CottontailConverterRule<T : RelNode>(clazz: Class<T>, description
          * @return List of field names.
          */
         fun cottontailFieldNames(rowType: RelDataType): List<String> {
-            return SqlValidatorUtil.uniquify(rowType.fieldNames, SqlValidatorUtil.EXPR_SUGGESTER, true)
+            return SqlValidatorUtil.uniquify(rowType.fieldNames, SqlValidatorUtil.EXPR_SUGGESTER, false)
         }
     }
 

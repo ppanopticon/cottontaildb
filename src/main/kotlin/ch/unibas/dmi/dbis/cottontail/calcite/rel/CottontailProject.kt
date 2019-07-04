@@ -1,7 +1,6 @@
 package ch.unibas.dmi.dbis.cottontail.calcite.rel
 
 import ch.unibas.dmi.dbis.cottontail.calcite.rules.RexToCottontailTranslator
-import ch.unibas.dmi.dbis.cottontail.calcite.rules.convert.CottontailLimitRule
 
 
 import org.apache.calcite.adapter.java.JavaTypeFactory
@@ -13,7 +12,6 @@ import org.apache.calcite.rel.RelNode
 import org.apache.calcite.rel.core.Project
 import org.apache.calcite.rel.metadata.RelMetadataQuery
 import org.apache.calcite.rel.type.RelDataType
-import org.apache.calcite.rex.RexLiteral
 import org.apache.calcite.rex.RexNode
 import org.apache.calcite.sql.validate.SqlValidatorUtil
 
@@ -45,16 +43,6 @@ internal class CottontailProject(cluster: RelOptCluster, traitSet: RelTraitSet, 
         return planner.costFactory.makeZeroCost()
     }
 
-
-    /**
-     *
-     */
-    override fun register(planner: RelOptPlanner) {
-        planner.addRule(CottontailLimitRule)
-        super.register(planner)
-    }
-
-
     /**
      *
      */
@@ -64,7 +52,6 @@ internal class CottontailProject(cluster: RelOptCluster, traitSet: RelTraitSet, 
         /* Apply PROJECTION. */
         val fieldNames = SqlValidatorUtil.uniquify(getInput().rowType.fieldNames, SqlValidatorUtil.EXPR_SUGGESTER, true)
         val translator = RexToCottontailTranslator(this.cluster.typeFactory as JavaTypeFactory, fieldNames)
-
         val table = implementor.cottontailTable
         if (table != null) {
             this.namedProjects.forEach {

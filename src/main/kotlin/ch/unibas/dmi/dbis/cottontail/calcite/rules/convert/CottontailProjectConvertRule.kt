@@ -15,7 +15,7 @@ import org.apache.calcite.plan.RelOptRuleCall
  * @author Ralph Gasser
  * @version 1.0
  */
-object CottontailProjectRule : CottontailConverterRule<LogicalProject>(LogicalProject::class.java, "CtProject") {
+object CottontailProjectConvertRule : CottontailConverterRule<LogicalProject>(LogicalProject::class.java, "CtProject") {
 
     /**
      * This rule only matches, of the projected fields are all actual columns found in the [Entity]
@@ -33,7 +33,7 @@ object CottontailProjectRule : CottontailConverterRule<LogicalProject>(LogicalPr
     }
 
     /**
-     * Converts the given [RelNode] to a [CottontailProject].
+     * Converts the given [LogicalProject] to a [CottontailProject].
      *
      * @param rel The [RelNode] to convert.
      */

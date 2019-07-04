@@ -95,38 +95,37 @@ internal fun RexCall.toPredicate(root: LogicalFilter) : BooleanPredicate {
 
 
 
-    /**
-     * Maps the standard [SqlOperator]s AND, OR and NOT to a [ConnectionOperator].
-     *
-     * @return Corresponding [ConnectionOperator].
-     */
-    internal fun SqlOperator.toConnectionOperator() = when (this) {
-        SqlStdOperatorTable.AND -> ConnectionOperator.AND
-        SqlStdOperatorTable.OR -> ConnectionOperator.OR
-        SqlStdOperatorTable.NOT -> ConnectionOperator.NOT
-        else -> throw IllegalArgumentException("The provided SQL operator ${this} cannot be converted to a ConnectionOperator.")
-    }
+/**
+ * Maps the standard [SqlOperator]s AND, OR and NOT to a [ConnectionOperator].
+ *
+ * @return Corresponding [ConnectionOperator].
+ */
+internal fun SqlOperator.toConnectionOperator() = when (this) {
+    SqlStdOperatorTable.AND -> ConnectionOperator.AND
+    SqlStdOperatorTable.OR -> ConnectionOperator.OR
+    SqlStdOperatorTable.NOT -> ConnectionOperator.NOT
+    else -> throw IllegalArgumentException("The provided SQL operator ${this} cannot be converted to a ConnectionOperator.")
+}
 
-    /**
-     * Maps the standard binary [SqlOperator]s (=, !=, <, > etc.) to the corresponding [ComparisonOperator].
-     *
-     * @return Corresponding [ComparisonOperator].
-     */
-    internal fun SqlOperator.toComparisonOperator() = when (this) {
-        SqlStdOperatorTable.EQUALS -> ComparisonOperator.EQUAL
-        SqlStdOperatorTable.NOT_EQUALS -> ComparisonOperator.NOT_EQUAL
-        SqlStdOperatorTable.LIKE -> ComparisonOperator.LIKE
-        SqlStdOperatorTable.NOT_LIKE -> ComparisonOperator.NOT_LIKE
-        SqlStdOperatorTable.BETWEEN -> ComparisonOperator.BETWEEN
-        SqlStdOperatorTable.IN -> ComparisonOperator.IN
-        SqlStdOperatorTable.NOT_IN -> ComparisonOperator.NOT_IN
-        SqlStdOperatorTable.NOT_BETWEEN -> ComparisonOperator.NOT_BETWEEN
-        SqlStdOperatorTable.GREATER_THAN -> ComparisonOperator.GREATER
-        SqlStdOperatorTable.GREATER_THAN_OR_EQUAL -> ComparisonOperator.GEQUAL
-        SqlStdOperatorTable.LESS_THAN -> ComparisonOperator.LESS
-        SqlStdOperatorTable.LESS_THAN_OR_EQUAL -> ComparisonOperator.LEQUAL
-        SqlStdOperatorTable.IS_NULL -> ComparisonOperator.ISNULL
-        SqlStdOperatorTable.IS_NOT_NULL -> ComparisonOperator.ISNOTNULL
-        else -> throw IllegalArgumentException("The provided SQL operator ${this} cannot be converted to a ComparisonOperator.")
-    }
+/**
+ * Maps the standard binary [SqlOperator]s (=, !=, <, > etc.) to the corresponding [ComparisonOperator].
+ *
+ * @return Corresponding [ComparisonOperator].
+ */
+internal fun SqlOperator.toComparisonOperator() = when (this) {
+    SqlStdOperatorTable.EQUALS -> ComparisonOperator.EQUAL
+    SqlStdOperatorTable.NOT_EQUALS -> ComparisonOperator.NOT_EQUAL
+    SqlStdOperatorTable.LIKE -> ComparisonOperator.LIKE
+    SqlStdOperatorTable.NOT_LIKE -> ComparisonOperator.NOT_LIKE
+    SqlStdOperatorTable.BETWEEN -> ComparisonOperator.BETWEEN
+    SqlStdOperatorTable.IN -> ComparisonOperator.IN
+    SqlStdOperatorTable.NOT_IN -> ComparisonOperator.NOT_IN
+    SqlStdOperatorTable.NOT_BETWEEN -> ComparisonOperator.NOT_BETWEEN
+    SqlStdOperatorTable.GREATER_THAN -> ComparisonOperator.GREATER
+    SqlStdOperatorTable.GREATER_THAN_OR_EQUAL -> ComparisonOperator.GEQUAL
+    SqlStdOperatorTable.LESS_THAN -> ComparisonOperator.LESS
+    SqlStdOperatorTable.LESS_THAN_OR_EQUAL -> ComparisonOperator.LEQUAL
+    SqlStdOperatorTable.IS_NULL -> ComparisonOperator.ISNULL
+    SqlStdOperatorTable.IS_NOT_NULL -> ComparisonOperator.ISNOTNULL
+    else -> throw IllegalArgumentException("The provided SQL operator ${this} cannot be converted to a ComparisonOperator.")
 }

@@ -525,7 +525,7 @@ internal class Entity(n: Name, schema: Schema) : DBO {
             /* Handle filter() for different cases. */
             when (predicate) {
                 /* Case 1: Predicate affects single column (AtomicBooleanPredicate). */
-                is AtomicBooleanPredicate<*> -> this.columns.getValue(predicate.columns.first()).forEach(predicate) {
+                is AtomicBooleanPredicate -> this.columns.getValue(predicate.columns.first()).forEach(predicate) {
                     for (i in 0 until columns.size) {
                         data[i] = this.columns.getValue(columns[i]).read(it.tupleId)
                     }
@@ -569,7 +569,7 @@ internal class Entity(n: Name, schema: Schema) : DBO {
                     action(StandaloneRecord(it.tupleId, columns).assign(data))
                 }
                 /* Case 2: Predicate affects single column (AtomicBooleanPredicate). */
-                predicate is AtomicBooleanPredicate<*> -> this.columns.getValue(predicate.columns.first()).forEach(predicate) {
+                predicate is AtomicBooleanPredicate -> this.columns.getValue(predicate.columns.first()).forEach(predicate) {
                     for (i in 0 until columns.size) {
                         data[i] = this.columns.getValue(columns[i]).read(it.tupleId)
                     }
@@ -616,7 +616,7 @@ internal class Entity(n: Name, schema: Schema) : DBO {
                     list.add(action(StandaloneRecord(it.tupleId, columns).assign(data)))
                 }
                 /* Case 2: Predicate affects single column (AtomicBooleanPredicate). */
-                predicate is AtomicBooleanPredicate<*> -> this.columns.getValue(predicate.columns.first()).forEach(predicate) {
+                predicate is AtomicBooleanPredicate -> this.columns.getValue(predicate.columns.first()).forEach(predicate) {
                     for (i in 0 until columns.size) {
                         data[i] = this.columns.getValue(columns[i]).read(it.tupleId)
                     }

@@ -139,7 +139,7 @@ internal class LuceneIndex(override val name: Name, override val parent: Entity,
 
         /* Generate query. */
         val query = when (predicate) {
-            is AtomicBooleanPredicate<*> -> predicate.toLuceneQuery()
+            is AtomicBooleanPredicate -> predicate.toLuceneQuery()
             is CompoundBooleanPredicate -> predicate.toLuceneQuery()
         }
 
@@ -177,7 +177,7 @@ internal class LuceneIndex(override val name: Name, override val parent: Entity,
 
         /* Generate query. */
         val query = when (predicate) {
-            is AtomicBooleanPredicate<*> -> predicate.toLuceneQuery()
+            is AtomicBooleanPredicate -> predicate.toLuceneQuery()
             is CompoundBooleanPredicate -> predicate.toLuceneQuery()
         }
 
@@ -211,7 +211,7 @@ internal class LuceneIndex(override val name: Name, override val parent: Entity,
 
         /* Generate query. */
         val query = when (predicate) {
-            is AtomicBooleanPredicate<*> -> predicate.toLuceneQuery()
+            is AtomicBooleanPredicate -> predicate.toLuceneQuery()
             is CompoundBooleanPredicate -> predicate.toLuceneQuery()
         }
 

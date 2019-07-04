@@ -71,7 +71,7 @@ internal class UniqueHashIndex(override val name: Name, override val parent: Ent
      * @param predicate The [Predicate] for the lookup
      * @return The resulting [Recordset]
      */
-    override fun filter(predicate: Predicate): Recordset = if (predicate is AtomicBooleanPredicate<*>) {
+    override fun filter(predicate: Predicate): Recordset = if (predicate is AtomicBooleanPredicate) {
         /* Create empty recordset. */
         val recordset = Recordset(this.columns)
 
@@ -83,20 +83,11 @@ internal class UniqueHashIndex(override val name: Name, override val parent: Ent
         }
 
         /* Generate record set .*/
-        if (predicate.not) {
-            this.map.forEach { (value, tid) ->
-                if (results.containsKey(value)) {
-                    recordset.addRowUnsafe(tupleId = tid, values = arrayOf(value))
-                }
-            }
-        } else {
-            results.forEach {
-                if (it.value != null) {
-                    recordset.addRowUnsafe(tupleId = it.value!!, values = arrayOf(it.key))
-                }
+        results.forEach {
+            if (it.value != null) {
+                recordset.addRowUnsafe(tupleId = it.value!!, values = arrayOf(it.key))
             }
         }
-
         recordset
     } else {
         throw QueryException.UnsupportedPredicateException("Index '${this.fqn}' (unique hash-index) does not support predicates of type '${predicate::class.simpleName}'.")
@@ -109,7 +100,7 @@ internal class UniqueHashIndex(override val name: Name, override val parent: Ent
      * @param predicate The [Predicate] to check.
      * @return True if [Predicate] can be processed, false otherwise.
      */
-    override fun canProcess(predicate: Predicate): Boolean = if (predicate is AtomicBooleanPredicate<*>) {
+    override fun canProcess(predicate: Predicate): Boolean = if (predicate is AtomicBooleanPredicate) {
         predicate.columns.first() == this.columns[0] && (predicate.operator == ComparisonOperator.IN || predicate.operator == ComparisonOperator.EQUAL)
     } else {
         false
@@ -122,7 +113,7 @@ internal class UniqueHashIndex(override val name: Name, override val parent: Ent
      * @return Cost estimate for the [Predicate]
      */
     override fun cost(predicate: Predicate): Float = when {
-        predicate !is AtomicBooleanPredicate<*> || predicate.columns.first() != this.columns[0] -> Float.MAX_VALUE
+        predicate !is AtomicBooleanPredicate || predicate.columns.first() != this.columns[0] -> Float.MAX_VALUE
         predicate.operator == ComparisonOperator.IN -> ATOMIC_COST * predicate.values.size
         predicate.operator == ComparisonOperator.IN -> ATOMIC_COST
         else -> Float.MAX_VALUE

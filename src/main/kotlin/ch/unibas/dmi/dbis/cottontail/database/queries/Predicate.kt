@@ -31,7 +31,7 @@ sealed class Predicate {
  */
 internal sealed class BooleanPredicate : Predicate() {
     /** The [AtomicBooleanPredicate]s that make up this [BooleanPredicate]. */
-    abstract val atomics: Set<AtomicBooleanPredicate<*>>
+    abstract val atomics: Set<AtomicBooleanPredicate>
 
     /**
      * Returns true, if the provided [Record] matches the [Predicate] and false otherwise.
@@ -47,7 +47,7 @@ internal sealed class BooleanPredicate : Predicate() {
  * @author Ralph Gasser
  * @version 1.0
  */
-internal data class AtomicBooleanPredicate<T : Value<*>>(private val column: ColumnDef<T>, val operator: ComparisonOperator, val not: Boolean = false, var values: Collection<Value<*>>) : BooleanPredicate() {
+internal data class AtomicBooleanPredicate(private val column: ColumnDef<*>, val operator: ComparisonOperator, var values: Collection<Value<out Any>>) : BooleanPredicate() {
     init {
         if (this.operator == ComparisonOperator.IN) {
             this.values = this.values.toSet()
@@ -58,10 +58,10 @@ internal data class AtomicBooleanPredicate<T : Value<*>>(private val column: Col
     override val operations: Int = 1
 
     /** Set of [ColumnDef] that are affected by this [AtomicBooleanPredicate]. */
-    override val columns: Set<ColumnDef<T>> = setOf(this.column)
+    override val columns: Set<ColumnDef<*>> = setOf(this.column)
 
     /** The [AtomicBooleanPredicate]s that make up this [BooleanPredicate]. */
-    override val atomics: Set<AtomicBooleanPredicate<*>>
+    override val atomics: Set<AtomicBooleanPredicate>
         get() = setOf(this)
 
     /**
@@ -70,34 +70,28 @@ internal data class AtomicBooleanPredicate<T : Value<*>>(private val column: Col
      * @param record The [Record] to check.
      * @return true if [Record] matches this [AtomicBooleanPredicate], false otherwise.
      */
-    override fun matches(record: Record): Boolean {
-        if (record.has(column)) {
-            return if (not) {
-                !operator.match(record[column], values)
-            } else {
-                operator.match(record[column], values)
-            }
-        } else {
-            throw QueryException.ColumnDoesNotExistException(column)
-        }
+    override fun matches(record: Record): Boolean = if (record.has(column)) {
+        operator.match(record[column], values)
+    } else {
+        throw QueryException.ColumnDoesNotExistException(column)
     }
 }
 
 /**
- * A compound [BooleanPredicate] that connects two other [BooleanPredicate]s through a logical AND or OR connection.
+ * A compound [BooleanPredicate] that connects multiple [BooleanPredicate]s through a logical AND or OR connection.
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.1
  */
-internal data class CompoundBooleanPredicate(val connector: ConnectionOperator, val p1: BooleanPredicate, val p2: BooleanPredicate) : BooleanPredicate() {
+internal class CompoundBooleanPredicate(val connector: ConnectionOperator, vararg val clauses: BooleanPredicate) : BooleanPredicate() {
     /** The [AtomicBooleanPredicate]s that make up this [CompoundBooleanPredicate]. */
-    override val atomics = this.p1.atomics + this.p2.atomics
+    override val atomics = clauses.flatMap { it.atomics }.toSet()
 
     /** Set of [ColumnDef] that are affected by this [CompoundBooleanPredicate]. */
-    override val columns: Set<ColumnDef<*>> = p1.columns + p2.columns
+    override val columns: Set<ColumnDef<*>> =  clauses.flatMap { it.columns }.toSet()
 
     /** The total number of operations required by this [CompoundBooleanPredicate]. */
-    override val operations = p1.operations + p2.operations
+    override val operations = clauses.map { it.operations }.sum()
 
     /**
      * Checks if the provided [Record] matches this [CompoundBooleanPredicate] and returns true or false respectively.
@@ -106,8 +100,9 @@ internal data class CompoundBooleanPredicate(val connector: ConnectionOperator, 
      * @return true if [Record] matches this [CompoundBooleanPredicate], false otherwise.
      */
     override fun matches(record: Record): Boolean = when (connector) {
-        ConnectionOperator.AND -> p1.matches(record) && p2.matches(record)
-        ConnectionOperator.OR -> p1.matches(record) || p2.matches(record)
+        ConnectionOperator.AND -> atomics.all { it.matches(record) }
+        ConnectionOperator.OR -> atomics.any { it.matches(record) }
+        ConnectionOperator.NOT -> atomics.none { it.matches(record) }
     }
 }
 

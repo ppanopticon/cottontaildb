@@ -5,6 +5,7 @@ import ch.unibas.dmi.dbis.cottontail.calcite.rules.merge.CottontailLimitOnScanRu
 import ch.unibas.dmi.dbis.cottontail.calcite.rules.convert.CottontailProjectConvertRule
 import ch.unibas.dmi.dbis.cottontail.calcite.rules.CottontailToEnumerableConverterRule
 import ch.unibas.dmi.dbis.cottontail.calcite.rules.RexToCottontailTranslator
+import ch.unibas.dmi.dbis.cottontail.calcite.rules.convert.CottontailFilterConvertRule
 import ch.unibas.dmi.dbis.cottontail.calcite.rules.convert.CottontailLimitConvertRule
 import ch.unibas.dmi.dbis.cottontail.calcite.rules.merge.CottontailLimitOnProjectRule
 import ch.unibas.dmi.dbis.cottontail.calcite.rules.merge.CottontailProjectOnScan
@@ -68,8 +69,13 @@ internal class CottontailTableScan(
      * @param planner The [RelOptPlanner] instance responsible for laying out the query plan.
      */
     override fun register(planner: RelOptPlanner) {
+
+        /* Converter rules. */
         planner.addRule(CottontailLimitConvertRule)
         planner.addRule(CottontailProjectConvertRule)
+        planner.addRule(CottontailFilterConvertRule)
+
+        /* Optimization rules. */
         planner.addRule(CottontailProjectOnScan)
         planner.addRule(CottontailLimitOnScanRule)
         planner.addRule(CottontailLimitOnProjectRule)

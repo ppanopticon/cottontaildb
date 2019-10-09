@@ -71,37 +71,32 @@ class MappedFileChannelStore(val path: Path, val readOnly: Boolean, val forceUnm
         this.remap()
     }
 
-    override fun getDouble(offset: Long): Double = this.sliceLock.optimisticRead { this.sliceForOffset(offset).getDouble((offset and this.sliceSizeModMask).toInt())  }
+    override fun getDouble(offset: Long): Double = this.sliceLock.optimisticRead { this.getData(offset, ByteBuffer.allocateDirect(8)).double  }
     override fun putDouble(offset: Long, value: Double)= this.putData(offset, ByteBuffer.allocateDirect(8).putDouble(value).rewind())
 
-    override fun getFloat(offset: Long): Float = this.sliceLock.optimisticRead {  this.sliceForOffset(offset).getFloat((offset and this.sliceSizeModMask).toInt()) }
+    override fun getFloat(offset: Long): Float = this.sliceLock.optimisticRead {  this.getData(offset, ByteBuffer.allocateDirect(4)).float }
     override fun putFloat(offset: Long, value: Float) = this.putData(offset, ByteBuffer.allocateDirect(4).putFloat(value).rewind())
 
-    override fun getLong(offset: Long): Long = this.sliceLock.optimisticRead {  this.sliceForOffset(offset).getLong((offset and this.sliceSizeModMask).toInt()) }
+    override fun getLong(offset: Long): Long = this.sliceLock.optimisticRead {  this.getData(offset, ByteBuffer.allocateDirect(Long.SIZE_BYTES)).long }
     override fun putLong(offset: Long, value: Long) = this.putData(offset, ByteBuffer.allocateDirect(Long.SIZE_BYTES).putLong(value).rewind())
 
-    override fun getInt(offset: Long): Int = this.sliceLock.optimisticRead {  this.sliceForOffset(offset).getInt((offset and this.sliceSizeModMask).toInt()) }
+    override fun getInt(offset: Long): Int = this.sliceLock.optimisticRead {  this.getData(offset, ByteBuffer.allocateDirect(Int.SIZE_BYTES)).int }
     override fun putInt(offset: Long, value: Int) = this.putData(offset, ByteBuffer.allocateDirect(Int.SIZE_BYTES).putInt(value).rewind())
 
-    override fun getShort(offset: Long): Short = this.sliceLock.optimisticRead {  this.sliceForOffset(offset).getShort((offset and this.sliceSizeModMask).toInt()) }
+    override fun getShort(offset: Long): Short = this.sliceLock.optimisticRead { this.getData(offset, ByteBuffer.allocateDirect(Short.SIZE_BYTES)).short }
     override fun putShort(offset: Long, value: Short) = this.putData(offset, ByteBuffer.allocateDirect(Short.SIZE_BYTES).putShort(value).rewind())
 
-    override fun getChar(offset: Long): Char = this.sliceLock.optimisticRead {  this.sliceForOffset(offset).getChar((offset and this.sliceSizeModMask).toInt()) }
+    override fun getChar(offset: Long): Char = this.sliceLock.optimisticRead {  this.getData(offset, ByteBuffer.allocateDirect(Char.SIZE_BYTES)).char }
     override fun putChar(offset: Long, value: Char) = this.putData(offset, ByteBuffer.allocateDirect(Char.SIZE_BYTES).putChar(value).rewind())
 
-    override fun getByte(offset: Long): Byte = this.sliceLock.optimisticRead {  this.sliceForOffset(offset).get((offset and this.sliceSizeModMask).toInt()) }
+    override fun getByte(offset: Long): Byte = this.sliceLock.optimisticRead {  this.getData(offset, ByteBuffer.allocateDirect(Byte.SIZE_BYTES)).get() }
     override fun putByte(offset: Long, value: Byte) = this.putData(offset, ByteBuffer.allocateDirect(Byte.SIZE_BYTES).put(value).rewind())
 
     override fun getData(offset: Long, dst: ByteBuffer): ByteBuffer = this.sliceLock.optimisticRead {
         val oldPos = dst.position()
         val slices = this.slicesForRange(offset..(offset + (dst.remaining())))
         for (slice in slices) {
-            val pos = if (slice == slices.first()) {
-                (offset and this.sliceSizeModMask).toInt()
-            } else {
-                0
-            }
-            dst.put(slice.duplicate().position(pos).limit(dst.remaining()))
+            dst.put(slice)
         }
         dst.position(oldPos)
         return dst
@@ -296,8 +291,10 @@ class MappedFileChannelStore(val path: Path, val readOnly: Boolean, val forceUnm
     /**
      * Refreshes the memory mapping of this [MappedFileChannelStore]. This can become necessary, if the file grows significantly.
      * The method determines the size of slice based on the file size. For large files, the slices become larger (up to 4G per slice).
+     *
+     * <strong>Important:</strong> This method should only be called within a active Lock on [MappedFileChannelStore.sliceLock].
      */
-    private fun remap() = this.sliceLock.write {
+    private fun remap() {
         try {
             /* Force unmap the open slices (if existing). */
             if (this.forceUnmap) {
@@ -359,19 +356,6 @@ class MappedFileChannelStore(val path: Path, val readOnly: Boolean, val forceUnm
      *
      * @param offset The offset (in bytes) into the [MappedFileChannelStore].
      */
-    private fun sliceForOffset(offset: Long): ByteBuffer {
-        val pos = offset.ushr(this.sliceShift).toInt()
-        if (pos > this.slices.lastIndex) {
-            throw StoreException.StoreEOFException(this, offset)
-        }
-        return this.slices[pos]
-    }
-
-    /**
-     * Returns the slice for the given offset.
-     *
-     * @param offset The offset (in bytes) into the [MappedFileChannelStore].
-     */
     private fun slicesForRange(offset: LongRange): Array<ByteBuffer> {
         val start = offset.first.ushr(this.sliceShift).toInt()
         val end = offset.last.ushr(this.sliceShift).toInt()
@@ -383,10 +367,12 @@ class MappedFileChannelStore(val path: Path, val readOnly: Boolean, val forceUnm
             throw StoreException.StoreEOFException(this, offset.last)
         }
         return (start..end).map {
-            val slice = if (it == start) {
-                this.slices[it].duplicate().position((offset.first and this.sliceSizeModMask).toInt()).limit(min(this.slices[it].capacity(), left))
+            val slice = this.slices[it].duplicate()
+            if (it == start) {
+                val pos = (offset.first and this.sliceSizeModMask).toInt()
+                slice.position(pos).limit(min(slice.capacity(), slice.position() + left))
             } else {
-                this.slices[it].duplicate().position(0).limit(min(this.slices[it].capacity(), left))
+                slice.position(0).limit(min(slice.capacity(), left))
             }
             left -= slice.limit()-slice.position()
             slice

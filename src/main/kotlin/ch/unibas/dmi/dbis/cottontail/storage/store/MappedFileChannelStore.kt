@@ -339,18 +339,18 @@ class MappedFileChannelStore(val path: Path, val readOnly: Boolean, val forceUnm
      */
     private fun acquireFileLock(timeout: Long) : FileLock {
         val start = System.currentTimeMillis()
-        while (System.currentTimeMillis() - start < timeout) {
+        do {
             try {
                 val lock = this.fileChannel.tryLock()
                 if (lock != null) {
                     return lock
                 } else {
-                    Thread.sleep(250)
+                    Thread.sleep(100)
                 }
             } catch (e: IOException) {
                 throw StoreException.StoreIOException(this, e)
             }
-        }
+        } while (System.currentTimeMillis() - start < timeout)
         throw StoreException.StoreLockException(this)
     }
 

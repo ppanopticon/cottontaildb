@@ -1,6 +1,6 @@
 package ch.unibas.dmi.dbis.cottontail.math
 
-import ch.unibas.dmi.dbis.cottontail.math.knn.metrics.Shape
+import ch.unibas.dmi.dbis.cottontail.math.knn.metrics.*
 import ch.unibas.dmi.dbis.cottontail.utilities.VectorUtility
 import org.junit.jupiter.api.Assertions.*
 
@@ -13,7 +13,7 @@ import kotlin.time.measureTime
 import kotlin.time.Duration
 
 
-class FloatVectorDistanceTest {
+class DistanceTest {
 
     companion object {
         const val COLLECTION_SIZE = 1_000_000
@@ -37,10 +37,7 @@ class FloatVectorDistanceTest {
 
         collection.forEach {
             time1 += measureTime {
-                sum1 += FloatVectorDistance.L1(it, query)
-            }
-            time2 += measureTime {
-                sum2 += FloatVectorDistance.L1(it, query, Shape.S256)
+                sum1 += ManhattanDistance(it, query)
             }
         }
 
@@ -65,10 +62,7 @@ class FloatVectorDistanceTest {
 
         collection.forEach {
             time1 += measureTime {
-                sum1 += FloatVectorDistance.L2SQUARED(it, query)
-            }
-            time2 += measureTime {
-                sum2 += FloatVectorDistance.L2SQUARED(it, query, Shape.S256)
+                sum1 += SquaredEuclidianDistance(it, query)
             }
         }
 
@@ -93,10 +87,7 @@ class FloatVectorDistanceTest {
 
         collection.forEach {
             time1 += measureTime {
-                sum1 += FloatVectorDistance.L2(it, query)
-            }
-            time2 += measureTime {
-                sum2 += FloatVectorDistance.L2(it, query, Shape.S256)
+                sum1 += EuclidianDistance(it, query)
             }
         }
 
@@ -121,10 +112,7 @@ class FloatVectorDistanceTest {
 
         collection.forEach {
             time1 += measureTime {
-                sum1 += FloatVectorDistance.COSINE(it, query)
-            }
-            time2 += measureTime {
-                sum2 += FloatVectorDistance.COSINE(it, query, Shape.S256)
+                sum1 += CosineDistance(it, query)
             }
         }
 

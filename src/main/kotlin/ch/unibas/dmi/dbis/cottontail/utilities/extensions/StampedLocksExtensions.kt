@@ -51,3 +51,18 @@ inline fun <T> StampedLock.write(action: () -> T): T {
         this.unlock(stamp)
     }
 }
+
+/**
+ * Executes the given [action] under the read lock of this [StampedLock].
+ *
+ * @param action The action to execute. Must be side-effect free.
+ * @return the return value of the action.
+ */
+fun StampedLock.convertWriteLock(stamp: Long): Long {
+    var new = this.tryConvertToWriteLock(stamp)
+    while (new == 0L) {
+        new = this.tryConvertToWriteLock(stamp)
+        Thread.onSpinWait()
+    }
+    return new
+}

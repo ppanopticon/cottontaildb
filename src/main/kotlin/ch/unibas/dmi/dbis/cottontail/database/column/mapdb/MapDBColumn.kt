@@ -14,7 +14,7 @@ import ch.unibas.dmi.dbis.cottontail.model.exceptions.DatabaseException
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.QueryException
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.TransactionException
 import ch.unibas.dmi.dbis.cottontail.model.recordset.Recordset
-import ch.unibas.dmi.dbis.cottontail.model.values.Value
+import ch.unibas.dmi.dbis.cottontail.model.values.types.Value
 
 import ch.unibas.dmi.dbis.cottontail.utilities.name.Name
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.write
@@ -41,7 +41,7 @@ import kotlin.concurrent.write
  * @author Ralph Gasser
  * @version 1.2
  */
-class MapDBColumn<T : Value<*>>(override val name: Name, override val parent: Entity) : Column<T> {
+class MapDBColumn<T : Value>(override val name: Name, override val parent: Entity) : Column<T> {
     /** Constant FQN of the [Schema] object. */
     override val fqn: Name = this.parent.fqn.append(this.name)
 
@@ -131,14 +131,14 @@ class MapDBColumn<T : Value<*>>(override val name: Name, override val parent: En
     /**
      * Thinly veiled implementation of the [Record] interface for internal use.
      */
-    inner class ColumnRecord(override val tupleId: Long, val value: Value<*>?) : Record {
+    inner class ColumnRecord(override val tupleId: Long, val value: Value?) : Record {
         override val columns
             get() = arrayOf(this@MapDBColumn.columnDef)
         override val values
             get() = arrayOf(this.value)
 
-        override fun first(): Value<*>? = this.value
-        override fun last(): Value<*>? = this.value
+        override fun first(): Value? = this.value
+        override fun last(): Value? = this.value
         override fun copy(): Record = ColumnRecord(this.tupleId, this.value)
     }
 

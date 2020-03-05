@@ -1,12 +1,12 @@
-package ch.unibas.dmi.dbis.cottontail.database.index.lsh
+package ch.unibas.dmi.dbis.cottontail.database.index.lsh.superbit
 
+import ch.unibas.dmi.dbis.cottontail.model.values.types.VectorValue
 import java.io.Serializable
 
 /**
- * LSH implementation relying on Super-Bit, to bin vectors s times (stages)
- * in b buckets (per stage), in a space with d dimensions. Input vectors
- * with a high cosine similarity have a high probability of falling in the
- * same bucket.
+ * LSH implementation relying on Super-Bit, to bin vectors s times (stages)  in b buckets (per stage),
+ * in a space with d dimensions. Input vectors  with a high cosine similarity have a high probability
+ * of falling in the same bucket.
  *
  * @param s    stages
  * @param b    buckets (per stage)
@@ -16,19 +16,18 @@ import java.io.Serializable
  *
  * This class is inspired by Thibault Debatty (https://github.com/tdebatty/java-LSH).
  *
- * @author Manuel Huerbin
- * @version 1.0
+ * @author Manuel Huerbin & Ralph Gasser
+ * @version 1.1
  */
-class LSH(private var s: Int, private var b: Int, d: Int, seed: Int) : Serializable {
+class SuperBitLSH(private var s: Int, private var b: Int, d: Int, seed: Long, species: VectorValue<*>) : Serializable {
 
-    private var LARGE_PRIME: Long = 433494437
-    private var superBit: SuperBit? = null
-
-    init {
-        val k = s * b / 2 // code length
-        val N: Int = computeSuperBitDepth(d, k)
-        superBit = SuperBit(d, N, k / N, seed)
+    companion object {
+        const val LARGE_PRIME: Long = 433494437
     }
+
+    private val k = s * b / 2
+    private val N = computeSuperBitDepth(d, k)
+    private val superBit = SuperBit(d, N, k / N, seed, species)
 
     /**
      * Compute the Super-Bit depth N.
@@ -54,22 +53,8 @@ class LSH(private var s: Int, private var b: Int, d: Int, seed: Int) : Serializa
      * @param vector
      * @return A int[] with the signature.
      */
-    fun hash(vector: DoubleArray): IntArray {
-        return hashSignature(superBit!!.signature(vector))
-    }
-
-    /**
-     * Convert float[] to double[] vector, then call [hash].
-     *
-     * @param floatVector
-     * @return [hash] of the converted float[].
-     */
-    fun hash(floatVector: FloatArray): IntArray? {
-        val vector = DoubleArray(floatVector.size)
-        for (i in floatVector.indices) {
-            vector[i] = floatVector[i].toDouble()
-        }
-        return hash(vector)
+    fun hash(vector: VectorValue<*>): IntArray {
+        return hashSignature(this.superBit.signature(vector))
     }
 
     /**

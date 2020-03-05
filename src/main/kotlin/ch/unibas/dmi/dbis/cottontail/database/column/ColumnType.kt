@@ -2,6 +2,7 @@ package ch.unibas.dmi.dbis.cottontail.database.column
 
 import ch.unibas.dmi.dbis.cottontail.database.serializers.*
 import ch.unibas.dmi.dbis.cottontail.model.values.*
+import ch.unibas.dmi.dbis.cottontail.model.values.types.Value
 
 import org.mapdb.Serializer
 
@@ -17,7 +18,7 @@ import kotlin.reflect.full.safeCast
  * @author Ralph Gasser
  * @version 1.1
  */
-sealed class ColumnType<T : Value<*>> {
+sealed class ColumnType<T : Value> {
     abstract val name: String
     abstract val type: KClass<T>
     abstract val numeric: Boolean
@@ -51,8 +52,8 @@ sealed class ColumnType<T : Value<*>> {
     }
 
 
-    fun cast(value: Value<*>?): T? = this.type.safeCast(value)
-    fun compatible(value: Value<*>) = this.type.isInstance(value)
+    fun cast(value: Value?): T? = this.type.safeCast(value)
+    fun compatible(value: Value) = this.type.isInstance(value)
 
     /**
      * Returns a [Serializer] for this [ColumnType]. Some [ColumnType] require a size attribute

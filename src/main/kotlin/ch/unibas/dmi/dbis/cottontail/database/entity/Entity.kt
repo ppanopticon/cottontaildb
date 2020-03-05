@@ -21,9 +21,8 @@ import ch.unibas.dmi.dbis.cottontail.model.recordset.StandaloneRecord
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.DatabaseException
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.QueryException
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.TransactionException
-import ch.unibas.dmi.dbis.cottontail.model.values.Value
+import ch.unibas.dmi.dbis.cottontail.model.values.types.Value
 import ch.unibas.dmi.dbis.cottontail.utilities.name.*
-import ch.unibas.dmi.dbis.cottontail.utilities.extensions.read
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.write
 
 import org.mapdb.*
@@ -79,7 +78,7 @@ class Entity(override val name: Name, override val parent: Schema) : DBO {
 
     /** List of all the [Column]s associated with this [Entity]. */
     private val columns: Collection<Column<*>> = this.header.columns.map {
-        MapDBColumn<Value<*>>(Name(this.store.get(it, Serializer.STRING)
+        MapDBColumn<Value>(Name(this.store.get(it, Serializer.STRING)
                 ?: throw DatabaseException.DataCorruptionException("Failed to open entity '$fqn': Could not read column definition at position $it!")), this)
     }
 
@@ -439,7 +438,7 @@ class Entity(override val name: Name, override val parent: Schema) : DBO {
             checkValidForRead()
 
             val dataset = Recordset(this.columns)
-            val data = Array<Value<*>?>(this.columns.size) { null }
+            val data = Array<Value?>(this.columns.size) { null }
 
             this.colTxs[0].forEach {
                 data[0] = it.values[0]
@@ -479,7 +478,7 @@ class Entity(override val name: Name, override val parent: Schema) : DBO {
          */
         override fun forEach(from: Long, to: Long, action: (Record) -> Unit) = this.localLock.read {
             checkValidForRead()
-            val data = Array<Value<*>?>(columns.size) { null }
+            val data = Array<Value?>(columns.size) { null }
             this.colTxs[0].forEach(from, to) {
                 data[0] = it.values[0]
                 for (i in 1 until columns.size) {
@@ -511,7 +510,7 @@ class Entity(override val name: Name, override val parent: Schema) : DBO {
         override fun <R> map(from: Long, to: Long, action: (Record) -> R): Collection<R> = this.localLock.read {
             checkValidForRead()
 
-            val data = Array<Value<*>?>(columns.size) { null }
+            val data = Array<Value?>(columns.size) { null }
             val list = mutableListOf<R>()
 
             this.colTxs[0].forEach(from, to) {
@@ -544,7 +543,7 @@ class Entity(override val name: Name, override val parent: Schema) : DBO {
             checkColumnsExist(*predicate.columns.toTypedArray())
 
             val dataset = Recordset(this.columns)
-            val data = Array<Value<*>?>(this.columns.size) { null }
+            val data = Array<Value?>(this.columns.size) { null }
 
             /* Handle filter() for different cases. */
             when (predicate) {
@@ -595,7 +594,7 @@ class Entity(override val name: Name, override val parent: Schema) : DBO {
             checkColumnsExist(*predicate.columns.toTypedArray())
 
             /* Extract necessary data structures. */
-            val data = Array<Value<*>?>(this.columns.size) { null }
+            val data = Array<Value?>(this.columns.size) { null }
 
             /* Handle forEach() for different cases. */
             when (predicate) {
@@ -645,7 +644,7 @@ class Entity(override val name: Name, override val parent: Schema) : DBO {
             checkValidForRead()
             checkColumnsExist(*predicate.columns.toTypedArray())
 
-            val data = Array<Value<*>?>(columns.size) { null }
+            val data = Array<Value?>(columns.size) { null }
             val list = mutableListOf<R>()
 
             /* Handle map() for different cases. */
@@ -721,7 +720,7 @@ class Entity(override val name: Name, override val parent: Schema) : DBO {
             try {
                 var lastRecId: Long? = null
                 for (i in this.colTxs.indices) {
-                    val recId = (this.colTxs[i] as ColumnTransaction<Value<Any>>).insert(record[this.columns[i]] as Value<Any>?)
+                    val recId = (this.colTxs[i] as ColumnTransaction<Value>).insert(record[this.columns[i]])
                     if (lastRecId != recId && lastRecId != null) {
                         throw DatabaseException.DataCorruptionException("Entity ${this@Entity.fqn} is corrupt. Insert did not yield same record ID for all columns involved!")
                     }
@@ -764,7 +763,7 @@ class Entity(override val name: Name, override val parent: Schema) : DBO {
                 val tuplesIds = tuples.map { record ->
                     var lastRecId: Long? = null
                     for (i in this.colTxs.indices) {
-                        val recId = (this.colTxs[i] as ColumnTransaction<Value<Any>>).insert(record[this.columns[i]] as Value<Any>?)
+                        val recId = (this.colTxs[i] as ColumnTransaction<Value>).insert(record[this.columns[i]])
                         if (lastRecId != recId && lastRecId != null) {
                             throw DatabaseException.DataCorruptionException("Entity ${this@Entity.fqn} is corrupt. Insert did not yield same record ID for all columns involved!")
                         }

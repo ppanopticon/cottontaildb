@@ -2,7 +2,6 @@ package ch.unibas.dmi.dbis.cottontail.execution.tasks.entity.knn
 
 import ch.unibas.dmi.dbis.cottontail.database.column.ColumnType
 import ch.unibas.dmi.dbis.cottontail.database.entity.Entity
-import ch.unibas.dmi.dbis.cottontail.database.general.begin
 import ch.unibas.dmi.dbis.cottontail.database.general.query
 import ch.unibas.dmi.dbis.cottontail.database.queries.BooleanPredicate
 import ch.unibas.dmi.dbis.cottontail.database.queries.KnnPredicate
@@ -12,9 +11,8 @@ import ch.unibas.dmi.dbis.cottontail.math.knn.HeapSelect
 import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.model.basics.Record
 import ch.unibas.dmi.dbis.cottontail.model.recordset.Recordset
-import ch.unibas.dmi.dbis.cottontail.model.values.Complex64VectorValue
 import ch.unibas.dmi.dbis.cottontail.model.values.DoubleValue
-import ch.unibas.dmi.dbis.cottontail.model.values.VectorValue
+import ch.unibas.dmi.dbis.cottontail.model.values.types.VectorValue
 
 import com.github.dexecutor.core.task.Task
 

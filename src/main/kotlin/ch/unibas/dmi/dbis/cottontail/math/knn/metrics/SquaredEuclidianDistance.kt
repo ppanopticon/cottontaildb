@@ -1,6 +1,6 @@
 package ch.unibas.dmi.dbis.cottontail.math.knn.metrics
 
-import ch.unibas.dmi.dbis.cottontail.model.values.*
+import ch.unibas.dmi.dbis.cottontail.model.values.types.VectorValue
 
 /**
  * Squared L2 or Euclidian distance between to vectors.
@@ -20,7 +20,7 @@ object SquaredEuclidianDistance : DistanceKernel {
      *
      * @return Distance between a and b.
      */
-    override operator fun invoke(a: VectorValue<*>, b: VectorValue<*>): Double = (b-a).powInPlace(2).sum()
+    override operator fun invoke(a: VectorValue<*>, b: VectorValue<*>): Double = a.distanceL2(b).pow(2).asDouble().value
 
     /**
      * Calculates the weighted, squared L2 distance between two [VectorValue]s.
@@ -31,5 +31,5 @@ object SquaredEuclidianDistance : DistanceKernel {
      *
      * @return Distance between a and b.
      */
-    override operator fun invoke(a: VectorValue<*>, b: VectorValue<*>, weights: VectorValue<*>): Double = (b-a).powInPlace(2).timesInPlace(weights).sum()
+    override operator fun invoke(a: VectorValue<*>, b: VectorValue<*>, weights: VectorValue<*>): Double = ((b-a).pow(2)* weights).sum().value
 }

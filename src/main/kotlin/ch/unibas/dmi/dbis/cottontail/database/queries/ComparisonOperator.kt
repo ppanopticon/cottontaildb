@@ -3,7 +3,7 @@ package ch.unibas.dmi.dbis.cottontail.database.queries
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.QueryException
 import ch.unibas.dmi.dbis.cottontail.model.values.PatternValue
 import ch.unibas.dmi.dbis.cottontail.model.values.StringValue
-import ch.unibas.dmi.dbis.cottontail.model.values.Value
+import ch.unibas.dmi.dbis.cottontail.model.values.types.Value
 
 /**
  * List of query [ComparisonOperator]s.
@@ -30,7 +30,7 @@ enum class ComparisonOperator {
      * @param right Right-hand side of the operator.
      * @return True on match, false otherwise.
      */
-    fun match(left: Value<*>?, right: Collection<Value<*>>) : Boolean = when {
+    fun match(left: Value?, right: Collection<Value>) : Boolean = when {
         this == EQUAL && left != null -> left == right.first()
         this == GREATER && left != null -> left > right.first()
         this == LESS && left != null -> left < right.first()

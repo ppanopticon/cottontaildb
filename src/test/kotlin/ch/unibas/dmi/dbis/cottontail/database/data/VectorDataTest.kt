@@ -63,17 +63,17 @@ class VectorDataTest {
         val entity = schema?.entityForName(entityName)!!
 
         /* Insert the int vectors. */
-        val tx = entity?.Tx(false)
+        val tx = entity.Tx(false)
         val iterator = VectorUtility.randomIntVectorSequence(size, count)
-        val vectorMap = HashMap<Long,IntArray>()
+        val vectorMap = HashMap<Long,IntVectorValue>()
         val counterMap = HashMap<Long,Int>()
         var counter = 0
         val columns =arrayOf(intField, vectorField)
-        tx?.begin {
+        tx.begin {
             iterator.forEach {
                 val record = StandaloneRecord(columns = columns)
                 record[columns[0]] = IntValue(counter)
-                record[columns[1]] = IntVectorValue(it)
+                record[columns[1]] = it
                 val tid = tx.insert(record)
                 assertNotNull(tid)
                 vectorMap[tid!!] = it
@@ -84,13 +84,13 @@ class VectorDataTest {
         }
 
         /* Fetch and compare the int vectors. */
-        val tx2 = entity?.Tx(readonly = true, columns = columns)
-        assertEquals(count.toLong(), tx2?.count())
-        tx2?.begin {
+        val tx2 = entity.Tx(readonly = true, columns = columns)
+        assertEquals(count.toLong(), tx2.count())
+        tx2.begin {
             vectorMap.forEach { (t, u) ->
                 val tuple = tx2.read(t)
-                assertArrayEquals(u, tuple[vectorField]!!.value as IntArray)
-                assertEquals(counterMap[t], tuple[intField]!!.value as Int)
+                assertEquals(u, tuple[vectorField]!!)
+                assertEquals(counterMap[t], tuple[intField]!!)
             }
             true
         }
@@ -111,13 +111,13 @@ class VectorDataTest {
         val entity = schema?.entityForName(entityName)!!
 
         /* Insert the long vectors. */
-        val tx = entity?.Tx(false)
+        val tx = entity.Tx(false)
         val iterator = VectorUtility.randomLongVectorSequence(size, count)
         val vectorMap = HashMap<Long,LongArray>()
         val counterMap = HashMap<Long,Int>()
         var counter = 0
         val columns = arrayOf(intField, vectorField)
-        tx?.begin {
+        tx.begin {
             iterator.forEach {
                 val record = StandaloneRecord(columns = columns)
                 record[columns[0]] = IntValue(counter)
@@ -132,13 +132,13 @@ class VectorDataTest {
         }
 
         /* Fetch and compare the long vectors. */
-        val tx2 = entity?.Tx(readonly = true, columns = columns)
-        assertEquals(count.toLong(), tx2?.count())
-        tx2?.begin {
+        val tx2 = entity.Tx(readonly = true, columns = columns)
+        assertEquals(count.toLong(), tx2.count())
+        tx2.begin {
             vectorMap.forEach { t, u ->
                 val tuple = tx2.read(t)
-                assertArrayEquals(u, tuple[vectorField]!!.value as LongArray)
-                assertEquals(counterMap[t], tuple[intField]!!.value as Int)
+                assertEquals(u, tuple[vectorField]!!)
+                assertEquals(counterMap[t], tuple[intField]!!)
             }
             true
         }
@@ -165,7 +165,7 @@ class VectorDataTest {
         val counterMap = HashMap<Long,Int>()
         var counter = 0
         val columns = arrayOf(intField, vectorField)
-        tx?.begin {
+        tx.begin {
             iterator.forEach {
                 val record = StandaloneRecord(columns = columns)
                 record[columns[0]] = IntValue(counter)
@@ -180,13 +180,13 @@ class VectorDataTest {
         }
 
         /* Fetch and compare the float vectors. */
-        val tx2 = entity?.Tx(readonly = true, columns = columns)
-        assertEquals(count.toLong(), tx2?.count())
-        tx2?.begin {
+        val tx2 = entity.Tx(readonly = true, columns = columns)
+        assertEquals(count.toLong(), tx2.count())
+        tx2.begin {
             vectorMap.forEach { (t, u) ->
                 val tuple = tx2.read(t)
-                assertArrayEquals(u.value, tuple[vectorField]!!.value as FloatArray)
-                assertEquals(counterMap[t], tuple[intField]!!.value as Int)
+                assertEquals(u, tuple[vectorField]!!)
+                assertEquals(counterMap[t], tuple[intField]!!)
             }
             true
         }
@@ -207,13 +207,13 @@ class VectorDataTest {
         val entity = schema?.entityForName(entityName)!!
 
         /* Insert the double vectors. */
-        val tx = entity?.Tx(false)
+        val tx = entity.Tx(false)
         val iterator = VectorUtility.randomDoubleVectorSequence(size, count)
         val vectorMap = HashMap<Long,DoubleVectorValue>()
         val counterMap = HashMap<Long,Int>()
         var counter = 0
         val columns = arrayOf(intField, vectorField)
-        tx?.begin {
+        tx.begin {
             iterator.forEach {
                 val record = StandaloneRecord(columns = columns)
                 record[columns[0]] = IntValue(counter)
@@ -228,13 +228,13 @@ class VectorDataTest {
         }
 
         /* Fetch and compare the double vectors. */
-        val tx2 = entity?.Tx(readonly = true, columns = columns)
-        assertEquals(count.toLong(), tx2?.count())
-        tx2?.begin {
+        val tx2 = entity.Tx(readonly = true, columns = columns)
+        assertEquals(count.toLong(), tx2.count())
+        tx2.begin {
             vectorMap.forEach { (t, u) ->
                 val tuple = tx2.read(t)
-                assertArrayEquals(u.value, tuple[vectorField]!!.value as DoubleArray)
-                assertEquals(counterMap[t], tuple[intField]!!.value as Int)
+                assertEquals(u, tuple[vectorField]!!)
+                assertEquals(counterMap[t], tuple[intField]!!)
             }
             true
         }

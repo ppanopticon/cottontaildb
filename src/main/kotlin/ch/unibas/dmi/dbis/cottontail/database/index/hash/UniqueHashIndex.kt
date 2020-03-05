@@ -15,7 +15,7 @@ import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.model.recordset.Recordset
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.QueryException
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.ValidationException
-import ch.unibas.dmi.dbis.cottontail.model.values.Value
+import ch.unibas.dmi.dbis.cottontail.model.values.types.Value
 import ch.unibas.dmi.dbis.cottontail.utilities.name.Name
 import org.mapdb.DBMaker
 import org.mapdb.HTreeMap
@@ -65,7 +65,7 @@ class UniqueHashIndex(override val name: Name, override val parent: Entity, over
     }
 
     /** Map structure used for [UniqueHashIndex]. */
-    private val map: HTreeMap<out Value<*>, Long> = this.db.hashMap(MAP_FIELD_NAME, this.columns.first().type.serializer(this.columns.size), Serializer.LONG_PACKED).counterEnable().createOrOpen()
+    private val map: HTreeMap<out Value, Long> = this.db.hashMap(MAP_FIELD_NAME, this.columns.first().type.serializer(this.columns.size), Serializer.LONG_PACKED).counterEnable().createOrOpen()
 
     /**
      * Flag indicating if this [UniqueHashIndex] has been closed.
@@ -155,7 +155,7 @@ class UniqueHashIndex(override val name: Name, override val parent: Entity, over
         this.map.clear()
 
         /* (Re-)create index entries. */
-        val localMap = this.map as HTreeMap<Value<*>,Long>
+        val localMap = this.map as HTreeMap<Value,Long>
         tx.forEach {
             val value = it[this.columns[0]] ?: throw ValidationException.IndexUpdateException(this.fqn, "A values cannot be null for instances of unique hash-index but tid=${it.tupleId} is")
             if (!localMap.containsKey(value)) {
@@ -173,7 +173,7 @@ class UniqueHashIndex(override val name: Name, override val parent: Entity, over
      * @param update [DataChangeEvent]s based on which to update the [UniqueHashIndex].
      */
     override fun update(update: Collection<DataChangeEvent>, tx: Entity.Tx) = try {
-        val localMap = this.map as HTreeMap<Value<*>,Long>
+        val localMap = this.map as HTreeMap<Value,Long>
 
         /* Define action for inserting an entry based on a DataChangeEvent. */
         val atomicInsert= { event: DataChangeEvent ->

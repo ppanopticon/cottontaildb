@@ -35,6 +35,9 @@ repositories {
 
 compileKotlin {
     kotlinOptions.jvmTarget = "1.8"
+    kotlinOptions {
+        freeCompilerArgs = ["-Xinline-classes"]
+    }
 }
 compileTestKotlin {
     kotlinOptions.jvmTarget = "1.8"
@@ -103,6 +106,9 @@ dependencies {
     compile group: 'org.jetbrains.kotlin', name: 'kotlin-reflect', version: kotlinVersion
     compile group: 'org.jetbrains.kotlinx', name: 'kotlinx-coroutines-core', version: '1.3.2'
     compile group: 'org.jetbrains.kotlinx', name: 'kotlinx-serialization-runtime', version: '0.13.0'
+
+    /////
+    compile group: 'org.apache.commons', name: 'commons-math3', version: '3.6'
 }
 
 idea {

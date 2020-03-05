@@ -11,7 +11,7 @@ import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.model.recordset.StandaloneRecord
 import ch.unibas.dmi.dbis.cottontail.model.values.FloatVectorValue
 import ch.unibas.dmi.dbis.cottontail.model.values.StringValue
-import ch.unibas.dmi.dbis.cottontail.model.values.Value
+import ch.unibas.dmi.dbis.cottontail.model.values.types.Value
 import ch.unibas.dmi.dbis.cottontail.utilities.VectorUtility
 import ch.unibas.dmi.dbis.cottontail.utilities.name.Name
 
@@ -108,7 +108,7 @@ class UniqueHashIndexTest {
             assertEquals(1, rec.rowCount)
             assertEquals(1, rec.columnCount)
             assertEquals(entry.key, tx.read(rec.first()!!.tupleId)[this.columns[0]])
-            assertArrayEquals(entry.value.value, tx.read(rec.first()!!.tupleId)[this.columns[1]]!!.value as FloatArray)
+            assertEquals(entry.value, tx.read(rec.first()!!.tupleId)[this.columns[1]]!!)
             true
         }
     }
@@ -136,7 +136,7 @@ class UniqueHashIndexTest {
             for (i in 0..this.collectionSize) {
                 val uuid = StringValue(UUID.randomUUID().toString())
                 val vector = VectorUtility.randomFloatVector(128)
-                val values: Array<Value<*>?> = arrayOf(uuid, vector)
+                val values: Array<Value?> = arrayOf(uuid, vector)
                 this.list[uuid] = vector
                 tx.insert(StandaloneRecord(columns = this.columns, init = values))
             }

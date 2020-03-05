@@ -2,24 +2,25 @@ package ch.unibas.dmi.dbis.cottontail.utilities
 
 import ch.unibas.dmi.dbis.cottontail.model.values.DoubleVectorValue
 import ch.unibas.dmi.dbis.cottontail.model.values.FloatVectorValue
+import ch.unibas.dmi.dbis.cottontail.model.values.IntVectorValue
 import java.util.*
 
 object VectorUtility {
 
     /** The random number generator used for vector generation. */
-    private val random = Random()
+    private val random = SplittableRandom()
 
     /**
      * Generates a random [IntArray] of the given size.
      *
      * @param size The size of the random vector.
      */
-    fun randomIntVector(size: Int) : IntArray {
+    fun randomIntVector(size: Int) : IntVectorValue {
         val vec = IntArray(size)
-        for (i in 0 until vec.size) {
+        for (i in vec.indices) {
             vec[i] = random.nextInt()
         }
-        return vec
+        return IntVectorValue(vec)
     }
 
     /**
@@ -29,7 +30,7 @@ object VectorUtility {
      */
     fun randomLongVector(size: Int) : LongArray {
         val vec = LongArray(size)
-        for (i in 0 until vec.size) {
+        for (i in vec.indices) {
             vec[i] = random.nextLong()
         }
         return vec
@@ -43,7 +44,7 @@ object VectorUtility {
     fun randomFloatVector(size: Int) : FloatVectorValue {
         val vec = FloatArray(size)
         for (i in vec.indices) {
-            vec[i] = random.nextFloat()
+            vec[i] = Float.fromBits(this.random.nextInt())
         }
         return FloatVectorValue(vec)
     }
@@ -67,10 +68,10 @@ object VectorUtility {
      * @param size The size of the random vectors.
      * @param items The number of items to return from the [Iterator]
      */
-    fun randomIntVectorSequence(size: Int, items: Int = Int.MAX_VALUE) : Iterator<IntArray> = object: Iterator<IntArray> {
+    fun randomIntVectorSequence(size: Int, items: Int = Int.MAX_VALUE) : Iterator<IntVectorValue> = object: Iterator<IntVectorValue> {
         var left = items
         override fun hasNext(): Boolean = this.left > 0
-        override fun next(): IntArray {
+        override fun next(): IntVectorValue {
             this.left -= 1
             return randomIntVector(size)
         }

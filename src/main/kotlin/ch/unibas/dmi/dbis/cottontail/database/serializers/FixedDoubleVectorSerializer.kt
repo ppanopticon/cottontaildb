@@ -14,7 +14,7 @@ import org.mapdb.Serializer
 class FixedDoubleVectorSerializer(val size: Int): Serializer<DoubleVectorValue> {
     override fun serialize(out: DataOutput2, value: DoubleVectorValue) {
         for (i in 0 until size) {
-            out.writeDouble(value.value[i])
+            out.writeDouble(value[i].value)
         }
     }
     override fun deserialize(input: DataInput2, available: Int): DoubleVectorValue {

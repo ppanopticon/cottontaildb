@@ -3,11 +3,13 @@ package ch.unibas.dmi.dbis.cottontail.database.index
 import ch.unibas.dmi.dbis.cottontail.database.entity.Entity
 import ch.unibas.dmi.dbis.cottontail.database.index.hash.NonUniqueHashIndex
 import ch.unibas.dmi.dbis.cottontail.database.index.hash.UniqueHashIndex
-import ch.unibas.dmi.dbis.cottontail.database.index.lsh.LSHIndex
+import ch.unibas.dmi.dbis.cottontail.database.index.lsh.superbit.SuperBitLSHIndex
 import ch.unibas.dmi.dbis.cottontail.database.index.lucene.LuceneIndex
 import ch.unibas.dmi.dbis.cottontail.database.index.vaf.VAFIndex
+import ch.unibas.dmi.dbis.cottontail.math.knn.metrics.CosineDistance
+import ch.unibas.dmi.dbis.cottontail.math.knn.metrics.Distances
 import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
-import ch.unibas.dmi.dbis.cottontail.model.values.VectorValue
+import ch.unibas.dmi.dbis.cottontail.model.values.types.VectorValue
 import ch.unibas.dmi.dbis.cottontail.utilities.name.Name
 
 enum class IndexType(val inexact: Boolean) {
@@ -31,7 +33,7 @@ enum class IndexType(val inexact: Boolean) {
         HASH -> NonUniqueHashIndex(name, entity, columns)
         LUCENE -> LuceneIndex(name, entity, columns)
         VAF -> VAFIndex(name, entity, columns)
-        LSH -> LSHIndex<VectorValue<*>>(name, entity, columns, null)
+        LSH -> SuperBitLSHIndex<VectorValue<*>>(name, entity, columns, null)
         else -> TODO()
     }
 
@@ -48,8 +50,10 @@ enum class IndexType(val inexact: Boolean) {
         HASH -> NonUniqueHashIndex(name, entity, columns)
         LUCENE -> LuceneIndex(name, entity, columns)
         VAF -> VAFIndex(name, entity, columns)
-        LSH -> LSHIndex<VectorValue<*>>(name, entity, columns, params)
+        LSH -> when(Distances.valueOf(params["distance"] ?: throw IllegalArgumentException("You must provide the type of distance kernel that you would like to create the LSH index for.")).kernel) {
+            is CosineDistance -> SuperBitLSHIndex<VectorValue<*>>(name, entity, columns, params)
+            else -> TODO()
+        }
         else -> TODO()
     }
-
 }

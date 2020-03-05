@@ -4,7 +4,7 @@ import ch.unibas.dmi.dbis.cottontail.database.queries.*
 import ch.unibas.dmi.dbis.cottontail.database.queries.BooleanPredicate
 import ch.unibas.dmi.dbis.cottontail.model.basics.*
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.QueryException
-import ch.unibas.dmi.dbis.cottontail.model.values.Value
+import ch.unibas.dmi.dbis.cottontail.model.values.types.Value
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.read
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.write
 import ch.unibas.dmi.dbis.cottontail.utilities.name.Name
@@ -61,7 +61,7 @@ class Recordset(val columns: Array<ColumnDef<*>>, capacity: Long = 250L) : Scana
      *
      * @param values The values to add to this [Recordset].
      */
-    fun addRowUnsafe(values: Array<Value<*>?>) = this.lock.write {
+    fun addRowUnsafe(values: Array<Value?>) = this.lock.write {
         this.list.add(RecordsetRecord(this.list.size64()).assign(values))
     }
 
@@ -72,7 +72,7 @@ class Recordset(val columns: Array<ColumnDef<*>>, capacity: Long = 250L) : Scana
      * @param tupleId The tupleId of the new [Record].
      * @param values The values to add to this [Recordset].
      */
-    fun addRowUnsafe(tupleId: Long, values: Array<Value<*>?>) = this.lock.write {
+    fun addRowUnsafe(tupleId: Long, values: Array<Value?>) = this.lock.write {
         this.list.add(RecordsetRecord(tupleId).assign(values))
     }
 
@@ -85,7 +85,7 @@ class Recordset(val columns: Array<ColumnDef<*>>, capacity: Long = 250L) : Scana
      * @param values The values to add to this [Recordset].
      * @return True if [Record] was added, false otherwise.
      */
-    fun addRowIfUnsafe(tupleId: Long, predicate: BooleanPredicate, values: Array<Value<*>?>): Boolean = this.lock.write {
+    fun addRowIfUnsafe(tupleId: Long, predicate: BooleanPredicate, values: Array<Value?>): Boolean = this.lock.write {
         val record = RecordsetRecord(tupleId).assign(values)
         return if (predicate.matches(record)) {
             this.list.add(record)
@@ -371,7 +371,7 @@ class Recordset(val columns: Array<ColumnDef<*>>, capacity: Long = 250L) : Scana
     fun dropColumnsWithIndex(columns: Collection<Int>): Recordset = this.lock.write {
         val recordset = Recordset(this.columns.filterIndexed { i, _ -> !columns.contains(i) }.toTypedArray())
         this.list.forEach{
-            recordset.addRowUnsafe(it.tupleId, it.values.filterIndexed {i,_ -> !columns.contains(i) }.toTypedArray())
+            recordset.addRowUnsafe(it.tupleId, it.values.filterIndexed {i, _ -> !columns.contains(i) }.toTypedArray())
         }
         return recordset
     }
@@ -478,7 +478,7 @@ class Recordset(val columns: Array<ColumnDef<*>>, capacity: Long = 250L) : Scana
      * @author Ralph Gasser
      * @version 1.0
      */
-    inner class RecordsetRecord(override val tupleId: Long, init: Array<Value<*>?>? = null) : Record {
+    inner class RecordsetRecord(override val tupleId: Long, init: Array<Value?>? = null) : Record {
 
         /** Array of [ColumnDef]s that describes the [Column][ch.unibas.dmi.dbis.cottontail.database.column.Column] of this [Record]. */
         override val columns: Array<ColumnDef<*>>
@@ -486,7 +486,7 @@ class Recordset(val columns: Array<ColumnDef<*>>, capacity: Long = 250L) : Scana
 
 
         /** Array of column values (one entry per column). Initializes with null. */
-        override val values: Array<Value<*>?> = if (init != null) {
+        override val values: Array<Value?> = if (init != null) {
             assert(init.size == columns.size)
             init.forEachIndexed { index, any -> columns[index].validateOrThrow(any) }
             init

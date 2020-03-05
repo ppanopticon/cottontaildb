@@ -33,7 +33,7 @@ data class ServerConfig(
     /**
      * True if TLS should be used for gRPC communication, false otherwise.
      */
-    @Transient val useTls
+    val useTls
         get() = this.certFile != null && this.privateKey != null
 
 }

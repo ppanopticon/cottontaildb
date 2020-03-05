@@ -1,6 +1,6 @@
 package ch.unibas.dmi.dbis.cottontail.math.knn.metrics
 
-import ch.unibas.dmi.dbis.cottontail.model.values.*
+import ch.unibas.dmi.dbis.cottontail.model.values.types.VectorValue
 
 /**
  * Calculates the Hamming distance between to vectors.
@@ -21,7 +21,9 @@ object HammingDistance : DistanceKernel {
      *
      * @return Distance between a and b.
      */
-    override operator fun invoke(a: VectorValue<*>, b: VectorValue<*>): Double = b.componentsEqual(a).sum()
+    override operator fun invoke(a: VectorValue<*>, b: VectorValue<*>): Double {
+        TODO()
+    }
 
     /**
      * Calculates the weighted Hamming distance between two [VectorValue]s.
@@ -32,5 +34,7 @@ object HammingDistance : DistanceKernel {
      *
      * @return Distance between a and b.
      */
-    override operator fun invoke(a: VectorValue<*>, b: VectorValue<*>, weights: VectorValue<*>): Double = b.componentsEqual(a).timesInPlace(weights).sum()
+    override operator fun invoke(a: VectorValue<*>, b: VectorValue<*>, weights: VectorValue<*>): Double {
+        TODO()
+    }
 }

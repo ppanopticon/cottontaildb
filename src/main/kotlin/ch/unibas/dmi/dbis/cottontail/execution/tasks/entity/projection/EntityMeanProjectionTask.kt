@@ -6,7 +6,7 @@ import ch.unibas.dmi.dbis.cottontail.execution.cost.Costs
 import ch.unibas.dmi.dbis.cottontail.execution.tasks.basics.ExecutionTask
 import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.model.recordset.Recordset
-import ch.unibas.dmi.dbis.cottontail.model.values.DoubleValue
+import ch.unibas.dmi.dbis.cottontail.model.values.*
 import ch.unibas.dmi.dbis.cottontail.utilities.name.Name
 import com.github.dexecutor.core.task.Task
 
@@ -29,28 +29,29 @@ class EntityMeanProjectionTask(val entity: Entity, val column: ColumnDef<*>, val
 
         val resultsColumn = ColumnDef.withAttributes(Name(this.alias ?: "mean(${this.column.name})"), "DOUBLE")
 
-        return this.entity.Tx(true, columns = arrayOf(this.column)).query {
+        return this.entity.Tx(true, columns = arrayOf(this.column)).query { tx ->
             var sum = 0.0
-            val count = it.count()
+            val count = tx.count()
             val recordset = Recordset(arrayOf(resultsColumn), capacity = 1)
             if (count > 0) {
-                it.forEach {
-                    when (val value = it[column]?.value) {
-                        is Byte -> sum += value
-                        is Short -> sum += value
-                        is Int -> sum += value
-                        is Long -> sum += value
-                        is Float -> sum += value
-                        is Double -> sum += value
+                tx.forEach {
+                    when (val value = it[column]) {
+                        is ByteValue -> sum += value.value
+                        is ShortValue -> sum += value.value
+                        is IntValue -> sum += value.value
+                        is LongValue -> sum += value.value
+                        is FloatValue -> sum += value.value
+                        is DoubleValue -> sum += value.value
                         else -> {}
                     }
                 }
-                recordset.addRowUnsafe(arrayOf(DoubleValue(sum/it.count())))
+                recordset.addRowUnsafe(arrayOf(DoubleValue(sum/tx.count())))
             } else {
                 recordset.addRowUnsafe(arrayOf(DoubleValue(0.0)))
 
             }
             recordset
+
         }!!
     }
 }

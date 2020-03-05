@@ -7,8 +7,8 @@ import ch.unibas.dmi.dbis.cottontail.model.basics.Record
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.QueryException
 import ch.unibas.dmi.dbis.cottontail.model.values.PatternValue
 import ch.unibas.dmi.dbis.cottontail.model.values.StringValue
-import ch.unibas.dmi.dbis.cottontail.model.values.Value
-import ch.unibas.dmi.dbis.cottontail.model.values.VectorValue
+import ch.unibas.dmi.dbis.cottontail.model.values.types.Value
+import ch.unibas.dmi.dbis.cottontail.model.values.types.VectorValue
 
 /**
  * A general purpose [Predicate] that describes a Cottontail DB query. It can either operate on [Recordset][ch.unibas.dmi.dbis.cottontail.model.recordset.Recordset]s
@@ -51,7 +51,7 @@ sealed class BooleanPredicate : Predicate() {
  * @author Ralph Gasser
  * @version 1.0
  */
-data class AtomicBooleanPredicate<T : Value<*>>(private val column: ColumnDef<T>, val operator: ComparisonOperator, val not: Boolean = false, var values: Collection<Value<*>>) : BooleanPredicate() {
+data class AtomicBooleanPredicate<T : Value>(private val column: ColumnDef<T>, val operator: ComparisonOperator, val not: Boolean = false, var values: Collection<Value>) : BooleanPredicate() {
     init {
         if (this.operator == ComparisonOperator.IN) {
             this.values = this.values.toSet()
@@ -139,10 +139,10 @@ data class KnnPredicate<T: VectorValue<*>>(val column: ColumnDef<T>, val k: Int,
         /* Some basic sanity checks. */
         if (k <= 0) throw QueryException.QuerySyntaxException("The value of k for a kNN query cannot be smaller than one (is $k)s!")
         query.forEach {
-            if (column.size != it.size) throw QueryException.QueryBindException("The size of the provided column ${column.name} (s_c=${column.size}) does not match the size of the query vector (s_q=${query.size}).")
+            if (column.size != it.logicalSize) throw QueryException.QueryBindException("The size of the provided column ${column.name} (s_c=${column.size}) does not match the size of the query vector (s_q=${query.size}).")
         }
         weights?.forEach {
-            if (column.size != it.size) {
+            if (column.size != it.logicalSize) {
                 throw QueryException.QueryBindException("The size of the provided column ${column.name} (s_c=${column.size}) does not match the size of the weight vector (s_w=${query.size}).")
             }
         }

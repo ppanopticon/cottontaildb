@@ -6,7 +6,7 @@ import ch.unibas.dmi.dbis.cottontail.execution.tasks.basics.ExecutionTask
 import ch.unibas.dmi.dbis.cottontail.execution.tasks.recordset.projection.RecordsetCountProjectionTask
 import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.model.recordset.Recordset
-import ch.unibas.dmi.dbis.cottontail.model.values.Value
+import ch.unibas.dmi.dbis.cottontail.model.values.types.Value
 import com.github.dexecutor.core.task.Task
 import com.github.dexecutor.core.task.TaskExecutionException
 
@@ -40,7 +40,7 @@ class EntityFetchColumnsTask (val entity: Entity, val columns: Array<ColumnDef<*
             this.entity.Tx(readonly = true, columns = fetch).begin {tx ->
                 parent.forEach {rec ->
                     val read = tx.read(rec.tupleId)
-                    val values: Array<Value<*>?> = all.map {
+                    val values: Array<Value?> = all.map {
                         if (read.has(it)) {
                             read[it]
                         } else {

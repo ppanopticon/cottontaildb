@@ -18,6 +18,7 @@ import ch.unibas.dmi.dbis.cottontail.model.exceptions.ValidationException
 import ch.unibas.dmi.dbis.cottontail.model.recordset.Recordset
 import ch.unibas.dmi.dbis.cottontail.model.recordset.StandaloneRecord
 import ch.unibas.dmi.dbis.cottontail.model.values.FloatValue
+import ch.unibas.dmi.dbis.cottontail.model.values.StringValue
 import ch.unibas.dmi.dbis.cottontail.utilities.name.Name
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.write
 import org.apache.lucene.analysis.standard.StandardAnalyzer
@@ -57,10 +58,10 @@ class LuceneIndex(override val name: Name, override val parent: Entity, override
             add(NumericDocValuesField(TID_COLUMN, record.tupleId))
             add(StoredField(TID_COLUMN, record.tupleId))
             record.columns.forEach {
-                val value = record[it]?.value as? String
-                if (value != null) {
-                    add(TextField("${it.name}_txt", value, Field.Store.NO))
-                    add(StringField("${it.name}_str", value, Field.Store.NO))
+                val value = record[it]
+                if (value is StringValue) {
+                    add(TextField("${it.name}_txt", value.value, Field.Store.NO))
+                    add(StringField("${it.name}_str", value.value, Field.Store.NO))
                 }
             }
         }

@@ -1,7 +1,6 @@
 package ch.unibas.dmi.dbis.cottontail.math.knn.metrics
 
-import ch.unibas.dmi.dbis.cottontail.model.values.*
-import kotlin.math.sqrt
+import ch.unibas.dmi.dbis.cottontail.model.values.types.VectorValue
 
 /**
  * L2 or Euclidian distance between to vectors.
@@ -9,7 +8,8 @@ import kotlin.math.sqrt
  * @version 1.0
  * @author Ralph Gasser
  */
-object EuclidianDistance : DistanceKernel {
+object EuclidianDistance : MinkowskiDistance {
+    override val p: Int = 2
     override val cost: Double
         get() = 1.0
 
@@ -21,7 +21,7 @@ object EuclidianDistance : DistanceKernel {
      *
      * @return Distance between a and b.
      */
-    override operator fun invoke(a: VectorValue<*>, b: VectorValue<*>): Double = sqrt((b-a).powInPlace(2).sum())
+    override operator fun invoke(a: VectorValue<*>, b: VectorValue<*>): Double = a.distanceL2(b).asDouble().value
 
     /**
      * Calculates the weighted L2 distance between two [VectorValue]s.
@@ -32,5 +32,5 @@ object EuclidianDistance : DistanceKernel {
      *
      * @return Distance between a and b.
      */
-    override operator fun invoke(a: VectorValue<*>, b: VectorValue<*>, weights: VectorValue<*>): Double = sqrt((b-a).powInPlace(2).timesInPlace(weights).sum())
+    override operator fun invoke(a: VectorValue<*>, b: VectorValue<*>, weights: VectorValue<*>): Double = ((b-a).pow(2) * (weights)).sum().sqrt().asDouble().value
 }

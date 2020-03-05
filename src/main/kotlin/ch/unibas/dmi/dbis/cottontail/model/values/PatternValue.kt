@@ -1,5 +1,8 @@
 package ch.unibas.dmi.dbis.cottontail.model.values
 
+import ch.unibas.dmi.dbis.cottontail.model.values.types.ScalarValue
+import ch.unibas.dmi.dbis.cottontail.model.values.types.Value
+
 /**
  * A [PatternValue] value as used in LIKE queries. Only used during query execution; cannot be stored!
  *
@@ -8,7 +11,7 @@ package ch.unibas.dmi.dbis.cottontail.model.values
  * @author Ralph Gasser
  * @param 1.0
  */
-class PatternValue(override val value: String) : Value<String> {
+class PatternValue(override val value: String) : ScalarValue<String> {
 
     /**
      * Returns a [Regex] representation of this [PatternValue].
@@ -40,13 +43,10 @@ class PatternValue(override val value: String) : Value<String> {
         this@PatternValue.value
     }
 
-    override val size: Int
+    override val logicalSize: Int
         get() = 0
 
-    override val numeric: Boolean
-        get() = false
-
-    override fun compareTo(other: Value<*>): Int {
-        throw IllegalArgumentException("RegexValue can only be compared to other StringValues.")
+    override fun compareTo(other: Value): Int {
+        throw IllegalArgumentException("PatternValue cannot be compared to other values.")
     }
 }

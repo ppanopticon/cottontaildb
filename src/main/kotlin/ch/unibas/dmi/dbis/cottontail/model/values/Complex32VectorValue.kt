@@ -1,6 +1,8 @@
 package ch.unibas.dmi.dbis.cottontail.model.values
 
-import kotlin.math.pow
+import ch.unibas.dmi.dbis.cottontail.model.values.types.*
+
+import java.util.*
 
 /**
  * This is an abstraction over an [Array] and it represents a vector of [Complex32]s.
@@ -8,18 +10,56 @@ import kotlin.math.pow
  * @author Manuel Huerbin & Ralph Gasser
  * @version 1.1
  */
-inline class Complex32VectorValue(override val value: FloatArray) : VectorValue<FloatArray> {
+inline class Complex32VectorValue(val data: Array<Complex32Value>) : ComplexVectorValue<Float> {
+
+
+    companion object {
+        /**
+         * Generates a [Complex32VectorValue] of the given size initialized with random numbers.
+         *
+         * @param size Size of the new [Complex32VectorValue]
+         * @param rnd A [SplittableRandom] to generate the random numbers.
+         */
+        fun random(size: Int, rnd: SplittableRandom = SplittableRandom(System.currentTimeMillis())) = Complex32VectorValue(Array(size) {
+            Complex32Value(FloatValue(Float.fromBits(rnd.nextInt())), FloatValue(Float.fromBits(rnd.nextInt())))
+        })
+
+        /**
+         * Generates a [Complex32VectorValue] of the given size initialized with ones.
+         *
+         * @param size Size of the new [Complex32VectorValue]
+         */
+        fun one(size: Int) = Complex32VectorValue(Array(size) {
+            Complex32Value.ONE
+        })
+
+        /**
+         * Generates a [Complex32VectorValue] of the given size initialized with zeros.
+         *
+         * @param size Size of the new [Complex32VectorValue]
+         * @param rnd A [SplittableRandom] to generate the random numbers.
+         */
+        fun zero(size: Int) = Complex32VectorValue(Array(size) {
+            Complex32Value.ZERO
+        })
+    }
+
+    override val logicalSize: Int
+        get() = this.data.size/2
 
     /**
-     * Size of the [Complex32VectorValue] im terms of elements is actually half the size of the underlying [FloatArray].
+     * Returns the i-th entry of  this [Complex32VectorValue]. All entries with i % 2 == 0 correspond
+     * to the real part of the value, whereas entries with i % 2 == 1 correspond to the imaginary part.
+     *
+     * @param i Index of the entry.
+     * @return The value at index i.
      */
-    override val size: Int
-        get() = this.value.size/2
+    override fun get(i: Int) = this.data[i]
+    override fun real(i: Int) = this.data[i].real
+    override fun imaginary(i: Int) = this.data[i].imaginary
 
-    override val numeric: Boolean
-        get() = false
 
-    override fun compareTo(other: Value<*>): Int {
+    override fun compareTo(other: Value): Int {
         throw IllegalArgumentException("ComplexVectorValues can can only be compared for equality.")
     }
 
@@ -29,25 +69,7 @@ inline class Complex32VectorValue(override val value: FloatArray) : VectorValue<
      * @return The indices of this [Complex32VectorValue]
      */
     override val indices: IntRange
-        get() = this.value.indices
-
-    /**
-     * Returns the i-th entry of  this [Complex32VectorValue]. All entries with i % 2 == 0 correspond
-     * to the real part of the value, whereas entries with i % 2 == 1 correspond to the imaginary part.
-     *
-     * @param i Index of the entry.
-     * @return The value at index i.
-     */
-    override fun get(i: Int): Number = this.value[i]
-
-    /**
-     * Returns the i-th entry of this [Complex32VectorValue] as [Float]. All entries with i % 2 == 0 correspond
-     * to the real part of the value, whereas entries with i % 2 == 1 correspond to the imaginary part.
-     *
-     * @param i Index of the entry.
-     * @return The value at index i.
-     */
-    override fun getAsFloat(i: Int): Float = this.value[i]
+        get() = (0 until this.logicalSize)
 
     /**
      * Returns the i-th entry of  this [Complex32VectorValue] as [Boolean]. All entries with index % 2 == 0 correspond
@@ -56,108 +78,99 @@ inline class Complex32VectorValue(override val value: FloatArray) : VectorValue<
      * @param i Index of the entry.
      * @return The value at index i.
      */
-    override fun getAsBool(i: Int): Boolean = this.value[i] != 0.0f
+    override fun getAsBool(i: Int): Boolean = this.data[i] != Complex32Value.ZERO
 
     /**
      * Returns true, if this [Complex32VectorValue] consists of all zeroes, i.e. [0, 0, ... 0]
      *
      * @return True, if this [Complex32VectorValue] consists of all zeroes
      */
-    override fun allZeros(): Boolean = this.value.all { it == 0.0f }
+    override fun allZeros(): Boolean = this.data.all { it == Complex32Value.ZERO  }
 
     /**
      * Returns true, if this [Complex32VectorValue] consists of all ones, i.e. [1, 1, ... 1]
      *
      * @return True, if this [Complex32VectorValue] consists of all ones
      */
-    override fun allOnes(): Boolean = this.value.all { it == 1.0f }
+    override fun allOnes(): Boolean = this.data.all { it == Complex32Value.ONE }
 
     /**
      * Creates and returns a copy of this [Complex32VectorValue].
      *
      * @return Exact copy of this [Complex32VectorValue].
      */
-    override fun copy(): Complex32VectorValue = Complex32VectorValue(value.copyOf())
+    override fun copy(): Complex32VectorValue = Complex32VectorValue(data.copyOf())
 
-
-    override operator fun plus(other: VectorValue<*>): Complex32VectorValue = Complex32VectorValue(FloatArray(this.size * 2) { this.value[it] + other.getAsFloat(it) })
-    override operator fun minus(other: VectorValue<*>): Complex32VectorValue = Complex32VectorValue(FloatArray(this.size * 2) { this.value[it] - other.getAsFloat(it) })
-    override operator fun times(other: VectorValue<*>): Complex32VectorValue {
-        val v = Complex32VectorValue(FloatArray(this.size * 2))
-        (0 until this.size step 2).forEach {
-            v.value[it] = this.value[it] * other.getAsFloat(it) - this.value[it+1] * other.getAsFloat(it)
-            v.value[it+1] = this.value[it] * other.getAsFloat(it+1) + this.value[it+1] * other.getAsFloat(it)
-        }
-        return v
-    }
-    override operator fun div(other: VectorValue<*>): Complex32VectorValue = Complex32VectorValue(FloatArray(this.size * 2) {
-        val v = Complex32VectorValue(FloatArray(this.size * 2))
-        (0 until this.size step 2).forEach {
-            val div = (this.value[it+1].pow(2) + other.getAsFloat(it+1).pow(2))
-            v.value[it] = (this.value[it] * other.getAsFloat(it) + this.value[it+1] * other.getAsFloat(it)) / div
-            v.value[it+1] = (this.value[it+1] * other.getAsFloat(it) - this.value[it] * other.getAsFloat(it+1)) / div
-        }
-        return v
+    override fun plus(other: VectorValue<*>) = Complex32VectorValue(Array(this.data.size) {
+        this[it] + other[it].asComplex32()
     })
 
-    override fun plusInPlace(other: VectorValue<*>): Complex32VectorValue {
-        this.value.indices.forEach {this.value[it] += other.getAsFloat(it) }
-        return this
-    }
-    override fun minusInPlace(other: VectorValue<*>): Complex32VectorValue {
-        this.value.indices.forEach {this.value[it] -= other.getAsFloat(it) }
-        return this
-    }
-    override fun timesInPlace(other: VectorValue<*>): Complex32VectorValue {
-        (0 until this.size step 2).forEach {
-            this.value[it] = this.value[it] * other.getAsFloat(it) - this.value[it+1] * other.getAsFloat(it)
-            this.value[it+1] = this.value[it] * other.getAsFloat(it+1) + this.value[it+1] * other.getAsFloat(it)
+    override fun minus(other: VectorValue<*>) = Complex32VectorValue(Array(this.data.size) {
+        this[it] - other[it].asComplex32()
+    })
+
+    override fun times(other: VectorValue<*>) = Complex32VectorValue(Array(this.data.size) {
+        this[it] * other[it].asComplex32()
+    })
+
+    override fun div(other: VectorValue<*>) = Complex32VectorValue(Array(this.data.size) {
+        this[it] / other[it].asComplex32()
+    })
+
+    override fun plus(other: NumericValue<*>) = Complex32VectorValue(Array(this.data.size) {
+        this[it] + other.asComplex32()
+    })
+
+    override fun minus(other: NumericValue<*>) = Complex32VectorValue(Array(this.data.size) {
+        this[it] - other.asComplex32()
+    })
+
+    override fun times(other: NumericValue<*>) = Complex32VectorValue(Array(this.data.size) {
+        this[it] * other.asComplex32()
+    })
+
+    override fun div(other: NumericValue<*>) = Complex32VectorValue(Array(this.data.size) {
+        this[it] / other.asComplex32()
+    })
+
+    override fun pow(x: Int) = Complex64VectorValue(Array(this.data.size) {
+        val a2 = this.real(it).pow(2)
+        val b2 = this.imaginary(it).pow(2)
+        val r = (a2 + b2).sqrt()
+        val theta = (b2 / a2).atan()
+        Complex64Value(r.pow(x) * ((theta * IntValue(x)).cos()), r.pow(x) * (theta * IntValue(x)).sin())
+    })
+
+    override fun sqrt() = Complex64VectorValue(Array(this.data.size) {
+        Complex64Value(
+            (this.real(it) + (this.real(it).pow(2) + this.imaginary(it).pow(2)).sqrt()/FloatValue(2.0f)).sqrt(),
+            (this.imaginary(it) / this.imaginary(it).abs()) * (- this.real(it) + (this.real(it).pow(2) + this.imaginary(it).pow(2)).sqrt()/FloatValue(2.0f)).sqrt()
+        )
+    })
+
+    override fun abs() = Complex32VectorValue(Array(this.data.size) {
+        Complex32Value(this[it].real.abs(), this[it].imaginary.abs())
+    })
+
+    override fun sum(): Complex32Value {
+        var real = FloatValue(0.0f)
+        var imaginary = FloatValue(0.0f)
+        this.indices.forEach {
+            real += this.real(it)
+            imaginary += this.imaginary(it)
         }
-        return this
-    }
-    override fun divInPlace(other: VectorValue<*>): Complex32VectorValue {
-        (0 until this.size step 2).forEach {
-            val div = (this.value[it+1].pow(2) + other.getAsFloat(it+1).pow(2))
-            this.value[it] = (this.value[it] * other.getAsFloat(it) + this.value[it+1] * other.getAsFloat(it)) / div
-            this.value[it+1] = (this.value[it+1] * other.getAsFloat(it) - this.value[it] * other.getAsFloat(it+1)) / div
-        }
-        return this
+        return Complex32Value(real, imaginary)
     }
 
-    override operator fun plus(other: Number): Complex32VectorValue = Complex32VectorValue(FloatArray(this.size) { this.value[it] + other.toFloat() })
-    override operator fun minus(other: Number): Complex32VectorValue = Complex32VectorValue(FloatArray(this.size) { this.value[it] - other.toFloat() })
-    override operator fun times(other: Number): Complex32VectorValue = Complex32VectorValue(FloatArray(this.size) { this.value[it] * other.toFloat() })
-    override operator fun div(other: Number): Complex32VectorValue = Complex32VectorValue(FloatArray(this.size) { this.value[it] / other.toFloat() })
-
-    override fun pow(x: Int): Complex32VectorValue = this.copy().sqrtInPlace().powInPlace(2)
-    override fun powInPlace(x: Int): Complex32VectorValue {
-        (0 until this.size step 2).forEach {
-            val a2 = this.value[it].pow(2)
-            val b2 = this.value[it+1].pow(2)
-            val r = kotlin.math.sqrt(a2 + b2)
-            val theta = kotlin.math.atan(b2 / a2)
-            this.value[it] = r.pow(x) * kotlin.math.cos(theta * x)
-            this.value[it+1] = r.pow(x) * kotlin.math.sin(theta * x)
-        }
-        return this
+    override fun distanceL1(other: VectorValue<*>): NumericValue<*> {
+        TODO("Not yet implemented")
     }
 
-    override fun sqrt(): Complex32VectorValue = this.copy().sqrtInPlace()
-    override fun sqrtInPlace(): Complex32VectorValue {
-        (0 until this.size step 2).forEach {
-            this.value[it] = kotlin.math.sqrt((this.value[it] + kotlin.math.sqrt(this.value[it].pow(2) + this.value[it+1].pow(2)))/2)
-            this.value[it+1] = (this.value[it+1] / kotlin.math.abs(this.value[it+1])) * kotlin.math.sqrt((- this.value[it] + kotlin.math.sqrt(this.value[it].pow(2) + this.value[it+1].pow(2)))/2)
-        }
-        return this
+    override fun distanceL2(other: VectorValue<*>): NumericValue<*> {
+        TODO("Not yet implemented")
     }
 
-    override fun abs(): Complex32VectorValue = Complex32VectorValue(FloatArray(this.size) { kotlin.math.abs(this.value[it]) })
-    override fun absInPlace(): Complex32VectorValue {
-        this.value.indices.forEach {this.value[it] = kotlin.math.abs(this.value[it]) }
-        return this
+    override fun distanceLP(other: VectorValue<*>, p: Int): NumericValue<*> {
+        TODO("Not yet implemented")
     }
-
-    override fun componentsEqual(other: VectorValue<*>): Complex32VectorValue = Complex32VectorValue(FloatArray(this.value.size) { if (this.value[it] == other.getAsFloat(it)) { 1.0f } else { 0.0f } })
-
-    override fun sum(): Double = (0 until this.size step 2).map { kotlin.math.sqrt(this.value[it].pow(2) + this.value[it].pow(2)) }.sum().toDouble()
 }

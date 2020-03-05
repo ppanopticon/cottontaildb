@@ -6,10 +6,11 @@ import ch.unibas.dmi.dbis.cottontail.execution.cost.Costs
 import ch.unibas.dmi.dbis.cottontail.execution.tasks.basics.ExecutionTask
 import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.model.recordset.Recordset
-import ch.unibas.dmi.dbis.cottontail.model.values.DoubleValue
+import ch.unibas.dmi.dbis.cottontail.model.values.*
 import ch.unibas.dmi.dbis.cottontail.utilities.name.Name
 import com.github.dexecutor.core.task.Task
 import com.github.dexecutor.core.task.TaskExecutionException
+import java.lang.Double.min
 
 /**
  * A [Task] used during query execution. It takes a single [Recordset] and determines the minimum value of a specific [ColumnDef]. It thereby creates a 1x1 [Recordset].
@@ -41,13 +42,13 @@ class RecordsetMinProjectionTask(val projection: Projection, estimatedRows: Int 
         var min = Double.MAX_VALUE
         val results = Recordset(arrayOf(resultsColumn))
         parent.forEach {
-            when (val value = it[column]?.value) {
-                is Byte -> min = Math.min(min, value.toDouble())
-                is Short -> min = Math.min(min, value.toDouble())
-                is Int -> min = Math.min(min, value.toDouble())
-                is Long -> min = Math.min(min, value.toDouble())
-                is Float -> min = Math.min(min, value.toDouble())
-                is Double -> min = Math.min(min, value)
+            when (val value = it[column]) {
+                is ByteValue -> min = min(min, value.value.toDouble())
+                is ShortValue -> min = min(min, value.value.toDouble())
+                is IntValue -> min = min(min, value.value.toDouble())
+                is LongValue -> min = min(min, value.value.toDouble())
+                is FloatValue -> min = min(min, value.value.toDouble())
+                is DoubleValue -> min = min(min, value.value)
                 else -> {}
             }
         }

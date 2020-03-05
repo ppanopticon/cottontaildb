@@ -2,7 +2,7 @@ package ch.unibas.dmi.dbis.cottontail.model.recordset
 
 import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.model.basics.Record
-import ch.unibas.dmi.dbis.cottontail.model.values.Value
+import ch.unibas.dmi.dbis.cottontail.model.values.types.Value
 
 /**
  * A [Record] implementation as returned and processed by Cottontail DB. These types of records can exist
@@ -14,7 +14,7 @@ import ch.unibas.dmi.dbis.cottontail.model.values.Value
  * @author Ralph Gasser
  * @version 1.0
  */
-class StandaloneRecord(override val tupleId: Long = Long.MIN_VALUE, override val columns: Array<ColumnDef<*>>, init: Array<Value<*>?>? = null) : Record {
+class StandaloneRecord(override val tupleId: Long = Long.MIN_VALUE, override val columns: Array<ColumnDef<*>>, init: Array<Value?>? = null) : Record {
 
     /**
      * Array of column values (one entry per column in the same order).
@@ -22,7 +22,7 @@ class StandaloneRecord(override val tupleId: Long = Long.MIN_VALUE, override val
      * This array is initialized either with the init-array provided with the constructor OR an empty array
      * of NULL/default values for the [ch.unibas.dmi.dbis.cottontail.database.column.ColumnType].
      */
-    override val values: Array<Value<*>?> = if (init != null) {
+    override val values: Array<Value?> = if (init != null) {
         assert(this.columns.size == init.size)
         init.forEachIndexed { index, any -> this.columns[index].validateOrThrow(any) }
         init

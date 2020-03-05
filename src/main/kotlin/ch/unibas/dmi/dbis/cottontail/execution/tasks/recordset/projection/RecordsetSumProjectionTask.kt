@@ -6,7 +6,7 @@ import ch.unibas.dmi.dbis.cottontail.execution.cost.Costs
 import ch.unibas.dmi.dbis.cottontail.execution.tasks.basics.ExecutionTask
 import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.model.recordset.Recordset
-import ch.unibas.dmi.dbis.cottontail.model.values.DoubleValue
+import ch.unibas.dmi.dbis.cottontail.model.values.*
 import ch.unibas.dmi.dbis.cottontail.utilities.name.Name
 
 import com.github.dexecutor.core.task.Task
@@ -42,13 +42,13 @@ class RecordsetSumProjectionTask(val projection: Projection, estimatedRows: Int 
         var sum = 0.0
         val results = Recordset(arrayOf(resultsColumn))
         parent.forEach {
-            when (val value = it[column]?.value) {
-                is Byte -> sum += value
-                is Short -> sum += value
-                is Int -> sum += value
-                is Long -> sum += value
-                is Float -> sum += value
-                is Double -> sum += value
+            when (val value = it[column]) {
+                is ByteValue -> sum += value.value
+                is ShortValue -> sum += value.value
+                is IntValue -> sum += value.value
+                is LongValue -> sum += value.value
+                is FloatValue -> sum += value.value
+                is DoubleValue -> sum += value.value
                 else -> {}
             }
         }

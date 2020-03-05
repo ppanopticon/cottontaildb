@@ -3,7 +3,7 @@ package ch.unibas.dmi.dbis.cottontail.database.column
 import ch.unibas.dmi.dbis.cottontail.database.general.Transaction
 import ch.unibas.dmi.dbis.cottontail.model.basics.*
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.DatabaseException
-import ch.unibas.dmi.dbis.cottontail.model.values.Value
+import ch.unibas.dmi.dbis.cottontail.model.values.types.Value
 
 /**
  * A [Transaction] that operates on a single [Column]. [Transaction]s are a unit of isolation for data
@@ -14,7 +14,7 @@ import ch.unibas.dmi.dbis.cottontail.model.values.Value
  * @author Ralph Gasser
  * @version 1.0
  */
-interface ColumnTransaction<T: Value<*>> : Transaction, Countable, Scanable, Filterable, Deletable {
+interface ColumnTransaction<T: Value> : Transaction, Countable, Scanable, Filterable, Deletable {
     /**
      * The [ColumnDef] of the [Column] underlying this [ColumnTransaction].
      *

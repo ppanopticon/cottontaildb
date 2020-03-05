@@ -11,7 +11,7 @@ import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.model.recordset.StandaloneRecord
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.DatabaseException
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.ValidationException
-import ch.unibas.dmi.dbis.cottontail.model.values.Value
+import ch.unibas.dmi.dbis.cottontail.model.values.types.Value
 import ch.unibas.dmi.dbis.cottontail.server.grpc.helper.*
 import ch.unibas.dmi.dbis.cottontail.utilities.name.Name
 import ch.unibas.dmi.dbis.cottontail.utilities.name.NameType
@@ -43,7 +43,7 @@ class CottonDMLService(val catalogue: Catalogue) : CottonDMLGrpc.CottonDMLImplBa
             entity.Tx(false).begin { tx ->
                 request.tupleList.map { it.dataMap }.forEach { entry ->
                     val columns = mutableListOf<ColumnDef<*>>()
-                    val values = mutableListOf<Value<*>?>()
+                    val values = mutableListOf<Value?>()
                     entry.map {
                         val col = entity.columnForName(Name(it.key))
                                 ?: throw DatabaseException.ColumnDoesNotExistException(entity.fqn.append(it.key))
@@ -133,7 +133,7 @@ class CottonDMLService(val catalogue: Catalogue) : CottonDMLGrpc.CottonDMLImplBa
                     /* Do the insert. */
                     request.tupleList.map { it.dataMap }.forEach { entry ->
                         val columns = mutableListOf<ColumnDef<*>>()
-                        val values = mutableListOf<Value<*>?>()
+                        val values = mutableListOf<Value?>()
                         entry.map {
                             val col = entity.columnForName(Name(it.key))
                                     ?: throw DatabaseException.ColumnDoesNotExistException(entity.fqn.append(it.key))
@@ -214,7 +214,7 @@ class CottonDMLService(val catalogue: Catalogue) : CottonDMLGrpc.CottonDMLImplBa
      * @param col The [ColumnDef] of the column, the data should be stored in.
      * @return The converted value.
      */
-    private fun castToColumn(value: CottontailGrpc.Data, col: ColumnDef<*>): Value<*>? = if (
+    private fun castToColumn(value: CottontailGrpc.Data, col: ColumnDef<*>): Value? = if (
             value.dataCase == CottontailGrpc.Data.DataCase.DATA_NOT_SET || value.dataCase == null
     ) {
         null

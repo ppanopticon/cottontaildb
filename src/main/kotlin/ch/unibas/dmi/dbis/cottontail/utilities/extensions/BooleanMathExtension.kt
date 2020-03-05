@@ -8,6 +8,13 @@ package ch.unibas.dmi.dbis.cottontail.utilities.extensions
 fun Boolean.toInt() = if (this) 1 else 0
 
 /**
+ * Converts this [Boolean] to an [Int] (true = 1, false = 0).
+ *
+ * @return [Int] representation of this [Boolean]
+ */
+fun Boolean.toByte() = if (this) 1.toByte() else 0.toByte()
+
+/**
  * Converts this [Boolean] to an [Double] (true = 1.0, false = 0.0).
  *
  * @return [Double] representation of this [Boolean]

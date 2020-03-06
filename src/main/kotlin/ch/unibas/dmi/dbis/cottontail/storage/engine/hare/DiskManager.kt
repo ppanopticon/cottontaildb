@@ -1,5 +1,7 @@
 package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk
 
+import ch.unibas.dmi.dbis.cottontail.storage.basics.MemorySize
+import ch.unibas.dmi.dbis.cottontail.storage.basics.Units
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
@@ -104,7 +106,7 @@ class DiskManager(val path: Path, val lockTimeout: Long = 5000) : AutoCloseable 
 
     /** Returns the size of the file managed by this [DiskManager]. */
     val size
-        get() = this.fileChannel.size()
+        get() = MemorySize(this.fileChannel.size().toDouble(), Units.BYTE)
 
     /* Make some initial sanity checks regarding the file's content. */
     init {
@@ -132,22 +134,22 @@ class DiskManager(val path: Path, val lockTimeout: Long = 5000) : AutoCloseable 
 
 
     /**
-     * Fetches the data identified by the given [PageId] into the given [Page] object thereby replacing the content of that [Page].
+     * Fetches the data identified by the given [PageId] into the given [Page] object thereby
+     * replacing the content of that [Page].
      *
      * @param id [PageId] to fetch.
-     * @param into [Page] to fetch data into.
+     * @param into [Page] to fetch data into. Its content will be updated.
      */
-    fun read(id: PageId, page: Page): Page {
+    fun read(id: PageId, page: Page) {
         this.fileChannel.read(page.data, this.pageIdToPosition(id))
         page.id = id
         page.flags = (page.flags and Page.Constants.MASK_DIRTY.inv())
-        return page
     }
 
     /**
      * Updates the [Page] in the HARE file managed by this [DiskManager].
      *
-     * @param page [Page] to update. Must have a valid [PageId].
+     * @param page [Page] to update. Its flags will be updated.
      */
     fun update(page: Page) {
         this.fileChannel.write(page.data, this.pageIdToPosition(page.id))
@@ -157,7 +159,7 @@ class DiskManager(val path: Path, val lockTimeout: Long = 5000) : AutoCloseable 
     /**
      * Appends the [Page] to the HARE file managed by this [DiskManager].
      *
-     * @param page [Page] to append. Its [PageId] will be updated.
+     * @param page [Page] to append. Its [PageId] and flags will be updated.
      */
     fun append(page: Page) {
         val pageId = this.pageCounter.getAndIncrement()
@@ -171,7 +173,8 @@ class DiskManager(val path: Path, val lockTimeout: Long = 5000) : AutoCloseable 
      */
     override fun close() {
         if (this.closed.compareAndSet(false, true)) {
-            this.fileChannel.write(ByteBuffer.allocate(9).put(FILE_SANITY_OK).putLong(this.pageCounter.get()), 9) /* Set sanity byte and update page counter. */
+            val buffer = ByteBuffer.allocate(9).put(FILE_SANITY_OK).putLong(this.pageCounter.get()).rewind()
+            this.fileChannel.write(buffer, 9) /* Set sanity byte and update page counter. */
             this.fileLock.release()
             this.fileChannel.close()
         }
@@ -183,7 +186,7 @@ class DiskManager(val path: Path, val lockTimeout: Long = 5000) : AutoCloseable 
      */
     private fun pageIdToPosition(id: PageId): Long {
         if (this.closed.get()) throw IllegalStateException("DiskManager for {${this.path}} was closed and cannot be used to access data.")
-        if (id >= this.pageCounter.get() || id < 0) throw PageDoesNotExistException("Page $id is out of bounds for HARE file (pages = ${this.pageCounter.get()}.")
+        if (id >= this.pageCounter.get() || id < 0) throw PageIdOutOfBoundException(id, this)
         return FILE_HEADER_SIZE_BYTES + id * Page.Constants.PAGE_DATA_SIZE_BYTES
     }
 }

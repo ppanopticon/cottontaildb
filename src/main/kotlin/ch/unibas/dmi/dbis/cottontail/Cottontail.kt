@@ -5,8 +5,8 @@ import ch.unibas.dmi.dbis.cottontail.database.catalogue.Catalogue
 import ch.unibas.dmi.dbis.cottontail.execution.ExecutionEngine
 import ch.unibas.dmi.dbis.cottontail.server.grpc.CottontailGrpcServer
 import kotlinx.serialization.UnstableDefault
-
-import kotlinx.serialization.json.Json.Companion.parse
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonConfiguration
 
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -29,7 +29,8 @@ fun main(args: Array<String>) {
 
     /* Load config file and start Cottontail DB. */
     Files.newBufferedReader(Paths.get(path)).use { reader ->
-        val config = parse(Config.serializer(), reader.readText())
+        val json = Json(JsonConfiguration.Stable)
+        val config = json.parse(Config.serializer(), reader.readText())
         val catalogue = Catalogue(config)
         val engine = ExecutionEngine(config.executionConfig)
         val server = CottontailGrpcServer(config.serverConfig, catalogue, engine)

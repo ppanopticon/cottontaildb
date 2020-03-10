@@ -9,7 +9,6 @@ import java.nio.channels.FileLock
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicLong
 
 
 /**
@@ -98,11 +97,12 @@ class DiskManager(val path: Path, val lockTimeout: Long = 5000) : AutoCloseable 
      *
      * Its true value can be reconstructed by page enumeration, if the file was not properly closed.
      */
-    private val pageCounter = AtomicLong(0L)
+    @Volatile
+    private var pageCounter = 0L
 
     /** Returns the number of [Page]s held by file managed by this [DiskManager]. */
     val pages
-        get() = this.pageCounter.get()
+        get() = this.pageCounter
 
     /** Returns the size of the file managed by this [DiskManager]. */
     val size
@@ -122,8 +122,8 @@ class DiskManager(val path: Path, val lockTimeout: Long = 5000) : AutoCloseable 
         assert(tmp.get() == FILE_HEADER_VERSION)
 
         if (tmp.get() == FILE_SANITY_OK) {
-            this.pageCounter.set(tmp.long)
-            assert(this.pageCounter.get() >= 0L)
+            this.pageCounter = tmp.long
+            assert(this.pageCounter >= 0L)
         } else {
             /* TODO: File wasn't properly closed. Run sanity check. */
         }
@@ -143,7 +143,8 @@ class DiskManager(val path: Path, val lockTimeout: Long = 5000) : AutoCloseable 
     fun read(id: PageId, page: Page) {
         this.fileChannel.read(page.data, this.pageIdToPosition(id))
         page.id = id
-        page.flags = (page.flags and Page.Constants.MASK_DIRTY.inv())
+        page.dirty = false
+        page.data.rewind()
     }
 
     /**
@@ -153,7 +154,8 @@ class DiskManager(val path: Path, val lockTimeout: Long = 5000) : AutoCloseable 
      */
     fun update(page: Page) {
         this.fileChannel.write(page.data, this.pageIdToPosition(page.id))
-        page.flags = (page.flags and Page.Constants.MASK_DIRTY.inv())
+        page.dirty = false
+        page.data.rewind()
     }
 
     /**
@@ -162,10 +164,11 @@ class DiskManager(val path: Path, val lockTimeout: Long = 5000) : AutoCloseable 
      * @param page [Page] to append. Its [PageId] and flags will be updated.
      */
     fun append(page: Page) {
-        val pageId = this.pageCounter.getAndIncrement()
+        val pageId = this.pageCounter++
         this.fileChannel.write(page.data, this.pageIdToPosition(pageId))
         page.id = pageId
-        page.flags = (page.flags and Page.Constants.MASK_DIRTY.inv())
+        page.dirty = false
+        page.data.rewind()
     }
 
     /**
@@ -173,7 +176,7 @@ class DiskManager(val path: Path, val lockTimeout: Long = 5000) : AutoCloseable 
      */
     override fun close() {
         if (this.closed.compareAndSet(false, true)) {
-            val buffer = ByteBuffer.allocate(9).put(FILE_SANITY_OK).putLong(this.pageCounter.get()).rewind()
+            val buffer = ByteBuffer.allocate(9).put(FILE_SANITY_OK).putLong(this.pageCounter).rewind()
             this.fileChannel.write(buffer, 9) /* Set sanity byte and update page counter. */
             this.fileLock.release()
             this.fileChannel.close()
@@ -181,12 +184,15 @@ class DiskManager(val path: Path, val lockTimeout: Long = 5000) : AutoCloseable 
     }
 
     /**
-     * Converts the given [PageId] to an offset into the HARE file. Calling this method also makes
-     * necessary sanity checks regarding the file channel status and ID bounds.
+     * Converts the given [PageId] to an offset into the file managed by this [DiskManager]. Calling this method
+     * also makes necessary sanity checks regarding the file's channel status and pageId bounds.
+     *
+     * @param pageId The [PageId] to translate to a position.
+     * @return The offset into the file.
      */
-    private fun pageIdToPosition(id: PageId): Long {
+    private fun pageIdToPosition(pageId: PageId): Long {
         if (this.closed.get()) throw IllegalStateException("DiskManager for {${this.path}} was closed and cannot be used to access data.")
-        if (id >= this.pageCounter.get() || id < 0) throw PageIdOutOfBoundException(id, this)
-        return FILE_HEADER_SIZE_BYTES + id * Page.Constants.PAGE_DATA_SIZE_BYTES
+        if (pageId >= this.pageCounter || pageId < 0) throw PageIdOutOfBoundException(pageId, this)
+        return FILE_HEADER_SIZE_BYTES + (pageId shl Page.Constants.PAGE_BIT_SHIFT)
     }
 }

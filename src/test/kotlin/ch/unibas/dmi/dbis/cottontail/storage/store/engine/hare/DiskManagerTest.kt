@@ -18,7 +18,7 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.measureTime
 
 class DiskManagerTest {
-    val path = Paths.get("./test-db.hare")
+    val path = Paths.get("./test-diskmgr-db.hare")
 
     var manager: DiskManager? = null
 
@@ -38,18 +38,8 @@ class DiskManagerTest {
 
     @Test
     fun testCreationAndLoading() {
-        assertEquals(this.manager!!.pages, 0)
-        assertEquals(this.manager!!.size, DiskManager.FILE_HEADER_SIZE_BYTES)
-    }
-
-    /**
-     * Appends [Page]s of random bytes and checks, if those [Page]s' content remains the same after reading.
-     */
-    @RepeatedTest(5)
-    fun testOutOfBounds() {
-        val page = Page(ByteBuffer.allocateDirect(BufferPool.PAGE_MEMORY_SIZE))
-        val data = this.initWithData(random.nextInt(65536))
-        assertThrows(PageIdOutOfBoundException::class.java){ this.manager!!.read((data.size + 1 + random.nextInt()).toLong(), page) }
+        assertEquals(0, this.manager!!.pages)
+        assertEquals(DiskManager.FILE_HEADER_SIZE_BYTES, this.manager!!.size.value.toInt())
     }
 
     /**
@@ -86,7 +76,7 @@ class DiskManagerTest {
     @ExperimentalTime
     @RepeatedTest(5)
     fun testUpdatePage() {
-        val page = Page(ByteBuffer.allocateDirect(BufferPool.PAGE_MEMORY_SIZE))
+        val page = Page(ByteBuffer.allocateDirect(Page.Constants.PAGE_DATA_SIZE_BYTES))
         val data = this.initWithData(random.nextInt(65536))
 
         val newData = Array(data.size) {
@@ -120,7 +110,7 @@ class DiskManagerTest {
      */
     @ExperimentalTime
     private fun compareData(ref: Array<ByteArray>) {
-        val page = Page(ByteBuffer.allocateDirect(BufferPool.PAGE_MEMORY_SIZE))
+        val page = Page(ByteBuffer.allocateDirect(Page.Constants.PAGE_DATA_SIZE_BYTES))
         var readTime = Duration.ZERO
         for (i in ref.indices) {
             readTime += measureTime {
@@ -139,7 +129,7 @@ class DiskManagerTest {
      * @param size The number of [Page]s to write.
      */
     private fun initWithData(size: Int) : Array<ByteArray> {
-        val page = Page(ByteBuffer.allocateDirect(BufferPool.PAGE_MEMORY_SIZE))
+        val page = Page(ByteBuffer.allocateDirect(Page.Constants.PAGE_DATA_SIZE_BYTES))
         val data = Array(size) {
             val bytes = ByteArray(Page.Constants.PAGE_DATA_SIZE_BYTES)
             random.nextBytes(bytes)
@@ -153,7 +143,7 @@ class DiskManagerTest {
 
             this.manager!!.append(page)
             assertEquals(this.manager!!.pages, i+1L)
-            assertEquals(this.manager!!.size.value.toLong(), DiskManager.FILE_HEADER_SIZE_BYTES + (i+1)*Page.Constants.PAGE_DATA_SIZE_BYTES)
+            assertEquals(DiskManager.FILE_HEADER_SIZE_BYTES + (i+1)*Page.Constants.PAGE_DATA_SIZE_BYTES, this.manager!!.size.value.toLong())
             assertEquals(i.toLong(), page.id)
             assertFalse(page.dirty)
         }

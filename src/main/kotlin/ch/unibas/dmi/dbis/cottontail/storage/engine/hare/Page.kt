@@ -1,13 +1,15 @@
 package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk
 
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page.Constants.MASK_DIRTY
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page.Constants.MASK_PRIORITY_HIGH
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page.Constants.MASK_PRIORITY_LOW
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page.Constants.EMPTY
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page.Constants.PAGE_DATA_SIZE_BYTES
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page.Constants.PAGE_HEADER_SIZE_BYTES
 
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.optimisticRead
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.write
+import it.unimi.dsi.fastutil.longs.Long2BooleanMaps
+import it.unimi.dsi.fastutil.longs.LongAVLTreeSet
+import it.unimi.dsi.fastutil.longs.LongArraySet
+import it.unimi.dsi.fastutil.longs.LongSets
+import org.apache.lucene.util.LongBitSet
 
 import java.nio.ByteBuffer
 import java.util.concurrent.locks.StampedLock
@@ -20,7 +22,7 @@ import kotlin.math.max
  * 16 byte header used for flags and properties set by the storage engine and used internally.
  *
  * [Page]s are backed by a [ByteBuffer] object. That [ByteBuffer] must have a capacity of exactly
- * 4096 + 16 bytes, otherwise an exception will be thrown. The [ByteBuffer] backing a page is rewinded
+ * 4096 bytes, otherwise an exception will be thrown. The [ByteBuffer] backing a page is rewinded
  * when handed to the [Page]'s constructor. It is not recommended to use that [ByteBuffer] outside
  * of the [Page]s context.
  *
@@ -30,103 +32,50 @@ import kotlin.math.max
  * @version 1.0
  * @author Ralph Gasser
  */
-class Page(private val bytes: ByteBuffer) {
-
-    /**
-     * [Priority] of a [Page]. The higher, the more important it is
-     */
-    enum class Priority {
-        HIGH, DEFAULT, LOW;
-    }
+class Page(val data: ByteBuffer) {
 
     /** Some constants related to [Page]s. */
     object Constants {
-        /** The size of a [Page]'s header. This value is constant.*/
-        const val PAGE_HEADER_SIZE_BYTES = 16
+        /** The number of bits to shift in order to get the page size (i.e. the N in 2^N) . */
+        const val PAGE_BIT_SHIFT = 12
 
         /** The size of a [Page]. This value is constant.*/
-        const val PAGE_DATA_SIZE_BYTES = 4096
+        const val PAGE_DATA_SIZE_BYTES = 1 shl PAGE_BIT_SHIFT
 
-        /** Mask for the dirty flag used by [Page] objects. */
-        const val MASK_DIRTY = 1 shl 0
-
-        /** Mask for the dirty flag used by [Page] objects. */
-        const val MASK_PRIORITY_HIGH = 1 shl 1
-
-        /** Mask for the dirty flag used by [Page] objects. */
-        const val MASK_PRIORITY_LOW = 1 shl 2
+        /** The size of a [Page]. This value is constant.*/
+        val EMPTY = ByteArray(PAGE_DATA_SIZE_BYTES)
     }
 
     init {
         /** Rewind ByteBuffer. */
-        this.bytes.rewind()
-
-        /** Check capacity of ByteBuffer. */
-        require(this.bytes.capacity() == PAGE_DATA_SIZE_BYTES + PAGE_HEADER_SIZE_BYTES) { throw IllegalArgumentException("A Page object must be backed by a ByteBuffer of exactly 4096 + 16 bytes.")}
+        this.data.rewind()
+        require(this.data.capacity() == PAGE_DATA_SIZE_BYTES) { throw IllegalArgumentException("A Page object must be backed by a ByteBuffer of exactly 4096 bytes.")}
     }
 
-    /** [StampedLock] that acts as latch for concurrent read/write access to a [Page]. */
-    val latch = StampedLock()
+    /** The identifier for the [Page]. A value of -1 means, that this page is empty (i.e. uninitialized). */
+    @Volatile
+    var id: PageId = System.currentTimeMillis()
+        internal set
 
-    /** Long reserved for [Page] flags. */
-    var flags: Int
-        get() = this.bytes.getInt(0)
-        internal set(v) {
-            this.bytes.putInt(0, v)
-        }
+    /** Internal flag: Indicating whether this [Page] has uncommitted changes. */
+    @Volatile
+    var dirty: Boolean = false
+        internal set
 
-    /** Internal flag: Indicating whether this [Page] has been edited and thus requires writing to disk. */
-    val dirty: Boolean
-        get() = (this.flags and MASK_DIRTY) == 1
-
-    /** Internal flag: Indicates priority of this [Page] when it comes to garbage collection. */
-    val priority: Priority
-        get() = when {
-            (this.flags and MASK_PRIORITY_HIGH == 1) -> Priority.HIGH
-            (this.flags and MASK_PRIORITY_LOW == 1) -> Priority.LOW
-            else -> Priority.DEFAULT
-        }
-
-    /** Internal flag: Retention counter of this page. */
-    var retention: Int
-        get() = this.bytes.getInt(4)
-        internal set(v) {
-            this.bytes.putInt(4, v)
-        }
-
-    /** Internal flag: Indicating if the retention counter of this [Page] is currently zero and it is thus elligible for garbage collection. */
-    val elligibleForGc
-        get() = this.retention == 0
-
-    /** The internal identifier for the [Page]. */
-    var id: PageId
-        get() = this.bytes.getLong(8)
-        internal set(v) {
-            this.bytes.putLong(8, v)
-        }
-
-    /** The actual data (payload) held by this [Page]. */
-    internal val data: ByteBuffer
-        get() {
-            val ret = this.bytes.position(PAGE_HEADER_SIZE_BYTES).slice()
-            this.bytes.position(0)
-            return ret
-        }
-
-
-    fun getBytes(index: Int, bytes: ByteArray) : ByteArray = this.latch.optimisticRead {
-        this.bytes.position(index + PAGE_HEADER_SIZE_BYTES).get(bytes).rewind()
+    fun getBytes(index: Int, bytes: ByteArray) : ByteArray {
+        this.data.position(index).get(bytes).rewind()
         return bytes
     }
+
     fun getBytes(index: Int, limit: Int) : ByteArray = getBytes(index, ByteArray(max(PAGE_DATA_SIZE_BYTES, limit-index)))
     fun getBytes(index: Int) : ByteArray = getBytes(index, PAGE_DATA_SIZE_BYTES)
-    fun getByte(index: Int): Byte = this.latch.optimisticRead { this.bytes.get(index + PAGE_HEADER_SIZE_BYTES) }
-    fun getShort(index: Int): Short = this.latch.optimisticRead {  this.bytes.getShort(index + PAGE_HEADER_SIZE_BYTES) }
-    fun getChar(index: Int): Char = this.latch.optimisticRead {  this.bytes.getChar(index + PAGE_HEADER_SIZE_BYTES) }
-    fun getInt(index: Int): Int = this.latch.optimisticRead {  this.bytes.getInt(index + PAGE_HEADER_SIZE_BYTES) }
-    fun getLong(index: Int): Long = this.latch.optimisticRead {  this.bytes.getLong(index + PAGE_HEADER_SIZE_BYTES) }
-    fun getFloat(index: Int): Float = this.latch.optimisticRead {  this.bytes.getFloat(index + PAGE_HEADER_SIZE_BYTES) }
-    fun getDouble(index: Int): Double = this.latch.optimisticRead {  this.bytes.getDouble(index + PAGE_HEADER_SIZE_BYTES) }
+    fun getByte(index: Int): Byte = this.data.get(index)
+    fun getShort(index: Int): Short = this.data.getShort(index)
+    fun getChar(index: Int): Char = this.data.getChar(index)
+    fun getInt(index: Int): Int = this.data.getInt(index)
+    fun getLong(index: Int): Long = this.data.getLong(index)
+    fun getFloat(index: Int): Float = this.data.getFloat(index)
+    fun getDouble(index: Int): Double =  this.data.getDouble(index)
 
     /**
      * Writes a [Byte] to the given position and sets the dirty flag to true.
@@ -135,9 +84,9 @@ class Page(private val bytes: ByteBuffer) {
      * @param value New [Byte] value to write.
      * @return This [Page]
      */
-    fun putByte(index: Int, value: Byte): Page = this.latch.write {
-        this.bytes.put(PAGE_HEADER_SIZE_BYTES  + index, value)
-        this.flags = (this.flags or MASK_DIRTY) /* Set dirty flag. */
+    fun putByte(index: Int, value: Byte): Page {
+        this.data.put(index, value)
+        this.dirty = true
         return this
     }
 
@@ -148,9 +97,9 @@ class Page(private val bytes: ByteBuffer) {
      * @param value New [ByteArray] value to write.
      * @return This [Page]
      */
-    fun putBytes(index: Int, value: ByteArray): Page = this.latch.write {
-        this.bytes.mark().position(PAGE_HEADER_SIZE_BYTES + index).put(value).rewind()
-        this.flags = (this.flags or MASK_DIRTY)
+    fun putBytes(index: Int, value: ByteArray): Page {
+        this.data.mark().position(index).put(value).rewind()
+        this.dirty = true
         return this
     }
 
@@ -161,9 +110,9 @@ class Page(private val bytes: ByteBuffer) {
      * @param value New [Short] value to write.
      * @return This [Page]
      */
-    fun putShort(index: Int, value: Short): Page = this.latch.write {
-        this.bytes.putShort(PAGE_HEADER_SIZE_BYTES + index, value)
-        this.flags = (this.flags or MASK_DIRTY) /* Set dirty flag. */
+    fun putShort(index: Int, value: Short): Page {
+        this.data.putShort(index, value)
+        this.dirty = true
         return this
     }
 
@@ -174,9 +123,9 @@ class Page(private val bytes: ByteBuffer) {
      * @param value New [Char] value to write.
      * @return This [Page]
      */
-    fun putChar(index: Int, value: Char): Page = this.latch.write {
-        this.bytes.putChar(PAGE_HEADER_SIZE_BYTES + index, value)
-        this.flags = (this.flags or MASK_DIRTY) /* Set dirty flag. */
+    fun putChar(index: Int, value: Char): Page {
+        this.data.putChar(index, value)
+        this.dirty = true
         return this
     }
 
@@ -187,9 +136,9 @@ class Page(private val bytes: ByteBuffer) {
      * @param value New [Int] value to write.
      * @return This [Page]
      */
-    fun putInt(index: Int, value: Int): Page = this.latch.write {
-        this.bytes.putInt(PAGE_HEADER_SIZE_BYTES  + index, value)
-        this.flags = (this.flags or MASK_DIRTY) /* Set dirty flag. */
+    fun putInt(index: Int, value: Int): Page {
+        this.data.putInt(index, value)
+        this.dirty = true
         return this
     }
 
@@ -200,9 +149,9 @@ class Page(private val bytes: ByteBuffer) {
      * @param value New [Long] value to write.
      * @return This [Page]
      */
-    fun putLong(index: Int, value: Long): Page = this.latch.write {
-        this.bytes.putLong(PAGE_HEADER_SIZE_BYTES + index, value)
-        this.flags = (this.flags or MASK_DIRTY) /* Set dirty flag. */
+    fun putLong(index: Int, value: Long): Page {
+        this.data.putLong(index, value)
+        this.dirty = true
         return this
     }
 
@@ -213,9 +162,9 @@ class Page(private val bytes: ByteBuffer) {
      * @param value New [Float] value to write.
      * @return This [Page]
      */
-    fun putFloat(index: Int, value: Float): Page = this.latch.write {
-        this.bytes.putFloat(PAGE_HEADER_SIZE_BYTES + index, value)
-        this.flags = (this.flags or MASK_DIRTY) /* Set dirty flag. */
+    fun putFloat(index: Int, value: Float): Page {
+        this.data.putFloat(index, value)
+        this.dirty = true
         return this
     }
 
@@ -226,26 +175,18 @@ class Page(private val bytes: ByteBuffer) {
      * @param value New [Double] value to write.
      * @return This [Page]
      */
-    fun putDouble(index: Int, value: Double): Page = this.latch.write {
-        this.bytes.putDouble(PAGE_HEADER_SIZE_BYTES + index, value)
-        this.flags = (this.flags or MASK_DIRTY) /* Set dirty flag. */
+    fun putDouble(index: Int, value: Double): Page {
+        this.data.putDouble(index, value)
+        this.dirty = true
         return this
     }
 
     /**
-     * Retains this [Page], incrementing its retention counter by one (to a minimum of zero).
+     *
      */
-    internal fun retain(): Page {
-        this.retention += 1
-        return this
-    }
-
-    /**
-     * Releases this [Page], decrementing its retention counter by one (to a minimum of zero).
-     */
-    internal fun release(): Page {
-        this.retention = max(0, this.retention - 1)
-        return this
+    fun clear() {
+        this.data.position(0).put(EMPTY).rewind()
+        this.dirty = true
     }
 }
 

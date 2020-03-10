@@ -5,6 +5,7 @@ import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.BufferPool
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DiskManager
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page
 import org.junit.jupiter.api.*
+import java.nio.ByteBuffer
 
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -37,6 +38,7 @@ class BufferPoolTest {
         Files.delete(this.path)
     }
 
+
     /**
      * Appends [Page]s of random bytes and checks, if those [Page]s' content remains the same after reading.
      */
@@ -47,6 +49,35 @@ class BufferPoolTest {
 
         /* Check if data remains the same. */
         this.compareData(data)
+    }
+
+    /**
+     * Updates [Page]s with random bytes and checks, if those [Page]s' content remains the same after reading.
+     */
+    @ExperimentalTime
+    @RepeatedTest(5)
+    fun testUpdatePage() {
+        val data = this.initWithData(random.nextInt(65536))
+
+        val newData = Array(data.size) {
+            val bytes = ByteArray(Page.Constants.PAGE_DATA_SIZE_BYTES)
+            random.nextBytes(bytes)
+            bytes
+        }
+
+        /* Update data with new data. */
+        for (i in newData.indices) {
+            val page = this.pool!!.get(i.toLong())
+
+            Assertions.assertEquals(i.toLong(), page.id)
+
+            val stamp = page.retain(true)
+            page.putBytes(stamp, 0, newData[i])
+            page.release(stamp)
+        }
+
+        /* Check if data remains the same. */
+        this.compareData(newData)
     }
 
     /**

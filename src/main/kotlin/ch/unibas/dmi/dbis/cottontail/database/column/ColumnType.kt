@@ -49,6 +49,32 @@ sealed class ColumnType<T : Value> {
             "COMPLEX64_VEC" -> Complex64VectorColumnType()
             else -> throw java.lang.IllegalArgumentException("The column type $name does not exists!")
         }
+
+        /**
+         * Returns the [ColumnType] for the provided name.
+         *
+         * @param name For which to lookup the [ColumnType].
+         */
+        fun forOrdinal(ordinal: Int): ColumnType<*> = when (ordinal) {
+            0 -> BooleanColumnType()
+            1 -> ByteColumnType()
+            2 -> ShortColumnType()
+            3 -> IntColumnType()
+            4 -> LongColumnType()
+            5 -> FloatColumnType()
+            6 -> DoubleColumnType()
+            7 -> StringColumnType()
+            8 -> Complex32ColumnType()
+            9 -> Complex64ColumnType()
+            10 -> IntVectorColumnType()
+            11 -> LongVectorColumnType()
+            12 -> FloatVectorColumnType()
+            13 -> DoubleVectorColumnType()
+            14 -> BooleanVectorColumnType()
+            15 -> Complex32VectorColumnType()
+            16 -> Complex64VectorColumnType()
+            else -> throw java.lang.IllegalArgumentException("The column type with ordinal $ordinal does not exists!")
+        }
     }
 
 

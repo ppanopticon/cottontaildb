@@ -31,6 +31,16 @@ class ColumnDef<T : Value>(val name: Name, val type: ColumnType<T>, val size: In
          * @param nullable Whether or not the [Column] should be nullable.
          */
         fun withAttributes(name: Name, type: String, size: Int = -1, nullable: Boolean = true): ColumnDef<*> = ColumnDef(name, ColumnType.forName(type), size, nullable)
+
+        /**
+         * Returns a [ColumnDef] with the provided attributes. The only difference as compared to using the constructor, is that the [ColumnType] can be provided by name.
+         *
+         * @param name Name of the new [Column]
+         * @param type ID of the [ColumnType] of the new [Column]
+         * @param size Size of the new [Column] (e.g. for vectors), where eligible.
+         * @param nullable Whether or not the [Column] should be nullable.
+         */
+        fun withAttributes(name: Name, type: Int, size: Int = -1, nullable: Boolean = true): ColumnDef<*> = ColumnDef(name, ColumnType.forOrdinal(type), size, nullable)
     }
 
     /**

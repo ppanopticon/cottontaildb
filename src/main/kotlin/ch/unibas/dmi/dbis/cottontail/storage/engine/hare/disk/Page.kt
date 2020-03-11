@@ -13,6 +13,7 @@ import org.apache.lucene.util.LongBitSet
 
 import java.nio.ByteBuffer
 import java.util.concurrent.locks.StampedLock
+import java.util.zip.CRC32C
 
 import kotlin.math.max
 

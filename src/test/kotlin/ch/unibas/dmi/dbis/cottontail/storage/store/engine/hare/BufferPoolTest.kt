@@ -67,7 +67,7 @@ class BufferPoolTest {
 
         /* Update data with new data. */
         for (i in newData.indices) {
-            val page = this.pool!!.get(i.toLong())
+            val page = this.pool!!.get((i + 1L))
 
             Assertions.assertEquals(i.toLong(), page.id)
 
@@ -89,7 +89,7 @@ class BufferPoolTest {
         for (i in ref.indices) {
             var page: BufferPool.PageRef? = null
             readTime += measureTime {
-                page = this.pool!!.get(i.toLong())
+                page = this.pool!!.get((i + 1L))
             }
             val stamp = page!!.retain(false)
 

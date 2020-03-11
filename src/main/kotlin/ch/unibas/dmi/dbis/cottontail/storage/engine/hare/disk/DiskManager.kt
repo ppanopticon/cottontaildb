@@ -10,7 +10,6 @@ import java.nio.file.Path
 import java.nio.file.StandardOpenOption
 import java.util.concurrent.atomic.AtomicBoolean
 
-
 /**
  * The [DiskManager] facilitates reading and writing of [Page]s from/to the underlying disk storage.
  * Only one [DiskManager] can be opened per HARE file and it acquires an exclusive [FileLock] once created.
@@ -37,8 +36,8 @@ class DiskManager(val path: Path, val lockTimeout: Long = 5000) : AutoCloseable 
         /** Flag for when the file's sanity requires a check (i.e. it was not closed correctly). */
         const val FILE_SANITY_CHECK = 1.toByte()
 
-        /** Size of the HARE file header. Only 18 bytes are used so far. Rest is reserved for the future. */
-        const val FILE_HEADER_SIZE_BYTES = 32L
+        /** Size of the HARE file header, which is effectively [Page] 0 in the file. */
+        const val FILE_HEADER_SIZE_BYTES = 4096
 
         /**
          * Initializes a new HARE file. Fails, if such a file already exists.
@@ -47,14 +46,16 @@ class DiskManager(val path: Path, val lockTimeout: Long = 5000) : AutoCloseable 
          */
         fun init(path: Path) {
             val fileChannel = FileChannel.open(path, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.SYNC, StandardOpenOption.SPARSE, StandardOpenOption.CREATE_NEW)
-            val buffer = ByteBuffer.allocate(32)
-            buffer.putChar(0, 'H')    /* Identifier. */
+            val buffer = ByteBuffer.allocate(FILE_HEADER_SIZE_BYTES)
+            buffer.putChar(0, 'H')       /* Identifier. */
             buffer.putChar(2, 'A')
             buffer.putChar(4, 'R')
             buffer.putChar(6, 'E')
             buffer.put(8, FILE_HEADER_VERSION)  /* Version of the HARE format. */
             buffer.put(9, FILE_SANITY_OK)       /* Sanity byte; 0 if file was properly closed, 1 if not.  */
             buffer.putLong(10, 0L)        /* Page counter; number of pages. */
+            buffer.putInt(18, 0)         /* Page counter; number of freed pages. */
+            buffer.putLong(22, 0L)        /* CRC32 checksum for HARE file. */
             fileChannel.write(buffer)
             fileChannel.close()
         }
@@ -92,17 +93,43 @@ class DiskManager(val path: Path, val lockTimeout: Long = 5000) : AutoCloseable 
     /** Flag indicating, that */
     private val closed: AtomicBoolean = AtomicBoolean(false)
 
-    /**
-     * The page counter. This value is volatile and only persisted when closing the [DiskManager].
-     *
-     * Its true value can be reconstructed by page enumeration, if the file was not properly closed.
-     */
-    @Volatile
-    private var pageCounter = 0L
+    /** A fixed 4096 byte [ByteBuffer] used to provide access to the header of the HARE file managed by this [DiskManager]. */
+    private val headerBuffer = ByteBuffer.allocateDirect(FILE_HEADER_SIZE_BYTES)
 
-    /** Returns the number of [Page]s held by file managed by this [DiskManager]. */
-    val pages
-        get() = this.pageCounter
+    /** Total number of [Page]s maintained by this [DiskManager]. */
+    var pages: Long
+        @Synchronized
+        get() {
+            return this.headerBuffer.getLong(10)
+        }
+
+        @Synchronized
+        private set(v) {
+            this.headerBuffer.putLong(10, v)
+            this.fileChannel.write(this.headerBuffer, 0L)
+            this.headerBuffer.rewind()
+        }
+
+    /** Total number of freed [Page]s managed by this [DiskManager]. */
+    var freed: Int
+        @Synchronized
+        get() {
+            return this.headerBuffer.getInt(18)
+        }
+
+        @Synchronized
+        private set(v) {
+            this.headerBuffer.putInt(18, v)
+            this.fileChannel.write(this.headerBuffer, 0L)
+            this.headerBuffer.rewind()
+        }
+
+    /** Total number of used [Page]s. */
+    val used: Long
+        @Synchronized
+        get() {
+            return this.headerBuffer.getLong(10) - this.headerBuffer.getInt(18)
+        }
 
     /** Returns the size of the file managed by this [DiskManager]. */
     val size
@@ -110,26 +137,24 @@ class DiskManager(val path: Path, val lockTimeout: Long = 5000) : AutoCloseable 
 
     /* Make some initial sanity checks regarding the file's content. */
     init {
-        val tmp = ByteBuffer.allocate(FILE_HEADER_SIZE_BYTES.toInt())
-        this.fileChannel.read(tmp)
-        tmp.rewind()
+        this.fileChannel.read(this.headerBuffer)
+        this.headerBuffer.rewind()
 
         /** Make necessary check on startup. */
-        assert(tmp.char == FILE_HEADER_IDENTIFIER[0])
-        assert(tmp.char == FILE_HEADER_IDENTIFIER[1])
-        assert(tmp.char == FILE_HEADER_IDENTIFIER[2])
-        assert(tmp.char == FILE_HEADER_IDENTIFIER[3])
-        assert(tmp.get() == FILE_HEADER_VERSION)
+        assert(headerBuffer.char == FILE_HEADER_IDENTIFIER[0])
+        assert(headerBuffer.char == FILE_HEADER_IDENTIFIER[1])
+        assert(headerBuffer.char == FILE_HEADER_IDENTIFIER[2])
+        assert(headerBuffer.char == FILE_HEADER_IDENTIFIER[3])
+        assert(headerBuffer.get() == FILE_HEADER_VERSION)
+        assert(this.pages >= 0)
 
-        if (tmp.get() == FILE_SANITY_OK) {
-            this.pageCounter = tmp.long
-            assert(this.pageCounter >= 0L)
-        } else {
-            /* TODO: File wasn't properly closed. Run sanity check. */
+        if (headerBuffer.get() != FILE_SANITY_OK) {
+           /* TODO: Perform sanity check. */
         }
 
         /** Update sanity flag to FILE_SANITY_CHECK at position 9. If file isn't closed properly, this flag will remain*/
-        this.fileChannel.write(ByteBuffer.allocate(1).put(FILE_SANITY_CHECK), 9)
+        this.fileChannel.write(this.headerBuffer.put(9, FILE_SANITY_CHECK), 0)
+        this.headerBuffer.rewind()
     }
 
 
@@ -137,7 +162,7 @@ class DiskManager(val path: Path, val lockTimeout: Long = 5000) : AutoCloseable 
      * Fetches the data identified by the given [PageId] into the given [Page] object thereby
      * replacing the content of that [Page].
      *
-     * @param id [PageId] to fetch.
+     * @param id [PageId] to fetch data for.
      * @param into [Page] to fetch data into. Its content will be updated.
      */
     fun read(id: PageId, page: Page) {
@@ -150,7 +175,7 @@ class DiskManager(val path: Path, val lockTimeout: Long = 5000) : AutoCloseable 
     /**
      * Updates the [Page] in the HARE file managed by this [DiskManager].
      *
-     * @param page [Page] to update. Its flags will be updated.
+     * @param page [Page] to update.
      */
     fun update(page: Page) {
         this.fileChannel.write(page.data, this.pageIdToPosition(page.id))
@@ -164,7 +189,7 @@ class DiskManager(val path: Path, val lockTimeout: Long = 5000) : AutoCloseable 
      * @param page [Page] to append. Its [PageId] and flags will be updated.
      */
     fun append(page: Page) {
-        val pageId = this.pageCounter++
+        val pageId = ++this.pages
         this.fileChannel.write(page.data, this.pageIdToPosition(pageId))
         page.id = pageId
         page.dirty = false
@@ -172,12 +197,21 @@ class DiskManager(val path: Path, val lockTimeout: Long = 5000) : AutoCloseable 
     }
 
     /**
+     * Frees the [Page] identified by the given [PageId].
+     *
+     * @param pageId The [PageId] of the [Page] that should be freed.
+     */
+    fun free(pageId: PageId) {
+
+    }
+
+    /**
      * Closes this [DiskManager], releasing the underlying file.
      */
     override fun close() {
         if (this.closed.compareAndSet(false, true)) {
-            val buffer = ByteBuffer.allocate(9).put(FILE_SANITY_OK).putLong(this.pageCounter).rewind()
-            this.fileChannel.write(buffer, 9) /* Set sanity byte and update page counter. */
+            this.headerBuffer.put(9, FILE_SANITY_OK)
+            this.fileChannel.write(this.headerBuffer.rewind(), 0) /* Set sanity byte and update page counter. */
             this.fileLock.release()
             this.fileChannel.close()
         }
@@ -192,7 +226,7 @@ class DiskManager(val path: Path, val lockTimeout: Long = 5000) : AutoCloseable 
      */
     private fun pageIdToPosition(pageId: PageId): Long {
         if (this.closed.get()) throw IllegalStateException("DiskManager for {${this.path}} was closed and cannot be used to access data.")
-        if (pageId >= this.pageCounter || pageId < 0) throw PageIdOutOfBoundException(pageId, this)
-        return FILE_HEADER_SIZE_BYTES + (pageId shl Page.Constants.PAGE_BIT_SHIFT)
+        if (pageId > this.pages || pageId < 1) throw PageIdOutOfBoundException(pageId, this)
+        return pageId shl Page.Constants.PAGE_BIT_SHIFT
     }
 }

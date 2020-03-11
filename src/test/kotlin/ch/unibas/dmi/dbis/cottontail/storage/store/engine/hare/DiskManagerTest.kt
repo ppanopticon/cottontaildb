@@ -87,7 +87,7 @@ class DiskManagerTest {
 
         /* Update data with new data. */
         for (i in newData.indices) {
-            this.manager!!.read(i.toLong(), page)
+            this.manager!!.read((i + 1L), page)
 
             assertFalse(page.dirty)
 
@@ -97,7 +97,7 @@ class DiskManagerTest {
 
             this.manager!!.update(page)
             assertArrayEquals(newData[i], page.getBytes(0))
-            assertEquals(i.toLong(), page.id)
+            assertEquals(i + 1L, page.id)
             assertFalse(page.dirty)
         }
 
@@ -114,10 +114,10 @@ class DiskManagerTest {
         var readTime = Duration.ZERO
         for (i in ref.indices) {
             readTime += measureTime {
-                this.manager!!.read(i.toLong(), page)
+                this.manager!!.read((i + 1L), page)
             }
             assertArrayEquals(ref[i], page.getBytes(0))
-            assertEquals(i.toLong(), page.id)
+            assertEquals(i + 1L, page.id)
             assertFalse(page.dirty)
         }
         println("Reading ${this.manager!!.size `in` Units.MEGABYTE} took $readTime (${(this.manager!!.size `in` Units.MEGABYTE).value / readTime.inSeconds} MB/s).")
@@ -143,8 +143,8 @@ class DiskManagerTest {
 
             this.manager!!.append(page)
             assertEquals(this.manager!!.pages, i+1L)
-            assertEquals(DiskManager.FILE_HEADER_SIZE_BYTES + (i+1)*Page.Constants.PAGE_DATA_SIZE_BYTES, this.manager!!.size.value.toLong())
-            assertEquals(i.toLong(), page.id)
+            assertEquals((DiskManager.FILE_HEADER_SIZE_BYTES + (i+1)*Page.Constants.PAGE_DATA_SIZE_BYTES).toDouble(), this.manager!!.size.value)
+            assertEquals((i + 1L), page.id)
             assertFalse(page.dirty)
         }
 

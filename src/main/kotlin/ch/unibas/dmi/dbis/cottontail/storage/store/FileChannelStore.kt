@@ -198,7 +198,7 @@ class FileChannelStore(val path: Path, val readOnly: Boolean, val lockTimeout: L
 
     /**
      * Generates and returns a [SeekableByteChannel] for this [MappedFileChannelStore]. The [SeekableByteChannel] can be used
-     * to efficiently transfer data between other [ByteChannel]s
+     * to efficiently transfer data between other [ByteChannel][java.nio.channels.ByteChannel]s
      *
      * @author Ralph Gasser
      * @version 1.0

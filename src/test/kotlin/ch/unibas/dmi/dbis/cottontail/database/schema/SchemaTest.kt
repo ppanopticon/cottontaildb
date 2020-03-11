@@ -4,6 +4,7 @@ import ch.unibas.dmi.dbis.cottontail.TestConstants
 import ch.unibas.dmi.dbis.cottontail.database.catalogue.Catalogue
 import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.database.entity.Entity
+import ch.unibas.dmi.dbis.cottontail.utilities.name.Name
 import org.junit.jupiter.api.AfterEach
 import java.nio.file.Files
 
@@ -15,7 +16,7 @@ import java.util.stream.Collectors
 
 class SchemaTest {
 
-    private val schemaName = "schema-test"
+    private val schemaName = Name("schema-test")
 
     /** */
     private var catalogue: Catalogue = Catalogue(TestConstants.config)
@@ -42,9 +43,9 @@ class SchemaTest {
     @Test
     fun EntityCreateTest() {
         /* Create a few entities. */
-        val entityNames = arrayOf("test1", "test2", "test3")
+        val entityNames = arrayOf(Name("test1"), Name("test2"), Name("test3"))
         for (name in entityNames) {
-            schema?.createEntity(name, ColumnDef.withAttributes("id", "STRING"))
+            schema?.createEntity(name, ColumnDef.withAttributes(Name("id"), "STRING"))
             assertTrue(Files.isReadable(TestConstants.config.root.resolve("schema_${schemaName}").resolve("entity_$name")))
             assertTrue(Files.isDirectory(TestConstants.config.root.resolve("schema_${schemaName}").resolve("entity_$name")))
             assertTrue(Files.isReadable(TestConstants.config.root.resolve("schema_${schemaName}").resolve("entity_$name").resolve("col_id.db")))

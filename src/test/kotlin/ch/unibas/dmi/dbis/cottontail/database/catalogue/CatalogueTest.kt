@@ -4,13 +4,14 @@ import ch.unibas.dmi.dbis.cottontail.TestConstants
 import ch.unibas.dmi.dbis.cottontail.database.catalogue.Catalogue
 import ch.unibas.dmi.dbis.cottontail.database.schema.Schema
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.DatabaseException
+import ch.unibas.dmi.dbis.cottontail.utilities.name.Name
 import org.junit.jupiter.api.*
 import java.nio.file.Files
 import java.util.Comparator
 import java.util.stream.Collectors
 
 class CatalogueTest {
-    private val schemaName = "schema-test"
+    private val schemaName = Name("schema-test")
 
     /** */
     private var catalogue: Catalogue = Catalogue(TestConstants.config)

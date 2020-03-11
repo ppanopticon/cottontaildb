@@ -38,7 +38,10 @@ class Catalogue(val config: Config): DBO {
     override val path: Path = config.root
 
     /** Constant name of the [Catalogue] object. */
-    override val name: Name = "warren"
+    override val name: Name = Name("warren")
+
+    /** Constant name of the [Catalogue] object. */
+    override val fqn: Name = this.name
 
     /** Constant parent [DBO], which is null in case of the [Catalogue]. */
     override val parent: DBO? = null
@@ -64,7 +67,7 @@ class Catalogue(val config: Config): DBO {
         get() = this.store.get(HEADER_RECORD_ID, CatalogueHeaderSerializer) ?: throw DatabaseException.DataCorruptionException("Failed to open Cottontail DB catalogue header!")
 
     /** List of [Schema] names registered in this [Catalogue]. */
-    val schemas: Collection<String>
+    val schemas: Collection<Name>
         get() = this.lock.read { this.registry.keys.toList() }
 
     /** Size of this [Catalogue] in terms of [Schema]s it contains. */
@@ -105,7 +108,7 @@ class Catalogue(val config: Config): DBO {
             if (!Files.exists(path)) {
                 throw DatabaseException.DataCorruptionException("Broken catalogue entry for schema '${schema.name}'. Path $path does not exist!")
             }
-            val s = Schema(schema.name, path, this)
+            val s = Schema(Name(schema.name), path, this)
             this.registry[s.name] = s
         }
     }
@@ -118,26 +121,25 @@ class Catalogue(val config: Config): DBO {
      */
     fun createSchema(name: Name) = this.lock.write {
         /* Check the type of name and normalize it. */
-        val nameNormalized = name.normalize()
-        if (nameNormalized.type() != NameType.SIMPLE) {
-            throw IllegalArgumentException("The provided name '$nameNormalized' is of type '${nameNormalized.type()} and cannot be used to access a schema.")
+        if (name.type != NameType.SIMPLE) {
+            throw IllegalArgumentException("The provided name '$name' is of type '${name.type} and cannot be used to access a schema.")
         }
 
         /* Check if schema with that name exists. */
-        if (this.registry.containsKey(nameNormalized)) {
-            throw DatabaseException.SchemaAlreadyExistsException(nameNormalized)
+        if (this.registry.containsKey(name)) {
+            throw DatabaseException.SchemaAlreadyExistsException(name)
         }
 
         /* Create empty folder for entity. */
-        val path = this.path.resolve("schema_$nameNormalized")
+        val path = this.path.resolve("schema_$name")
         try {
             if (!Files.exists(path)) {
                 Files.createDirectories(path)
             } else {
-                throw DatabaseException("Failed to create schema '$nameNormalized'. Data directory '$path' seems to be occupied.")
+                throw DatabaseException("Failed to create schema '$name'. Data directory '$path' seems to be occupied.")
             }
         } catch (e: IOException) {
-            throw DatabaseException("Failed to create schema '$nameNormalized' due to an IO exception: ${e.message}")
+            throw DatabaseException("Failed to create schema '$name' due to an IO exception: ${e.message}")
         }
 
         /* Generate the store for the new schema and update catalogue. */
@@ -149,7 +151,7 @@ class Catalogue(val config: Config): DBO {
             store.close()
 
             /* Update catalogue. */
-            val sid = this.store.put(CatalogueEntry(nameNormalized), CatalogueEntrySerializer)
+            val sid = this.store.put(CatalogueEntry(name.name), CatalogueEntrySerializer)
 
             /* Update header. */
             val new = this.header.let { CatalogueHeader(it.size + 1, it.created, System.currentTimeMillis(), it.schemas.copyOf(it.schemas.size + 1)) }
@@ -160,11 +162,11 @@ class Catalogue(val config: Config): DBO {
             this.store.rollback()
             val pathsToDelete = Files.walk(path).sorted(Comparator.reverseOrder()).collect(Collectors.toList())
             pathsToDelete.forEach { Files.delete(it) }
-            throw DatabaseException("Failed to create schema '$nameNormalized' due to a storage exception: ${e.message}")
+            throw DatabaseException("Failed to create schema '$name' due to a storage exception: ${e.message}")
         }
 
         /* Add schema to local map. */
-        this.registry[nameNormalized] = Schema(nameNormalized, path, this)
+        this.registry[name] = Schema(name, path, this)
     }
 
     /**
@@ -174,18 +176,17 @@ class Catalogue(val config: Config): DBO {
      */
     fun dropSchema(name: Name) = this.lock.write {
         /* Check the type of name. */
-        val nameNormalized = name.normalize()
-        if (nameNormalized.type() != NameType.SIMPLE) {
-            throw IllegalArgumentException("The provided name '$nameNormalized' is of type '${nameNormalized.type()} and cannot be used to access a schema.")
+        if (name.type != NameType.SIMPLE) {
+            throw IllegalArgumentException("The provided name '$name' is of type '${name.type} and cannot be used to access a schema.")
         }
 
         /* Try to close the schema. Open registry cannot be dropped. */
-        (this.registry[nameNormalized] ?: throw DatabaseException.SchemaDoesNotExistException(nameNormalized)).close()
+        (this.registry[name] ?: throw DatabaseException.SchemaDoesNotExistException(name)).close()
 
         /* Extract the catalogue entry. */
         val catalogueEntry = this.header.schemas
                 .map { Pair(it, this.store.get(it, CatalogueEntrySerializer) ?: throw DatabaseException.DataCorruptionException("Failed to read Cottontail DB catalogue entry for SID=$it!")) }
-                .find { it.second.name == nameNormalized } ?: throw DatabaseException("Failed to drop schema '$nameNormalized'. Did not find a Cottontail DB catalogue entry for schema $nameNormalized!")
+                .find { Name(it.second.name) == name } ?: throw DatabaseException("Failed to drop schema '$name'. Did not find a Cottontail DB catalogue entry for schema $name!")
 
         /* Remove catalogue entry + update header. */
         try {
@@ -195,14 +196,14 @@ class Catalogue(val config: Config): DBO {
             this.store.commit()
         } catch (e: DBException) {
             this.store.rollback()
-            throw DatabaseException("Failed to drop schema '$nameNormalized' due to a storage exception: ${e.message}")
+            throw DatabaseException("Failed to drop schema '$name' due to a storage exception: ${e.message}")
         }
 
         /* Remove schema from registry. */
-        this.registry.remove(nameNormalized)
+        this.registry.remove(name)
 
         /* Delete files that belong to the schema. */
-        val path = this.path.resolve("schema_$nameNormalized")
+        val path = this.path.resolve("schema_$name")
         val pathsToDelete = Files.walk(path).sorted(Comparator.reverseOrder()).collect(Collectors.toList())
         pathsToDelete.forEach { Files.delete(it) }
     }
@@ -213,9 +214,8 @@ class Catalogue(val config: Config): DBO {
      * @param name [Name] of the [Schema].
      */
     fun schemaForName(name: Name): Schema = this.lock.read {
-        val nameNormalized = name.normalize()
-        require(nameNormalized.type() == NameType.SIMPLE) { "The provided name '$nameNormalized' is of type '${nameNormalized.type()} and cannot be used to access a schema." }
-        this.registry[nameNormalized] ?: throw DatabaseException.SchemaDoesNotExistException(nameNormalized)
+        require(name.type == NameType.SIMPLE) { "The provided name '$name' is of type '${name.type} and cannot be used to access a schema." }
+        this.registry[name] ?: throw DatabaseException.SchemaDoesNotExistException(name)
     }
 
     /**

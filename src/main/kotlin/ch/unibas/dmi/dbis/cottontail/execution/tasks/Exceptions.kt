@@ -6,7 +6,7 @@ import ch.unibas.dmi.dbis.cottontail.execution.tasks.basics.ExecutionTask
 /**
  * This exceptions is thrown whenever a single [ExecutionPlan] fails.
  *
- * @param task The [ExecutionPlan] that failed.
+ * @param plan The [ExecutionPlan] that failed.
  * @param message An error message describing the circumstances.
  */
 class ExecutionPlanException(plan: ExecutionPlan, message: String) : Throwable("Execution failed for execution plan ${plan.id}: $message.")
@@ -15,7 +15,7 @@ class ExecutionPlanException(plan: ExecutionPlan, message: String) : Throwable("
  * This exceptions is thrown whenever the setup of an [ExecutionPlan] fails. Errors of this kind are is usually caused
  * by mal-specification.
  *
- * @param task The [ExecutionPlan] that failed.
+ * @param plan The [ExecutionPlan] that failed.
  * @param message An error message describing the circumstances.
  */
 class ExecutionPlanSetupException(plan: ExecutionPlan, message: String) : Throwable("Setup failed for execution plan ${plan.id}: $message.")

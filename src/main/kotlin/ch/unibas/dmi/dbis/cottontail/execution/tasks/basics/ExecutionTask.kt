@@ -8,9 +8,9 @@ import java.util.*
 
 /**
  * A single task usually executed as part of a query. Such as task generated a [Recordset] by  fetching or
- * transforming data. [ExecutionTask]s are usually part of an [ExecutionPlan].
+ * transforming data. [ExecutionTask]s are usually part of an [ExecutionPlan][ch.unibas.dmi.dbis.cottontail.execution.ExecutionPlan].
  *
- * @see ExecutionPlan
+ * @see ch.unibas.dmi.dbis.cottontail.execution.ExecutionPlan
  * @see Recordset
  *
  * @author Ralph Gasser

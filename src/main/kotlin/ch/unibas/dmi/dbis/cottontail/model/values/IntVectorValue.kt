@@ -1,23 +1,25 @@
 package ch.unibas.dmi.dbis.cottontail.model.values
 
+import ch.unibas.dmi.dbis.cottontail.model.values.types.*
+import java.util.*
+import kotlin.math.absoluteValue
+import kotlin.math.pow
+
 /**
  * This is an abstraction over an [IntArray] and it represents a vector of [Int]s.
  *
  * @author Ralph Gasser
  * @version 1.1
  */
-inline class IntVectorValue(override val value: IntArray) : VectorValue<IntArray> {
+inline class IntVectorValue(val data: IntArray) : RealVectorValue<Int> {
 
     constructor(input: List<Number>) : this(IntArray(input.size) { input[it].toInt() })
     constructor(input: Array<Number>) : this(IntArray(input.size) { input[it].toInt() })
 
-    override val size: Int
-        get() = this.value.size
+    override val logicalSize: Int
+        get() = this.data.size
 
-    override val numeric: Boolean
-        get() = false
-
-    override fun compareTo(other: Value<*>): Int {
+    override fun compareTo(other: Value): Int {
         throw IllegalArgumentException("IntVectorValues can can only be compared for equality.")
     }
 
@@ -27,22 +29,14 @@ inline class IntVectorValue(override val value: IntArray) : VectorValue<IntArray
      * @return The indices of this [IntVectorValue]
      */
     override val indices: IntRange
-        get() = this.value.indices
+        get() = this.data.indices
 
     /**
      * Returns the i-th entry of  this [IntVectorValue].
      *
      * @param i Index of the entry.
      */
-    override fun get(i: Int): Number = this.value[i]
-
-    /**
-     * Returns the i-th entry of  this [IntVectorValue] as [Int].
-     *
-     * @param i Index of the entry.
-     * @return The value at index i.
-     */
-    override fun getAsInt(i: Int) = this.value[i]
+    override fun get(i: Int) = IntValue(this.data[i])
 
     /**
      * Returns the i-th entry of  this [IntVectorValue] as [Boolean].
@@ -50,82 +44,96 @@ inline class IntVectorValue(override val value: IntArray) : VectorValue<IntArray
      * @param i Index of the entry.
      * @return The value at index i.
      */
-    override fun getAsBool(i: Int) = this.value[i] == 0
+    override fun getAsBool(i: Int) = this.data[i] != 0
 
     /**
      * Returns true, if this [IntVectorValue] consists of all zeroes, i.e. [0, 0, ... 0]
      *
      * @return True, if this [IntVectorValue] consists of all zeroes
      */
-    override fun allZeros(): Boolean = this.value.all { it == 0 }
+    override fun allZeros(): Boolean = this.data.all { it == 0 }
 
     /**
      * Returns true, if this [IntVectorValue] consists of all ones, i.e. [1, 1, ... 1]
      *
      * @return True, if this [IntVectorValue] consists of all ones
      */
-    override fun allOnes(): Boolean = this.value.all { it == 1 }
+    override fun allOnes(): Boolean = this.data.all { it == 1 }
 
     /**
      * Creates and returns a copy of this [IntVectorValue].
      *
      * @return Exact copy of this [IntVectorValue].
      */
-    override fun copy(): IntVectorValue = IntVectorValue(this.value.copyOf(this.size))
+    override fun copy(): IntVectorValue = IntVectorValue(this.data.copyOf(this.logicalSize))
 
-    override operator fun plus(other: VectorValue<IntArray>): VectorValue<IntArray> {
-        require(this.size == other.size) { "Only vector values of the same type and size can be added." }
-        val out = IntVectorValue(this.value.copyOf(this.size))
-        this.indices.forEach { out.value[it] += other.value[it] }
-        return out
+    override fun plus(other: VectorValue<*>) = IntVectorValue(IntArray(this.logicalSize) {
+        (this[it] + other[it].asInt()).value
+    })
+
+    override fun minus(other: VectorValue<*>) = IntVectorValue(IntArray(this.logicalSize) {
+        (this[it] - other[it].asInt()).value
+    })
+
+    override fun times(other: VectorValue<*>) = IntVectorValue(IntArray(this.logicalSize) {
+        (this[it] * other[it].asInt()).value
+    })
+
+    override fun div(other: VectorValue<*>) = IntVectorValue(IntArray(this.logicalSize) {
+        (this[it] / other[it].asInt()).value
+    })
+
+    override fun plus(other: NumericValue<*>) = IntVectorValue(IntArray(this.logicalSize) {
+        (this[it] + other.asInt()).value
+    })
+
+    override fun minus(other: NumericValue<*>) = IntVectorValue(IntArray(this.logicalSize) {
+        (this[it] - other.asInt()).value
+    })
+
+    override fun times(other: NumericValue<*>) = IntVectorValue(IntArray(this.logicalSize) {
+        (this[it] * other.asInt()).value
+    })
+
+    override fun div(other: NumericValue<*>) = IntVectorValue(IntArray(this.logicalSize) {
+        (this[it] / other.asInt()).value
+    })
+
+    override fun pow(x: Int) = DoubleVectorValue(DoubleArray(this.data.size) {
+        this.data[it].toDouble().pow(x)
+    })
+
+    override fun sqrt() = DoubleVectorValue(DoubleArray(this.data.size) {
+        kotlin.math.sqrt(this.data[it].toDouble())
+    })
+
+    override fun abs() = IntVectorValue(IntArray(this.data.size) {
+        kotlin.math.abs(this.data[it])
+    })
+
+    override fun sum(): IntValue = IntValue(this.data.sum())
+
+    override fun distanceL1(other: VectorValue<*>): NumericValue<*> {
+        var sum = 0
+        for (i in this.indices) {
+            sum += (this.data[i] - other[i].asInt().value).absoluteValue
+        }
+        return DoubleValue(sum)
     }
 
-    override operator fun minus(other: VectorValue<IntArray>): VectorValue<IntArray> {
-        require(this.size == other.size) { "Only vector values of the same type and size can be added." }
-        val out = IntVectorValue(this.value.copyOf(this.size))
-        this.indices.forEach { out.value[it] -= other.value[it] }
-        return out
+    override fun distanceL2(other: VectorValue<*>): NumericValue<*> {
+        var sum = 0.0
+        for (i in this.indices) {
+            sum += (this.data[i] - other[i].asInt().value).toDouble().pow(2)
+        }
+        return DoubleValue(kotlin.math.sqrt(sum))
     }
 
-    override operator fun times(other: VectorValue<IntArray>): VectorValue<IntArray> {
-        require(this.size == other.size) { "Only vector values of the same type and size can be added." }
-        val out = IntVectorValue(this.value.copyOf(this.size))
-        this.indices.forEach { out.value[it] *= other.value[it] }
-        return out
-    }
-
-    override operator fun div(other: VectorValue<IntArray>): VectorValue<IntArray> {
-        require(this.size == other.size) { "Only vector values of the same type and size can be added." }
-        val out = IntVectorValue(this.value.copyOf(this.size))
-        this.indices.forEach { out.value[it] /= other.value[it] }
-        return out
-    }
-
-    override operator fun plus(other: Number): VectorValue<IntArray> {
-        val value = other.toInt()
-        val out = IntVectorValue(this.value.copyOf(this.size))
-        this.indices.forEach { out.value[it] += value }
-        return out
-    }
-
-    override operator fun minus(other: Number): VectorValue<IntArray> {
-        val value = other.toInt()
-        val out = IntVectorValue(this.value.copyOf(this.size))
-        this.indices.forEach { out.value[it] -= value }
-        return out
-    }
-
-    override operator fun times(other: Number): VectorValue<IntArray> {
-        val value = other.toInt()
-        val out = IntVectorValue(this.value.copyOf(this.size))
-        this.indices.forEach { out.value[it] *= value }
-        return out
-    }
-
-    override operator fun div(other: Number): VectorValue<IntArray> {
-        val value = other.toInt()
-        val out = IntVectorValue(this.value.copyOf(this.size))
-        this.indices.forEach { out.value[it] /= value }
-        return out
+    override fun distanceLP(other: VectorValue<*>, p: Int): NumericValue<*> {
+        var sum = 0.0
+        for (i in this.indices) {
+            sum += (this.data[i] - other[i].asInt().value).toDouble().pow(p)
+        }
+        return DoubleValue(sum.pow(1.0/p))
     }
 }

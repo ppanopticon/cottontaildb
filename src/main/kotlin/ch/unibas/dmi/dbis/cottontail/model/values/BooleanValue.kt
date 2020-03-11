@@ -1,23 +1,18 @@
 package ch.unibas.dmi.dbis.cottontail.model.values
 
-inline class BooleanValue(override val value: Boolean) : Value<Boolean> {
+import ch.unibas.dmi.dbis.cottontail.model.values.types.ScalarValue
+import ch.unibas.dmi.dbis.cottontail.model.values.types.Value
 
-
-
-    override val size: Int
+inline class BooleanValue(override val value: Boolean): ScalarValue<Boolean> {
+    override val logicalSize: Int
         get() = -1
 
-    override val numeric: Boolean
-        get() = true
-
-    override fun compareTo(other: Value<*>): Int = when (other) {
-        is BooleanValue -> if (this.value) { 1 } else { 0 }.compareTo(if (other.value) { 1.toByte() } else { 0.toByte() })
-        is ByteValue -> if (this.value) { 1 } else { 0 }.compareTo(other.value)
-        is ShortValue -> if (this.value) { 1 } else { 0 }.compareTo(other.value)
-        is IntValue -> if (this.value) { 1 } else { 0 }.compareTo(other.value)
-        is LongValue -> if (this.value) { 1 } else { 0 }.compareTo(other.value)
-        is DoubleValue -> if (this.value) { 1 } else { 0 }.compareTo(other.value)
-        is FloatValue -> if (this.value) { 1 } else { 0 }.compareTo(other.value)
-        else -> throw IllegalArgumentException("BooleanValues can only be compared to other numeric values.")
+    override fun compareTo(other: Value): Int = when (other) {
+        is BooleanValue -> when {
+            this.value == other.value -> 0
+            this.value -> 1
+            else -> -1
+        }
+        else -> throw IllegalArgumentException("BooleanValue can only be compared to other BooleanValue values.")
     }
 }

@@ -14,7 +14,6 @@ interface DBO : AutoCloseable {
 
     /** The fully qualified [Name] of this [DBO]. */
     val fqn: Name
-        get() = if (this.parent != null) { "${parent!!.fqn}.$name" } else { name }
 
     /** The parent DBO (if such exists). */
     val parent: DBO?

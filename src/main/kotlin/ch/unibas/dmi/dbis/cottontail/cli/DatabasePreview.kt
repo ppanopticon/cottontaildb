@@ -35,7 +35,7 @@ object DatabasePreview {
                 when (input[0]) {
                     "optimize" -> {
                         if (input.size < 3) {
-                            println("optimize syntax is: optimize <schema> <entity> [<count>]")
+                            println("optimize syntax is: optimize <schema> <entity>")
                             continue@loop
                         }
                         optimizeEntity(input[1], input[2])

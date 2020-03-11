@@ -42,7 +42,7 @@ abstract class PersistentStore : Store {
 
     /**
      * Generates and returns a [SeekableByteChannel] for this [PersistentStore]. The [SeekableByteChannel] can be used
-     * to efficiently transfer data between other [ByteChannel]s.
+     * to efficiently transfer data between other [ByteChannel][java.nio.channels.ByteChannel]s.
      *
      * @author Ralph Gasser
      * @version 1.0

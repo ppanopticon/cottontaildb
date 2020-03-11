@@ -8,7 +8,7 @@ import java.lang.IllegalArgumentException
 
 /**
  * A [Task] used during query execution. It takes two [Recordset]s as input and creates a new [Recordset] containing the INTERSECTION of the two inputs. The INTERSECTION is
- * based on the tuple ID of the individual [Record]s.
+ * based on the tuple ID of the individual [Record][ch.unibas.dmi.dbis.cottontail.model.basics.Record]s.
  *
  * @author Ralph Gasser
  * @version 1.0

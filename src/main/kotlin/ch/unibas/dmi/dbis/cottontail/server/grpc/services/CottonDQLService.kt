@@ -17,7 +17,6 @@ import io.grpc.Status
 import io.grpc.stub.StreamObserver
 
 import org.slf4j.LoggerFactory
-import java.lang.Integer.min
 import java.util.*
 
 class CottonDQLService (val catalogue: Catalogue, val engine: ExecutionEngine, val maxMessageSize: Int): CottonDQLGrpc.CottonDQLImplBase() {
@@ -55,14 +54,19 @@ class CottonDQLService (val catalogue: Catalogue, val engine: ExecutionEngine, v
         LOGGER.info("Query $queryId took ${System.currentTimeMillis()-startBinding}ms.")
         responseObserver.onCompleted()
     } catch (e: QueryException.QuerySyntaxException) {
+        LOGGER.error("Error while executing query $request", e);
         responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("Query syntax is invalid: ${e.message}").asException())
     } catch (e: QueryException.QueryBindException) {
+        LOGGER.error("Error while executing query $request", e);
         responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("Query binding failed: ${e.message}").asException())
     } catch (e: ExecutionPlanException) {
+        LOGGER.error("Error while executing query $request", e);
         responseObserver.onError(Status.INTERNAL.withDescription("Query execution failed because execution engine signaled an error: ${e.message}").asException())
     }  catch (e: DatabaseException) {
+        LOGGER.error("Error while executing query $request", e);
         responseObserver.onError(Status.INTERNAL.withDescription("Query execution failed because of a database error: ${e.message}").asException())
     } catch (e: Throwable) {
+        LOGGER.error("Error while executing query $request", e);
         responseObserver.onError(Status.UNKNOWN.withDescription("Query execution failed failed because of a unknown error: ${e.message}").asException())
     }
 
@@ -94,14 +98,19 @@ class CottonDQLService (val catalogue: Catalogue, val engine: ExecutionEngine, v
         LOGGER.info("Batched query $queryId took ${System.currentTimeMillis()-start}ms to complete.")
         responseObserver.onCompleted()
     } catch (e: QueryException.QuerySyntaxException) {
+        LOGGER.error("Error while executing batched query $request", e);
         responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("Query syntax is invalid: ${e.message}").asException())
     } catch (e: QueryException.QueryBindException) {
+        LOGGER.error("Error while executing batched query $request", e);
         responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("Query binding failed: ${e.message}").asException())
     } catch (e: ExecutionPlanException) {
+        LOGGER.error("Error while executing batched query $request", e);
         responseObserver.onError(Status.INTERNAL.withDescription("Query execution failed because execution engine signaled an error: ${e.message}").asException())
     }  catch (e: DatabaseException) {
+        LOGGER.error("Error while executing batched query $request", e);
         responseObserver.onError(Status.INTERNAL.withDescription("Query execution failed because of a database error: ${e.message}").asException())
     } catch (e: Throwable) {
+        LOGGER.error("Error while executing batched query $request", e);
         responseObserver.onError(Status.UNKNOWN.withDescription("Query execution failed failed because of a unknown error: ${e.message}").asException())
     }
 
@@ -128,13 +137,13 @@ class CottonDQLService (val catalogue: Catalogue, val engine: ExecutionEngine, v
             if (first != null) {
                 val exampleSize = BitUtil.nextPowerOfTwo(recordToTuple(first).build().serializedSize)
                 val pageSize = (this.maxMessageSize/exampleSize)
-                val maxPages = Math.floorDiv(results.rowCount, pageSize)
+                val maxPages = Math.floorDiv(results.rowCount, pageSize).toInt()
 
                 /* Return results. */
                 val iterator = results.iterator()
                 for (i in 0..maxPages) {
-                    val responseBuilder = CottontailGrpc.QueryResponseMessage.newBuilder().setStart(i == 0).setPageSize(pageSize).setPage(i).setMaxPage(maxPages).setTotalHits(results.rowCount)
-                    for (j in i * pageSize until min(results.rowCount, i*pageSize + pageSize)) {
+                    val responseBuilder = CottontailGrpc.QueryResponseMessage.newBuilder().setStart(i == 0).setPageSize(pageSize).setPage(i).setMaxPage(maxPages).setTotalHits(results.rowCount.toInt()) /* TODO: Make necessary values in Proto Definition Longs. */
+                    for (j in i * pageSize until kotlin.math.min(results.rowCount, (i*pageSize + pageSize).toLong())) {
                         responseBuilder.addResults(recordToTuple(iterator.next()))
                     }
                     responseObserver.onNext(responseBuilder.build())
@@ -147,12 +156,11 @@ class CottonDQLService (val catalogue: Catalogue, val engine: ExecutionEngine, v
         }
     }
 
-
     /**
      * Generates a new [CottontailGrpc.Tuple.Builder] from a given [Record].
      *
      * @param record [Record] to create a [CottontailGrpc.Tuple.Builder] from.
      * @return Resulting [CottontailGrpc.Tuple.Builder]
      */
-    private fun recordToTuple(record: Record) : CottontailGrpc.Tuple.Builder = CottontailGrpc.Tuple.newBuilder().putAllData(record.toMap().mapValues { DataHelper.toData(it.value) })
+    private fun recordToTuple(record: Record) : CottontailGrpc.Tuple.Builder = CottontailGrpc.Tuple.newBuilder().putAllData(record.toMap().map { it.key.name to DataHelper.toData(it.value) }.toMap())
 }

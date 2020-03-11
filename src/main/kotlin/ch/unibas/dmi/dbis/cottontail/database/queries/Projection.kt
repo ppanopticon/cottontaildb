@@ -2,6 +2,7 @@ package ch.unibas.dmi.dbis.cottontail.database.queries
 
 import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.QueryException
+import ch.unibas.dmi.dbis.cottontail.utilities.name.Name
 
 /**
  * Formalizes a [Projection] operation in the Cottontail DB query execution engine.
@@ -9,7 +10,7 @@ import ch.unibas.dmi.dbis.cottontail.model.exceptions.QueryException
  * @author Ralph Gasser
  * @version 1.0.1
  */
-data class Projection(val type: ProjectionType = ProjectionType.SELECT, val columns: Array<ColumnDef<*>>, val fields: Map<String,String?>) {
+data class Projection(val type: ProjectionType = ProjectionType.SELECT, val columns: Array<ColumnDef<*>>, val fields: Map<Name,Name?>) {
 
     init {
         /* Sanity check. */

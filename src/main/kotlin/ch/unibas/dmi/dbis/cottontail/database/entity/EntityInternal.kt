@@ -99,10 +99,10 @@ internal object EntityHeaderSerializer : Serializer<EntityHeader> {
 }
 
 /**
- * An entry pointing to an [Index]
+ * An entry pointing to an [Index][ch.unibas.dmi.dbis.cottontail.database.index.Index]
  *
  * @see Entity
- * @see Index
+ * @see ch.unibas.dmi.dbis.cottontail.database.index.Index
  *
  * @author Ralph Gasser
  * @version 1.0

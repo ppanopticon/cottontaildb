@@ -2,6 +2,7 @@ package ch.unibas.dmi.dbis.cottontail.database.index.lucene
 
 import ch.unibas.dmi.dbis.cottontail.database.queries.*
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.QueryException
+import ch.unibas.dmi.dbis.cottontail.model.values.PatternValue
 import ch.unibas.dmi.dbis.cottontail.model.values.StringValue
 import org.apache.lucene.analysis.standard.StandardAnalyzer
 
@@ -12,16 +13,16 @@ import org.apache.lucene.search.*
 /**
  * Converts an [AtomicBooleanPredicate] to a [Query] supported by Apache Lucene.
  */
-fun AtomicBooleanPredicate<*>.toLuceneQuery(): Query = if (this.values.first() is StringValue) {
+fun AtomicBooleanPredicate<*>.toLuceneQuery(): Query = if (this.values.first() is PatternValue) {
     val column = this.columns.first()
-    val value = (this.values.first() as StringValue).value
+    val value = (this.values.first() as PatternValue).lucene
     when (this.operator){
         ComparisonOperator.LIKE -> QueryParserUtil.parse(arrayOf(value), arrayOf("${column.name}_txt"), StandardAnalyzer())
         ComparisonOperator.EQUAL -> TermQuery(Term("${column.name}_str", value))
         else -> throw QueryException("Only EQUALS and LIKE queries can be mapped to Apache Lucene!")
     }
 } else {
-    throw QueryException("Only String values can be handled by Apache Lucene!")
+    throw QueryException("Only PatternValues can be handled by Apache Lucene!")
 }
 
 /**

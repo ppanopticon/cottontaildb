@@ -8,10 +8,12 @@ import ch.unibas.dmi.dbis.cottontail.execution.tasks.basics.ExecutionTask
 import ch.unibas.dmi.dbis.cottontail.model.recordset.Recordset
 
 /**
- * A [Task] that executes data access through an index on a defined [Entity] using a [BooleanPredicate]. Only returns [Record]s that match the provided [BooleanPredicate].
+ * A [Task][com.github.dexecutor.core.task.Task] that executes data access through an index on a defined
+ * [Entity] using a [BooleanPredicate]. Only returns [Record][ch.unibas.dmi.dbis.cottontail.model.basics.Record]s
+ * that match the provided [BooleanPredicate].
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.0.1
  */
 class EntityIndexedFilterTask(private val entity: Entity, private val predicate: BooleanPredicate, indexHint: Index) : ExecutionTask("EntityIndexedFilterTask[${entity.fqn}][$predicate]") {
     /** The cost of this [EntityLinearScanFilterTask] depends on whether or not an [Index] can be employed. */
@@ -30,5 +32,5 @@ class EntityIndexedFilterTask(private val entity: Entity, private val predicate:
             dataset.addRowUnsafe(it.tupleId, it.values)
         }
         dataset
-    } ?: Recordset(this.predicate.columns.toTypedArray())
+    } ?: Recordset(this.predicate.columns.toTypedArray(), capacity = 0)
 }

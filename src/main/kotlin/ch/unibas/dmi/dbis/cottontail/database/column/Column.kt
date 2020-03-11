@@ -3,13 +3,14 @@ package ch.unibas.dmi.dbis.cottontail.database.column
 import ch.unibas.dmi.dbis.cottontail.database.column.mapdb.MapDBColumn
 import ch.unibas.dmi.dbis.cottontail.database.general.DBO
 import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
+import ch.unibas.dmi.dbis.cottontail.model.values.types.Value
 
 import java.util.*
 
 /**
  *
  */
-interface Column<T: Any> : DBO {
+interface Column<T: Value> : DBO {
     /**
      * This [Column]'s [ColumnDef]. It contains all the relevant information that defines a [Column]
      *

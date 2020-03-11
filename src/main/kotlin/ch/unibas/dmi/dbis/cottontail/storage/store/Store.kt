@@ -178,7 +178,7 @@ interface Store : Closeable {
      * Writes a [ByteArray] value to this [Store]
      *
      * @param offset The offset into the [Store] in bytes.
-     * @param value The values to write.
+     * @param src The values to write.
      */
     fun putData(offset: Long, src: ByteArray) = putData(offset, src, 0, src.size)
 

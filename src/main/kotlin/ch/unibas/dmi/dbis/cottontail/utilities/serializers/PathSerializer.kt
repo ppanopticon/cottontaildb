@@ -8,7 +8,7 @@ import java.nio.file.Paths
 @Serializer(forClass = Path::class)
 object PathSerializer : KSerializer<Path> {
     override val descriptor: SerialDescriptor
-        get() = StringDescriptor.withName("Path")
+        get() = PrimitiveDescriptor("Path", PrimitiveKind.STRING)
 
     override fun deserialize(decoder: Decoder): Path = Paths.get(decoder.decodeString())
 

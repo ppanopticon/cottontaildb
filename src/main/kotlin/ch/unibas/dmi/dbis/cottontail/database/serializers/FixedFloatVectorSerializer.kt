@@ -14,7 +14,7 @@ import org.mapdb.Serializer
 class FixedFloatVectorSerializer(val size: Int): Serializer<FloatVectorValue> {
     override fun serialize(out: DataOutput2, value: FloatVectorValue) {
         for (i in 0 until size) {
-            out.writeFloat(value.value[i])
+            out.writeFloat(value[i].value)
         }
     }
     override fun deserialize(input: DataInput2, available: Int): FloatVectorValue {

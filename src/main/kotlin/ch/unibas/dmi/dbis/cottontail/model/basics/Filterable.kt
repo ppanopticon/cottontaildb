@@ -1,6 +1,5 @@
 package ch.unibas.dmi.dbis.cottontail.model.basics
 
-import ch.unibas.dmi.dbis.cottontail.database.queries.BooleanPredicate
 import ch.unibas.dmi.dbis.cottontail.database.queries.Predicate
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.QueryException
 
@@ -19,7 +18,7 @@ interface Filterable {
      * @param predicate [Predicate] to check.
      * @return True if [Predicate] can be processed, false otherwise.
      */
-    fun canProcess(predicate: BooleanPredicate): Boolean
+    fun canProcess(predicate: Predicate): Boolean
 
     /**
      * Filters this [Filterable] thereby creating and returning a new [Filterable].
@@ -30,7 +29,7 @@ interface Filterable {
      * @throws QueryException.UnsupportedPredicateException If predicate is not supported by data structure.
      */
     @Throws(QueryException.UnsupportedPredicateException::class)
-    fun filter(predicate: BooleanPredicate): Filterable
+    fun filter(predicate: Predicate): Filterable
 
     /**
      * Applies the provided action to each [Record] in the given range that matches the given [Predicate].
@@ -43,7 +42,7 @@ interface Filterable {
      * @throws QueryException.UnsupportedPredicateException If predicate is not supported by data structure.
      */
     @Throws(QueryException.UnsupportedPredicateException::class)
-    fun forEach(from: Long, to: Long, predicate: BooleanPredicate, action: (Record) -> Unit)
+    fun forEach(from: Long, to: Long, predicate: Predicate, action: (Record) -> Unit)
 
     /**
      * Applies the provided action to each [Record]  that matches the given [Predicate].
@@ -54,7 +53,7 @@ interface Filterable {
      * @throws QueryException.UnsupportedPredicateException If predicate is not supported by data structure.
      */
     @Throws(QueryException.UnsupportedPredicateException::class)
-    fun forEach(predicate: BooleanPredicate, action: (Record) -> Unit)
+    fun forEach(predicate: Predicate, action: (Record) -> Unit)
 
     /**
      * Applies the provided mapping function to each [Record] that matches the given [Predicate].
@@ -66,7 +65,7 @@ interface Filterable {
      * @throws QueryException.UnsupportedPredicateException If predicate is not supported by data structure.
      */
     @Throws(QueryException.UnsupportedPredicateException::class)
-    fun <R> map(predicate: BooleanPredicate, action: (Record) -> R): Collection<R>
+    fun <R> map(predicate: Predicate, action: (Record) -> R): Collection<R>
 
     /**
      * Applies the provided mapping function to each [Record]  in the given range that matches the given [Predicate].
@@ -80,7 +79,7 @@ interface Filterable {
      * @throws QueryException.UnsupportedPredicateException If predicate is not supported by data structure.
      */
     @Throws(QueryException.UnsupportedPredicateException::class)
-    fun <R> map(from: Long, to: Long, predicate: BooleanPredicate, action: (Record) -> R): Collection<R>
+    fun <R> map(from: Long, to: Long, predicate: Predicate, action: (Record) -> R): Collection<R>
 }
 
 

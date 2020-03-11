@@ -7,13 +7,14 @@ import ch.unibas.dmi.dbis.cottontail.execution.tasks.basics.ExecutionTask
 import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.model.recordset.Recordset
 import ch.unibas.dmi.dbis.cottontail.model.values.LongValue
+import ch.unibas.dmi.dbis.cottontail.utilities.name.Name
 import com.github.dexecutor.core.task.Task
 
 /**
  * A [Task] used during query execution. It takes a single [Entity] as input, counts the number of rows. It thereby creates a 1x1 [Recordset].
  *
  * @author Ralph Gasser
- * @version 1.0.1
+ * @version 1.0.2
  */
 class EntityCountProjectionTask (val entity: Entity): ExecutionTask("EntityCountProjectionTask[${entity.fqn}") {
 
@@ -26,9 +27,9 @@ class EntityCountProjectionTask (val entity: Entity): ExecutionTask("EntityCount
     override fun execute(): Recordset {
         assertNullaryInput()
 
-        val column = arrayOf(ColumnDef.withAttributes("count(${entity.fqn})", "LONG"))
+        val column = arrayOf(ColumnDef.withAttributes(Name("count(${entity.fqn})"), "LONG"))
         return this.entity.Tx(true).query {
-            val recordset = Recordset(column)
+            val recordset = Recordset(column, capacity = 1)
             recordset.addRowUnsafe(arrayOf(LongValue(it.count())))
             recordset
         }!!

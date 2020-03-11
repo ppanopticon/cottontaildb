@@ -41,10 +41,9 @@ import kotlin.concurrent.write
  * @author Ralph Gasser
  * @version 1.1
  */
-class Schema(n: Name, override val path: Path, override val parent: Catalogue) : DBO {
-
-    /** [Name] of this [Schema]. Lower-case values are enforced since Cottontail DB is not case-sensitive! */
-    override val name: Name = n.normalize()
+class Schema(override val name: Name, override val path: Path, override val parent: Catalogue) : DBO {
+    /** Constant FQN of the [Schema] object. */
+    override val fqn: Name = this.parent.fqn.append(this.name)
 
     /** Internal reference to the [Store] underpinning this [MapDBColumn]. */
     private val store: StoreWAL = try {
@@ -61,11 +60,13 @@ class Schema(n: Name, override val path: Path, override val parent: Catalogue) :
     private val lock = ReentrantReadWriteLock()
 
     /** A map of loaded [Entity] references. The [SoftReference] allow for coping with changing memory conditions. */
-    private val loaded = HashMap<String, SoftReference<Entity>>()
+    private val loaded = HashMap<Name, SoftReference<Entity>>()
 
     /** Returns a list of [Entity] held by this [Schema]. */
-    val entities: List<String>
-        get() = header.entities.map { this.store.get(it, Serializer.STRING) ?: throw DatabaseException.DataCorruptionException("Failed to read schema $fqn ($path): Could not find entity name of ID $it.") }
+    val entities: List<Name>
+        get() = this.header.entities.map { Name(this.store.get(it, Serializer.STRING) ?: throw DatabaseException.DataCorruptionException("Failed to read schema $fqn ($path): Could not find entity name of ID $it.")) }
+
+
 
     /** Size of the [Schema] in terms of [Entity] objects it contains. */
     val size
@@ -83,26 +84,25 @@ class Schema(n: Name, override val path: Path, override val parent: Catalogue) :
      */
     fun createEntity(name: Name, vararg columns: ColumnDef<*>) = this.lock.write {
         /* Check the type of name. */
-        val normalizedName = name.normalize()
-        if (normalizedName.type() != NameType.SIMPLE) {
-            throw IllegalArgumentException("The provided name '$normalizedName' is of type '${normalizedName.type()} and cannot be used to access an entity through a schema.")
+        if (name.type != NameType.SIMPLE) {
+            throw IllegalArgumentException("The provided name '$name' is of type '${name.type} and cannot be used to access an entity through a schema.")
         }
 
-        if (entities.contains(normalizedName)) throw DatabaseException.EntityAlreadyExistsException(this.fqn.append(normalizedName))
-        if (columns.map { it.name }.distinct().size != columns.size) throw DatabaseException.DuplicateColumnException("$fqn.$normalizedName", columns.map { it.name })
+        if (this.entities.contains(name)) throw DatabaseException.EntityAlreadyExistsException(this.fqn.append(name))
+        if (columns.map { it.name }.distinct().size != columns.size) throw DatabaseException.DuplicateColumnException(this.fqn.append(name), columns.map { it.name })
 
         /* Create empty folder for entity. */
-        val data = path.resolve("entity_$normalizedName")
+        val data = path.resolve("entity_$name")
 
         try {
             if (!Files.exists(data)) {
                 Files.createDirectories(data)
             } else {
-                throw DatabaseException("Failed to create entity '$fqn.$normalizedName'. Data directory '$data' seems to be occupied.")
+                throw DatabaseException("Failed to create entity '${this.fqn.append(name)}'. Data directory '$data' seems to be occupied.")
             }
 
             /* Store entry for new entity. */
-            val recId = this.store.put(normalizedName, Serializer.STRING)
+            val recId = this.store.put(name.name, Serializer.STRING)
 
             /* Generate the entity. */
             val volumeFactory = this.parent.config.volumeFactory;
@@ -112,7 +112,7 @@ class Schema(n: Name, override val path: Path, override val parent: Catalogue) :
             /* Initialize the entities header. */
             val columnIds = columns.map {
                 MapDBColumn.initialize(it, data, volumeFactory)
-                store.put(it.name, Serializer.STRING)
+                store.put(it.name.name, Serializer.STRING)
             }.toLongArray()
             store.update(Entity.HEADER_RECORD_ID, EntityHeader(columns = columnIds), EntityHeaderSerializer)
             store.commit()
@@ -131,9 +131,9 @@ class Schema(n: Name, override val path: Path, override val parent: Catalogue) :
             this.store.rollback()
             val pathsToDelete = Files.walk(data).sorted(Comparator.reverseOrder()).collect(Collectors.toList())
             pathsToDelete.forEach { Files.delete(it) }
-            throw DatabaseException("Failed to create entity '$fqn.$normalizedName' due to error in the underlying data store: {${e.message}")
+            throw DatabaseException("Failed to create entity '${this.fqn.append(name)}' due to error in the underlying data store: {${e.message}")
         } catch (e: IOException) {
-            throw DatabaseException("Failed to create entity '$fqn.$normalizedName' due to an IO exception: {${e.message}")
+            throw DatabaseException("Failed to create entity '${this.fqn.append(name)}' due to an IO exception: {${e.message}")
         }
     }
 
@@ -144,18 +144,17 @@ class Schema(n: Name, override val path: Path, override val parent: Catalogue) :
      */
     fun dropEntity(name: Name) = this.lock.write {
         /* Check the type of name. */
-        val normalizedName = name.normalize()
-        if (normalizedName.type() != NameType.SIMPLE) {
-            throw IllegalArgumentException("The provided name '$normalizedName' is of type '${normalizedName.type()} and cannot be used to access an entity through a schema.")
+        if (name.type != NameType.SIMPLE) {
+            throw IllegalArgumentException("The provided name '$name' is of type '${name.type} and cannot be used to access an entity through a schema.")
         }
 
-        val entityRecId = this.header.entities.find { this.store.get(it, Serializer.STRING) == normalizedName } ?: throw DatabaseException.EntityDoesNotExistException("$fqn.$normalizedName")
+        val entityRecId = this.header.entities.find { this.store.get(it, Serializer.STRING) == name.name } ?: throw DatabaseException.EntityDoesNotExistException(fqn.append(name))
 
-        val entity = this.entityForName(normalizedName)
-        entity.allIndexes().forEach { entity.dropIndex(it.name) }
+        val entity = this.entityForName(name)
+        entity.allIndexes().map{ it.name }.forEach { entity.dropIndex(it) }
 
         /* Unload the entity and remove it. */
-        this.unload(normalizedName)
+        this.unload(name)
 
         /* Remove entity. */
         try {
@@ -172,11 +171,11 @@ class Schema(n: Name, override val path: Path, override val parent: Catalogue) :
             this.store.commit()
         } catch (e: DBException) {
             this.store.rollback()
-            throw DatabaseException("Entity '$fqn.$normalizedName' could not be dropped, because of an error in the underlying data store: ${e.message}!")
+            throw DatabaseException("Entity '${this.fqn.append(name)}' could not be dropped, because of an error in the underlying data store: ${e.message}!")
         }
 
         /* Delete all files associated with the entity. */
-        val pathsToDelete = Files.walk(this.path.resolve("entity_$normalizedName")).sorted(Comparator.reverseOrder()).collect(Collectors.toList())
+        val pathsToDelete = Files.walk(this.path.resolve("entity_$name")).sorted(Comparator.reverseOrder()).collect(Collectors.toList())
         pathsToDelete.forEach { Files.deleteIfExists(it) }
     }
 
@@ -189,21 +188,21 @@ class Schema(n: Name, override val path: Path, override val parent: Catalogue) :
      */
     fun entityForName(name: Name): Entity = this.lock.read {
         /* Check the type of name. */
-        val normalizedName = name.normalize()
-        if (normalizedName.type() != NameType.SIMPLE) {
-            throw IllegalArgumentException("The provided name '$normalizedName' is of type '${normalizedName.type()}  and cannot be used to access an entity through a schema.")
+        if (name.type != NameType.SIMPLE) {
+            throw IllegalArgumentException("The provided name '$name' is of type '${name.type}  and cannot be used to access an entity through a schema.")
         }
 
-        if (!this.entities.contains(normalizedName)) throw DatabaseException.EntityDoesNotExistException("$fqn.$normalizedName")
-        return this.loaded[normalizedName]?.get() ?: Entity(normalizedName, this).also {
-            this.loaded[normalizedName] = SoftReference(it)
+        if (!this.entities.contains(name)) throw DatabaseException.EntityDoesNotExistException(this.fqn.append(name))
+        return this.loaded[name]?.get() ?: Entity(name, this).also {
+            this.loaded[name] = SoftReference(it)
         }
     }
 
     /**
      * Closes this [Schema] and all the [Entity] objects that are contained within.
      *
-     * Since locks to [DBO] or [Transaction] objects may be held by other threads, it can take a
+     * Since locks to [DBO] or [Transaction][ch.unibas.dmi.dbis.cottontail.database.general.Transaction]
+     * objects may be held by other threads, it can take a
      * while for this method to complete.
      */
     override fun close() = this.lock.write {

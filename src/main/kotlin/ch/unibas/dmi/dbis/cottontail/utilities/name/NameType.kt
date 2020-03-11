@@ -7,8 +7,8 @@ package ch.unibas.dmi.dbis.cottontail.utilities.name
  * @author Ralph Gasser
  */
 enum class NameType {
-    SIMPLE, /* A simple name with a single component. */
-    FQN,  /* A fully qualified name with > 1 components. */
-    FQN_WILDCARD,  /* A fully qualified name with > 1 components and a wildcard character (*). */
-    WILDCARD /* A wildcard character (*). */
+    SIMPLE, /** A simple name with a single component. */
+    FQN,  /** A fully qualified name with > 1 components. */
+    FQN_WILDCARD,  /** A fully qualified name with > 1 components and a wildcard character (*). */
+    WILDCARD /** A wildcard character (*). */
 }

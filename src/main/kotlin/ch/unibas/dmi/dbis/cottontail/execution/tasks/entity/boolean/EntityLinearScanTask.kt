@@ -11,7 +11,7 @@ import com.github.dexecutor.core.task.Task
  * A [Task] that executes a full table boolean on a defined [Entity] and returns all the defined values.
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.0.1
  */
 class EntityLinearScanTask(private val entity: Entity, private val columns: Array<ColumnDef<*>>) : ExecutionTask("EntityLinearScanTask[${entity.fqn}][${columns.map { it.name }.joinToString(",")}]") {
 
@@ -23,5 +23,5 @@ class EntityLinearScanTask(private val entity: Entity, private val columns: Arra
      */
     override fun execute(): Recordset = this.entity.Tx(readonly = true, columns = this.columns).query {
         it.readAll()
-    } ?: Recordset(columns)
+    } ?: Recordset(this.columns, capacity = 0)
 }

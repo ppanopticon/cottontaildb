@@ -14,7 +14,7 @@ import org.mapdb.Serializer
 class FixedLongVectorSerializer(val size: Int): Serializer<LongVectorValue> {
     override fun serialize(out: DataOutput2, value: LongVectorValue) {
         for (i in 0 until size) {
-            out.writeLong(value.value[i])
+            out.writeLong(value[i].value)
         }
     }
     override fun deserialize(input: DataInput2, available: Int): LongVectorValue {

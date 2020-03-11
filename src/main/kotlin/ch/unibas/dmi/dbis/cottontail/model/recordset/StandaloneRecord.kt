@@ -2,7 +2,7 @@ package ch.unibas.dmi.dbis.cottontail.model.recordset
 
 import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.model.basics.Record
-import ch.unibas.dmi.dbis.cottontail.model.values.Value
+import ch.unibas.dmi.dbis.cottontail.model.values.types.Value
 
 /**
  * A [Record] implementation as returned and processed by Cottontail DB. These types of records can exist
@@ -14,23 +14,26 @@ import ch.unibas.dmi.dbis.cottontail.model.values.Value
  * @author Ralph Gasser
  * @version 1.0
  */
-class StandaloneRecord(override val tupleId: Long = Long.MIN_VALUE, override val columns: Array<ColumnDef<*>>, init: Array<Value<*>?>? = null) : Record {
+class StandaloneRecord(override val tupleId: Long = Long.MIN_VALUE, override val columns: Array<ColumnDef<*>>, init: Array<Value?>? = null) : Record {
 
-    /** Array of column values (one entry per column). Initializes with null or the default value for the [ColumnType]. */
-    override val values: Array<Value<*>?> = Array(columns.size) {
-        if (this.columns[it].nullable) {
-            null
-        } else {
-            this.columns[it].defaultValue()
-        }
-    }
+    /**
+     * Array of column values (one entry per column in the same order).
+     *
+     * This array is initialized either with the init-array provided with the constructor OR an empty array
+     * of NULL/default values for the [ch.unibas.dmi.dbis.cottontail.database.column.ColumnType].
+     */
+    override val values: Array<Value?> = if (init != null) {
+        assert(this.columns.size == init.size)
+        init.forEachIndexed { index, any -> this.columns[index].validateOrThrow(any) }
+        init
+    } else Array(this.columns.size) { this.columns[it].defaultValue() }
 
-    init {
-        init?.forEachIndexed { index, any ->
-            this.columns[index].validateOrThrow(any)
-            this.values[index] = any
-        }
-    }
+    /**
+     * Copies this [Record] and returns the copy.
+     *
+     * @return Copy of this [Record]
+     */
+    override fun copy(): Record = StandaloneRecord(tupleId, columns = columns, init = values.copyOf())
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

@@ -159,13 +159,9 @@ class BufferPool(val disk: DiskManager, val policy: EvictionPolicy = DefaultEvic
      * @version 1.0
      */
     inner class PageRef(val pointer: Int) {
-
-        private val page
-            get() = this@BufferPool.pages[pointer]
-
         /** [PageId] of the [Page] held by this [PageRef]. */
         val id: PageId
-            get() = this.page.id
+            get() = this@BufferPool.pages[this.pointer].id
 
         /** Returns true if no pin is currently registered for this [PageRef]. */
         val isEligibleForGc: Boolean
@@ -191,61 +187,61 @@ class BufferPool(val disk: DiskManager, val policy: EvictionPolicy = DefaultEvic
         private val pin = StampedLock()
 
         fun getBytes(stamp: Long, index: Int, bytes: ByteArray) : ByteArray = withValidation(stamp) {
-            this.page.getBytes(index, bytes)
+            this@BufferPool.pages[this.pointer].getBytes(index, bytes)
         }
         fun getBytes(stamp: Long, index: Int, limit: Int) : ByteArray = withValidation(stamp) {
-            this.page.getBytes(index, limit)
+            this@BufferPool.pages[this.pointer].getBytes(index, limit)
         }
         fun getBytes(stamp: Long, index: Int) : ByteArray = withValidation(stamp) {
-            this.page.getBytes(index)
+            this@BufferPool.pages[this.pointer].getBytes(index)
         }
         fun getByte(stamp: Long, index: Int): Byte = withValidation(stamp) {
-            this.page.getByte(index)
+            this@BufferPool.pages[this.pointer].getByte(index)
         }
-        fun getShort(stamp: Long, index: Int): Short = withValidation(stamp) {  this.page.getShort(index) }
-        fun getChar(stamp: Long, index: Int): Char = withValidation(stamp) { this.page.getChar(index) }
-        fun getInt(stamp: Long, index: Int): Int = withValidation(stamp) {  this.page.getInt(index) }
-        fun getLong(stamp: Long, index: Int): Long = withValidation(stamp) {  this.page.getLong(index) }
-        fun getFloat(stamp: Long, index: Int): Float = withValidation(stamp) {  this.page.getFloat(index) }
-        fun getDouble(stamp: Long, index: Int): Double = withValidation(stamp) { this.page.getDouble(index) }
+        fun getShort(stamp: Long, index: Int): Short = withValidation(stamp) {  this@BufferPool.pages[this.pointer].getShort(index) }
+        fun getChar(stamp: Long, index: Int): Char = withValidation(stamp) { this@BufferPool.pages[this.pointer].getChar(index) }
+        fun getInt(stamp: Long, index: Int): Int = withValidation(stamp) {  this@BufferPool.pages[this.pointer].getInt(index) }
+        fun getLong(stamp: Long, index: Int): Long = withValidation(stamp) {  this@BufferPool.pages[this.pointer].getLong(index) }
+        fun getFloat(stamp: Long, index: Int): Float = withValidation(stamp) {  this@BufferPool.pages[this.pointer].getFloat(index) }
+        fun getDouble(stamp: Long, index: Int): Double = withValidation(stamp) { this@BufferPool.pages[this.pointer].getDouble(index) }
 
         fun putBytes(stamp: Long, index: Int, value: ByteArray): PageRef = withValidation(stamp) {
-            this.page.putBytes(index, value)
+            this@BufferPool.pages[this.pointer].putBytes(index, value)
             this
         }
 
         fun putByte(stamp: Long, index: Int, value: Byte): PageRef = withValidation(stamp) {
-            this.page.putByte(index, value)
+            this@BufferPool.pages[this.pointer].putByte(index, value)
             this
         }
 
         fun putShort(stamp: Long, index: Int, value: Short): PageRef = withValidation(stamp) {
-            this.page.putShort(index, value)
+            this@BufferPool.pages[this.pointer].putShort(index, value)
             this
         }
 
         fun putChar(stamp: Long, index: Int, value: Char): PageRef = withValidation(stamp) {
-            this.page.putChar(index, value)
+            this@BufferPool.pages[this.pointer].putChar(index, value)
             this
         }
 
         fun putInt(stamp: Long, index: Int, value: Int): PageRef = withValidation(stamp) {
-            this.page.putInt(index, value)
+            this@BufferPool.pages[this.pointer].putInt(index, value)
             this
         }
 
         fun putLong(stamp: Long, index: Int, value: Long): PageRef = withValidation(stamp) {
-            this.page.putLong(index, value)
+            this@BufferPool.pages[this.pointer].putLong(index, value)
             this
         }
 
         fun putFloat(stamp: Long, index: Int, value: Float): PageRef = withValidation(stamp) {
-            this.page.putFloat(index, value)
+            this@BufferPool.pages[this.pointer].putFloat(index, value)
             this
         }
 
         fun putDouble(stamp: Long, index: Int, value: Double): PageRef = withValidation(stamp) {
-            this.page.putDouble(index, value)
+            this@BufferPool.pages[this.pointer].putDouble(index, value)
             this
         }
 

@@ -16,7 +16,7 @@ import kotlin.reflect.full.safeCast
  * @see Column
  *
  * @author Ralph Gasser
- * @version 1.1
+ * @version 1.2
  */
 sealed class ColumnType<T : Value> {
     abstract val name: String

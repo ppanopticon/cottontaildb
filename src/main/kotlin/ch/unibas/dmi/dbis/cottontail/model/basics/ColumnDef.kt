@@ -14,7 +14,7 @@ import java.util.*
  * A definition class for a Cottontail DB column be it in a DB or in-memory context.  Specifies all the properties of such a and facilitates validation.
  *
  * @author Ralph Gasser
- * @version 1.2
+ * @version 1.3
  */
 class ColumnDef<T : Value>(val name: Name, val type: ColumnType<T>, val size: Int = -1, val nullable: Boolean = true) {
 

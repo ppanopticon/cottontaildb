@@ -3,17 +3,7 @@ package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page.Constants.EMPTY
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page.Constants.PAGE_DATA_SIZE_BYTES
 
-import ch.unibas.dmi.dbis.cottontail.utilities.extensions.optimisticRead
-import ch.unibas.dmi.dbis.cottontail.utilities.extensions.write
-import it.unimi.dsi.fastutil.longs.Long2BooleanMaps
-import it.unimi.dsi.fastutil.longs.LongAVLTreeSet
-import it.unimi.dsi.fastutil.longs.LongArraySet
-import it.unimi.dsi.fastutil.longs.LongSets
-import org.apache.lucene.util.LongBitSet
-
 import java.nio.ByteBuffer
-import java.util.concurrent.locks.StampedLock
-import java.util.zip.CRC32C
 
 import kotlin.math.max
 
@@ -27,7 +17,7 @@ import kotlin.math.max
  * when handed to the [Page]'s constructor. It is not recommended to use that [ByteBuffer] outside
  * of the [Page]s context.
  *
- * @see DiskManager
+ * @see DirectDiskManager
  * @see BufferPool
  *
  * @version 1.0

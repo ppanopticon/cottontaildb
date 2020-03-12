@@ -2,10 +2,10 @@ package ch.unibas.dmi.dbis.cottontail.storage.store.engine.hare
 
 import ch.unibas.dmi.dbis.cottontail.storage.basics.Units
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.BufferPool
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DirectDiskManager
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DiskManager
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page
 import org.junit.jupiter.api.*
-import java.nio.ByteBuffer
 
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -19,7 +19,7 @@ class BufferPoolTest {
     val path = Paths.get("./test-bufferpool-db.hare")
 
 
-    var _manager: DiskManager? = null
+    var _manager: DirectDiskManager? = null
 
     var pool: BufferPool? = null
 
@@ -27,8 +27,8 @@ class BufferPoolTest {
 
     @BeforeEach
     fun beforeEach() {
-        DiskManager.init(this.path)
-        this._manager = DiskManager(this.path)
+        DiskManager.create(this.path)
+        this._manager = DirectDiskManager(this.path)
         this.pool = BufferPool(this._manager!!)
     }
 
@@ -81,7 +81,7 @@ class BufferPoolTest {
     }
 
     /**
-     * Compares the data stored in this [DiskManager] with the data provided as array of [ByteArray]s
+     * Compares the data stored in this [DirectDiskManager] with the data provided as array of [ByteArray]s
      */
     @ExperimentalTime
     private fun compareData(ref: Array<ByteArray>) {
@@ -101,7 +101,7 @@ class BufferPoolTest {
     }
 
     /**
-     * Initializes this [DiskManager] with random data.
+     * Initializes this [DirectDiskManager] with random data.
      *
      * @param size The number of [Page]s to write.
      */

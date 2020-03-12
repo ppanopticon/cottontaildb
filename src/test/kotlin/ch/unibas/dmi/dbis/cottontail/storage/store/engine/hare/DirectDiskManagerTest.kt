@@ -17,17 +17,17 @@ import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
 import kotlin.time.measureTime
 
-class DiskManagerTest {
+class DirectDiskManagerTest {
     val path = Paths.get("./test-diskmgr-db.hare")
 
-    var manager: DiskManager? = null
+    var manager: DirectDiskManager? = null
 
     val random = SplittableRandom(System.currentTimeMillis())
 
     @BeforeEach
     fun beforeEach() {
-        DiskManager.init(this.path)
-        this.manager = DiskManager(this.path)
+        DiskManager.create(this.path)
+        this.manager = DirectDiskManager(this.path)
     }
 
     @AfterEach
@@ -38,8 +38,9 @@ class DiskManagerTest {
 
     @Test
     fun testCreationAndLoading() {
+        assertEquals(this.path, this.manager!!.path)
         assertEquals(0, this.manager!!.pages)
-        assertEquals(DiskManager.FILE_HEADER_SIZE_BYTES, this.manager!!.size.value.toInt())
+        assertEquals(Page.Constants.PAGE_DATA_SIZE_BYTES, this.manager!!.size.value.toInt())
     }
 
     /**
@@ -64,7 +65,7 @@ class DiskManagerTest {
 
         /** Close and re-open this DiskManager. */
         this.manager!!.close()
-        this.manager = DiskManager(this.path)
+        this.manager = DirectDiskManager(this.path)
 
         /* Check if data remains the same. */
         this.compareData(data)
@@ -106,7 +107,7 @@ class DiskManagerTest {
     }
 
     /**
-     * Compares the data stored in this [DiskManager] with the data provided as array of [ByteArray]s
+     * Compares the data stored in this [DirectDiskManager] with the data provided as array of [ByteArray]s
      */
     @ExperimentalTime
     private fun compareData(ref: Array<ByteArray>) {
@@ -124,7 +125,7 @@ class DiskManagerTest {
     }
 
     /**
-     * Initializes this [DiskManager] with random data.
+     * Initializes this [DirectDiskManager] with random data.
      *
      * @param size The number of [Page]s to write.
      */
@@ -141,9 +142,9 @@ class DiskManagerTest {
 
             assertTrue(page.dirty)
 
-            this.manager!!.append(page)
+            this.manager!!.allocate(page)
             assertEquals(this.manager!!.pages, i+1L)
-            assertEquals((DiskManager.FILE_HEADER_SIZE_BYTES + (i+1)*Page.Constants.PAGE_DATA_SIZE_BYTES).toDouble(), this.manager!!.size.value)
+            assertEquals(((i+2)*Page.Constants.PAGE_DATA_SIZE_BYTES).toDouble(), this.manager!!.size.value)
             assertEquals((i + 1L), page.id)
             assertFalse(page.dirty)
         }

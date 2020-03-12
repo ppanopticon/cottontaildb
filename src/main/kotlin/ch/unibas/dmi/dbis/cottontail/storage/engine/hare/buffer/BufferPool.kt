@@ -1,28 +1,27 @@
 package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer
 
 import ch.unibas.dmi.dbis.cottontail.storage.basics.MemorySize
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DiskManager
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DirectDiskManager
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.PageId
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.convertWriteLock
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.read
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap
-import it.unimi.dsi.fastutil.objects.ObjectArrayIndirectPriorityQueue
 import it.unimi.dsi.fastutil.objects.ObjectHeapIndirectPriorityQueue
 
 import java.nio.ByteBuffer
 import java.util.concurrent.locks.StampedLock
 
 /**
- * A [BufferPool] mediates access to a HARE file through a [DiskManager] and facilitates reading and
+ * A [BufferPool] mediates access to a HARE file through a [DirectDiskManager] and facilitates reading and
  * writing [Page]s from/to memory and swapping [Page]s into the in-memory buffer.
  *
- * @see DiskManager
+ * @see DirectDiskManager
  *
  * @version 1.0
  * @author Ralph Gasser
  */
-class BufferPool(val disk: DiskManager, val policy: EvictionPolicy = DefaultEvictionPolicy, val size: Int = 100) {
+class BufferPool(val disk: DirectDiskManager, val policy: EvictionPolicy = DefaultEvictionPolicy, val size: Int = 100) {
 
     /** Allocates direct memory as [ByteBuffer] that is used to buffer [Page]s. This is not counted towards the heap used by the JVM! */
     private val buffer = ByteBuffer.allocateDirect(this.size * Page.Constants.PAGE_DATA_SIZE_BYTES)
@@ -97,7 +96,7 @@ class BufferPool(val disk: DiskManager, val policy: EvictionPolicy = DefaultEvic
             this.pages[pageRef.pointer].clear()
 
             /* Reset flags on page and read content from disk. */
-            this.disk.append(this.pages[pageRef.pointer])
+            this.disk.allocate(this.pages[pageRef.pointer])
 
             /* Update page directory and priority queue. */
             this.pageDirectory[this.pages[pageRef.pointer].id] = pageRef

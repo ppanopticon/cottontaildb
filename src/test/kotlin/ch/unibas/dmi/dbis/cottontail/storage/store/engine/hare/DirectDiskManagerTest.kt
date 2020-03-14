@@ -26,8 +26,8 @@ class DirectDiskManagerTest {
 
     @BeforeEach
     fun beforeEach() {
-        DiskManager.create(this.path)
         this.manager = DirectDiskManager(this.path)
+        assertEquals(Page.Constants.PAGE_DATA_SIZE_BYTES.toDouble(), this.manager!!.size.value)
     }
 
     @AfterEach
@@ -129,8 +129,10 @@ class DirectDiskManagerTest {
      *
      * @param size The number of [Page]s to write.
      */
+    @ExperimentalTime
     private fun initWithData(size: Int) : Array<ByteArray> {
         val page = Page(ByteBuffer.allocateDirect(Page.Constants.PAGE_DATA_SIZE_BYTES))
+        var writeTime = Duration.ZERO
         val data = Array(size) {
             val bytes = ByteArray(Page.Constants.PAGE_DATA_SIZE_BYTES)
             random.nextBytes(bytes)
@@ -142,12 +144,15 @@ class DirectDiskManagerTest {
 
             assertTrue(page.dirty)
 
-            this.manager!!.allocate(page)
+            writeTime += measureTime {
+                this.manager!!.allocate(page)
+            }
             assertEquals(this.manager!!.pages, i+1L)
             assertEquals(((i+2)*Page.Constants.PAGE_DATA_SIZE_BYTES).toDouble(), this.manager!!.size.value)
             assertEquals((i + 1L), page.id)
             assertFalse(page.dirty)
         }
+        println("Writing ${this.manager!!.size `in` Units.MEGABYTE} took $writeTime (${(this.manager!!.size `in` Units.MEGABYTE).value / writeTime.inSeconds} MB/s).")
 
         return data
     }

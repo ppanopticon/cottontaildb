@@ -27,7 +27,6 @@ class BufferPoolTest {
 
     @BeforeEach
     fun beforeEach() {
-        DiskManager.create(this.path)
         this._manager = DirectDiskManager(this.path)
         this.pool = BufferPool(this._manager!!)
     }

@@ -1,7 +1,9 @@
 package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk
 
+import java.nio.ByteBuffer
 import java.nio.channels.FileLock
 import java.nio.file.Path
+import java.util.zip.CRC32C
 
 /**
  * The [DirectDiskManager] facilitates reading and writing of [Page]s from/to the underlying disk storage. Only one
@@ -75,5 +77,32 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000) : DiskManager(path
      */
     override fun rollback() {
         /* Does not have an effect. */
+    }
+
+    /**
+     * Closes this [DiskManager]. Will cause the [Header] to be finalized properly.
+     */
+    override fun close() {
+        this.finalizeHeader()
+        super.close()
+    }
+
+    /**
+     * Finalizes the [Header] of this [DiskManager] by updating the CRC32 checksum and the file sanity flag.
+     */
+    private fun finalizeHeader() {
+        val page = Page(ByteBuffer.allocateDirect(Page.Constants.PAGE_DATA_SIZE_BYTES))
+        val crc32 = CRC32C()
+        for (i in 1..this.pages) {
+            this.read(i, page)
+            crc32.update(page.data)
+        }
+
+        /* Update the sanity byte. */
+        this.header.buffer.put(13, Constants.FILE_SANITY_OK)
+        this.header.checksum= crc32.value
+
+        /* Flush the [Header]. */
+        this.header.flush()
     }
 }

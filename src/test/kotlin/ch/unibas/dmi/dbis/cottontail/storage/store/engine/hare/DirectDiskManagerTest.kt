@@ -18,7 +18,7 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.measureTime
 
 class DirectDiskManagerTest {
-    val path = Paths.get("./test-diskmgr-db.hare")
+    val path = Paths.get("./test-direct-diskmgr-db.hare")
 
     var manager: DirectDiskManager? = null
 
@@ -41,6 +41,7 @@ class DirectDiskManagerTest {
         assertEquals(this.path, this.manager!!.path)
         assertEquals(0, this.manager!!.pages)
         assertEquals(Page.Constants.PAGE_DATA_SIZE_BYTES, this.manager!!.size.value.toInt())
+        assertTrue(this.manager!!.validate())
     }
 
     /**
@@ -66,6 +67,7 @@ class DirectDiskManagerTest {
         /** Close and re-open this DiskManager. */
         this.manager!!.close()
         this.manager = DirectDiskManager(this.path)
+        assertTrue(this.manager!!.validate())
 
         /* Check if data remains the same. */
         this.compareData(data)

@@ -3,19 +3,16 @@ package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk
 import ch.unibas.dmi.dbis.cottontail.storage.basics.MemorySize
 import ch.unibas.dmi.dbis.cottontail.storage.basics.Units
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.DataCorruptionException
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.FileLockException
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.PageIdOutOfBoundException
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.FILE_HEADER_IDENTIFIER
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.FILE_HEADER_VERSION
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.FILE_SANITY_CHECK
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.FILE_SANITY_OK
-import java.io.IOException
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.FILE_CONSISTENCY_OK
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.channels.FileLock
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.zip.CRC32C
 
 /**
@@ -35,9 +32,6 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long) : AutoCloseabl
 
     /** Acquires an exclusive [FileLock] for file underlying this [FileChannel]. Makes sure, that no other process uses the same HARE file. */
     protected val fileLock = FileUtilities.acquireFileLock(this.fileChannel, this.lockTimeout)
-
-    /** Flag indicating, whether this [DiskManager] was closed. */
-    protected val closed: AtomicBoolean = AtomicBoolean(false)
 
     /** Accessor to the [Header] of the HARE file managed by this [DiskManager]. */
     protected val header = Header(this.fileChannel.size() == 0L)
@@ -93,11 +87,33 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long) : AutoCloseabl
      * Closes this [DiskManager], releasing the underlying file.
      */
     override fun close() {
-        if (this.closed.compareAndSet(false, true)) {
+        if (this.fileChannel.isOpen) {
             this.fileLock.release()
             this.fileChannel.close()
         }
     }
+
+    /**
+     * Calculates the [CRC32C] checksum for the file managed by this [DiskManager].
+     *
+     * @return [CRC32C] object for this [DiskManager]
+     */
+    fun calculateChecksum(): Long {
+        val page = Page(ByteBuffer.allocateDirect(Page.Constants.PAGE_DATA_SIZE_BYTES))
+        val crc32 = CRC32C()
+        for (i in 1..this.pages) {
+            this.read(i, page)
+            crc32.update(page.data)
+        }
+        return crc32.value
+    }
+
+    /**
+     * Validation method. Compares the checksum in the file's [Header] to the actual checksum of the content.
+     *
+     * @return true If and only if checksum in header and of content are identical.
+     */
+    fun validate(): Boolean = this.header.checksum == this.calculateChecksum()
 
     /**
      * Converts the given [PageId] to an offset into the file managed by this [DirectDiskManager]. Calling this method
@@ -107,7 +123,7 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long) : AutoCloseabl
      * @return The offset into the file.
      */
     protected fun pageIdToPosition(pageId: PageId): Long {
-        if (this.closed.get()) throw IllegalStateException("DiskManager for {${this.path}} was closed and cannot be used to access data.")
+        check(this.fileChannel.isOpen) { "DiskManager for {${this.path}} was closed and cannot be used to access data." }
         if (pageId > this.header.pages || pageId < 1) throw PageIdOutOfBoundException(pageId, this)
         return pageId shl Page.Constants.PAGE_BIT_SHIFT
     }
@@ -130,11 +146,10 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long) : AutoCloseabl
                 this.buffer.putChar(FILE_HEADER_IDENTIFIER[3])             /* 6: Identifier E. */
                 this.buffer.putInt(FileType.DEFAULT.ordinal)               /* 8: Type of HARE file. */
                 this.buffer.put(FILE_HEADER_VERSION)                       /* 12: Version of the HARE format. */
-                this.buffer.put(FILE_SANITY_OK)                            /* 13: Sanity byte; 0 if file was properly closed, 1 if not.  */
+                this.buffer.put(FILE_CONSISTENCY_OK)                            /* 13: Sanity byte; exact semantic depends on implementation. 0 =   */
                 this.buffer.putLong(0L)                              /* 14: Page counter; number of pages. */
                 this.buffer.putInt(0)                                /* 22: Page counter; number of freed pages. */
                 this.buffer.putLong(0L)                              /* 26: CRC32 checksum for HARE file. */
-                this.buffer.putLong(-1L)                              /* 26: Time of last WAL (ignored for DirectDiskManager). */
             } else {
                 /* Read the file header. */
                 this@DiskManager.fileChannel.read(this.buffer, 0L)
@@ -149,19 +164,6 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long) : AutoCloseabl
                 require(this.buffer.get() == FILE_HEADER_VERSION) { DataCorruptionException("HARE file version is incorrect in HARE file ${this@DiskManager.path.fileName}.") }
                 require(this.pages >= 0) { DataCorruptionException("Negative number of allocated pages found in HARE file ${this@DiskManager.path.fileName}.") }
                 require(this.freed >= 0) { DataCorruptionException("Negative number of freed pages found in HARE file ${this@DiskManager.path.fileName}.") }
-
-                if (this.buffer.get() != FILE_SANITY_OK) {
-                    val page = Page(ByteBuffer.allocateDirect(Page.Constants.PAGE_DATA_SIZE_BYTES))
-                    val crc32 = CRC32C()
-                    for (i in 1..this.pages) {
-                        this@DiskManager.read(i, page)
-                        crc32.update(page.data)
-                        require(crc32.value == this.checksum) { DataCorruptionException("CRC32C checksum not correct (expected: ${this.checksum}, found: ${crc32.value}) of HARE file ${this@DiskManager.path.fileName}.") }
-                    }
-                }
-
-                /* Updates sanity flag. */
-                this.buffer.put(13, FILE_SANITY_CHECK)
             }
 
             /* Flush header to disk. */
@@ -182,6 +184,17 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long) : AutoCloseabl
                 this.buffer.putInt(22, v)
             }
 
+        /** Sets file sanity byte according to consistency status. */
+        var isConsistent: Boolean
+            get() = this.buffer.get(13) == FILE_CONSISTENCY_OK
+            set(v) {
+                if (v) {
+                    this.buffer.put(13, FILE_CONSISTENCY_OK)
+                } else {
+                    this.buffer.put(13, FILE_SANITY_CHECK)
+                }
+            }
+
         /** CRC32C checksum for the HARE file. */
         var checksum: Long
             get() = this.buffer.getLong(26)
@@ -189,12 +202,6 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long) : AutoCloseabl
                 this.buffer.putLong(26, v)
             }
 
-        /** Timestamp of last WAL. Only used for [WALDiskManager]. */
-        var walTimestamp: Long
-            get() = this.buffer.getLong(34)
-            set(v) {
-                this.buffer.putLong(34, v)
-            }
 
         /** Total number of used [Page]s. */
         val used: Long

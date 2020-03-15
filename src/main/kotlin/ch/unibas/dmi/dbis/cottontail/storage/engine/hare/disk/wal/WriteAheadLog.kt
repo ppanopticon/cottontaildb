@@ -32,7 +32,7 @@ open class WriteAheadLog(val path: Path, val lockTimeout: Long = 5000L, private 
     }
 
     /** [FileChannel] used to write to this [WriteAheadLog]*/
-    private val fileChannel = FileChannel.open(path, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.DSYNC)
+    private val fileChannel = FileChannel.open(path, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.SPARSE, StandardOpenOption.DSYNC)
 
     /** Acquire lock on [WriteAheadLog] file. */
     private val fileLock = FileUtilities.acquireFileLock(this.fileChannel, this.lockTimeout)

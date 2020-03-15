@@ -86,7 +86,11 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000) : DiskManager(path, l
                 when (action) {
                     WALAction.UPDATE -> this.fileChannel.write(b, this.pageIdToPosition(id))
                     WALAction.APPEND -> {
-                        this.header.pages++
+                        /* Default case; page has not been allocated yet */
+                        if (id-1 == this.header.pages) {
+                            this.header.pages++
+                            this.header.flush()
+                        }
                         this.fileChannel.write(b, this.pageIdToPosition(id))
                     }
                     WALAction.FREE -> TODO()

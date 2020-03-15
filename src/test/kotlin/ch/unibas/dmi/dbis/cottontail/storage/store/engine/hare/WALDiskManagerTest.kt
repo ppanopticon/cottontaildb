@@ -1,48 +1,40 @@
 package ch.unibas.dmi.dbis.cottontail.storage.store.engine.hare
 
 import ch.unibas.dmi.dbis.cottontail.storage.basics.Units
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.*
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.PAGE_DATA_SIZE_BYTES
-
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
-
-import java.nio.file.Paths
-import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.RepeatedTest
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DirectDiskManager
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.wal.WALDiskManager
+import org.junit.jupiter.api.*
 import java.nio.ByteBuffer
-import java.nio.file.Files
+import java.nio.file.Paths
 import java.util.*
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
 import kotlin.time.measureTime
 
-class DirectDiskManagerTest {
-    val path = Paths.get("./test-direct-diskmgr-db.hare")
+class WALDiskManagerTest {
+    val path = Paths.get("./test-wal-diskmgr-db.hare")
 
-    var manager: DirectDiskManager? = null
+    var manager: WALDiskManager? = null
 
     val random = SplittableRandom(System.currentTimeMillis())
 
     @BeforeEach
     fun beforeEach() {
-        this.manager = DirectDiskManager(path = this.path)
-        assertEquals(PAGE_DATA_SIZE_BYTES.toDouble(), this.manager!!.size.value)
+        this.manager = WALDiskManager(this.path)
     }
 
     @AfterEach
     fun afterEach() {
-        this.manager!!.close()
-        Files.delete(this.path)
+        this.manager!!.delete()
     }
 
     @Test
     fun testCreationAndLoading() {
-        assertEquals(this.path, this.manager!!.path)
-        assertEquals(0, this.manager!!.pages)
-        assertEquals(PAGE_DATA_SIZE_BYTES, this.manager!!.size.value.toInt())
-        assertTrue(this.manager!!.validate())
+        Assertions.assertEquals(this.path, this.manager!!.path)
+        Assertions.assertEquals(0, this.manager!!.pages)
+        Assertions.assertEquals(PAGE_DATA_SIZE_BYTES, this.manager!!.size.value.toInt())
     }
 
     /**
@@ -67,8 +59,7 @@ class DirectDiskManagerTest {
 
         /** Close and re-open this DiskManager. */
         this.manager!!.close()
-        this.manager = DirectDiskManager(this.path)
-        assertTrue(this.manager!!.validate())
+        this.manager = WALDiskManager(this.path)
 
         /* Check if data remains the same. */
         this.compareData(data)
@@ -93,17 +84,19 @@ class DirectDiskManagerTest {
         for (i in newData.indices) {
             this.manager!!.read((i + 1L), page)
 
-            assertFalse(page.dirty)
+            Assertions.assertFalse(page.dirty)
 
             page.putBytes(0, newData[i])
 
-            assertTrue(page.dirty)
+            Assertions.assertTrue(page.dirty)
 
             this.manager!!.update(page)
-            assertArrayEquals(newData[i], page.getBytes(0))
-            assertEquals(i + 1L, page.id)
-            assertFalse(page.dirty)
+            Assertions.assertArrayEquals(newData[i], page.getBytes(0))
+            Assertions.assertEquals(i + 1L, page.id)
+            Assertions.assertFalse(page.dirty)
         }
+
+        this.manager!!.commit()
 
         /* Check if data remains the same. */
         this.compareData(newData)
@@ -120,9 +113,9 @@ class DirectDiskManagerTest {
             readTime += measureTime {
                 this.manager!!.read((i + 1L), page)
             }
-            assertArrayEquals(ref[i], page.getBytes(0))
-            assertEquals(i + 1L, page.id)
-            assertFalse(page.dirty)
+            Assertions.assertArrayEquals(ref[i], page.getBytes(0))
+            Assertions.assertEquals(i + 1L, page.id)
+            Assertions.assertFalse(page.dirty)
         }
         println("Reading ${this.manager!!.size `in` Units.MEGABYTE} took $readTime (${(this.manager!!.size `in` Units.MEGABYTE).value / readTime.inSeconds} MB/s).")
     }
@@ -136,6 +129,7 @@ class DirectDiskManagerTest {
     private fun initWithData(size: Int) : Array<ByteArray> {
         val page = Page(ByteBuffer.allocateDirect(PAGE_DATA_SIZE_BYTES))
         var writeTime = Duration.ZERO
+
         val data = Array(size) {
             val bytes = ByteArray(PAGE_DATA_SIZE_BYTES)
             random.nextBytes(bytes)
@@ -144,17 +138,17 @@ class DirectDiskManagerTest {
 
         for (i in data.indices) {
             page.putBytes(0, data[i])
-
-            assertTrue(page.dirty)
-
+            Assertions.assertTrue(page.dirty)
             writeTime += measureTime {
                 this.manager!!.allocate(page)
             }
-            assertEquals(this.manager!!.pages, i+1L)
-            assertEquals(((i+2)*PAGE_DATA_SIZE_BYTES).toDouble(), this.manager!!.size.value)
-            assertEquals((i + 1L), page.id)
-            assertFalse(page.dirty)
         }
+
+        /* Commit changes. */
+        writeTime += measureTime {
+            this.manager!!.commit()
+        }
+
         println("Writing ${this.manager!!.size `in` Units.MEGABYTE} took $writeTime (${(this.manager!!.size `in` Units.MEGABYTE).value / writeTime.inSeconds} MB/s).")
 
         return data

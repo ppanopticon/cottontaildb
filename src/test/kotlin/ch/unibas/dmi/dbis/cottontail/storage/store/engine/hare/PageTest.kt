@@ -1,7 +1,7 @@
 package ch.unibas.dmi.dbis.cottontail.storage.store.engine.hare
 
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.PAGE_DATA_SIZE_BYTES
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page.Constants.PAGE_DATA_SIZE_BYTES
 import org.junit.jupiter.api.RepeatedTest
 import org.junit.jupiter.api.Test
 
@@ -52,7 +52,7 @@ class PageTest {
 
     @RepeatedTest(10)
     fun writeBytesBatchTooLarge() {
-        val buffer = ByteBuffer.allocate(Page.Constants.PAGE_DATA_SIZE_BYTES)
+        val buffer = ByteBuffer.allocate(PAGE_DATA_SIZE_BYTES)
         val page = Page(buffer)
         val bytes = ByteArray(PAGE_DATA_SIZE_BYTES + random.nextInt(PAGE_DATA_SIZE_BYTES))
         random.nextBytes(bytes)
@@ -64,7 +64,7 @@ class PageTest {
 
     @RepeatedTest(10)
     fun writeInts() {
-        val buffer = ByteBuffer.allocate(Page.Constants.PAGE_DATA_SIZE_BYTES)
+        val buffer = ByteBuffer.allocate(PAGE_DATA_SIZE_BYTES)
         val page = Page(buffer)
         val ints = IntArray(random.nextInt(PAGE_DATA_SIZE_BYTES/Int.SIZE_BYTES)) {
             random.nextInt()
@@ -85,7 +85,7 @@ class PageTest {
 
     @RepeatedTest(10)
     fun writeFloats() {
-        val buffer = ByteBuffer.allocate(Page.Constants.PAGE_DATA_SIZE_BYTES)
+        val buffer = ByteBuffer.allocate(PAGE_DATA_SIZE_BYTES)
         val page = Page(buffer)
         val floats = FloatArray(random.nextInt(PAGE_DATA_SIZE_BYTES/Int.SIZE_BYTES)) {
             random.nextFloat()
@@ -105,7 +105,7 @@ class PageTest {
 
     @RepeatedTest(10)
     fun writeLongs() {
-        val buffer = ByteBuffer.allocate(Page.Constants.PAGE_DATA_SIZE_BYTES)
+        val buffer = ByteBuffer.allocate(PAGE_DATA_SIZE_BYTES)
         val page = Page(buffer)
         val longs = LongArray(random.nextInt(PAGE_DATA_SIZE_BYTES/Long.SIZE_BYTES)) {
             random.nextLong()
@@ -125,7 +125,7 @@ class PageTest {
 
     @RepeatedTest(10)
     fun writeDoubles() {
-        val buffer = ByteBuffer.allocate(Page.Constants.PAGE_DATA_SIZE_BYTES)
+        val buffer = ByteBuffer.allocate(PAGE_DATA_SIZE_BYTES)
         val page = Page(buffer)
         val doubles = DoubleArray(random.nextInt(PAGE_DATA_SIZE_BYTES/Long.SIZE_BYTES)) {
             random.nextDouble()
@@ -145,7 +145,7 @@ class PageTest {
 
     @RepeatedTest(10)
     fun writeOverflow() {
-        val buffer = ByteBuffer.allocate(Page.Constants.PAGE_DATA_SIZE_BYTES)
+        val buffer = ByteBuffer.allocate(PAGE_DATA_SIZE_BYTES)
         val page = Page(buffer)
         assertThrows<IndexOutOfBoundsException> {
             page.putInt(PAGE_DATA_SIZE_BYTES + random.nextInt(PAGE_DATA_SIZE_BYTES), random.nextInt())

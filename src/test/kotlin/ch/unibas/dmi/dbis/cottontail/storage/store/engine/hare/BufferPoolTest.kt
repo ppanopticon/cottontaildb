@@ -2,8 +2,8 @@ package ch.unibas.dmi.dbis.cottontail.storage.store.engine.hare
 
 import ch.unibas.dmi.dbis.cottontail.storage.basics.Units
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.BufferPool
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.PAGE_DATA_SIZE_BYTES
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DirectDiskManager
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DiskManager
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page
 import org.junit.jupiter.api.*
 
@@ -59,7 +59,7 @@ class BufferPoolTest {
         val data = this.initWithData(random.nextInt(65536))
 
         val newData = Array(data.size) {
-            val bytes = ByteArray(Page.Constants.PAGE_DATA_SIZE_BYTES)
+            val bytes = ByteArray(PAGE_DATA_SIZE_BYTES)
             random.nextBytes(bytes)
             bytes
         }
@@ -106,7 +106,7 @@ class BufferPoolTest {
      */
     private fun initWithData(size: Int) : Array<ByteArray> {
         val data = Array(size) {
-            val bytes = ByteArray(Page.Constants.PAGE_DATA_SIZE_BYTES)
+            val bytes = ByteArray(PAGE_DATA_SIZE_BYTES)
             random.nextBytes(bytes)
             bytes
         }

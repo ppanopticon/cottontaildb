@@ -6,9 +6,11 @@ import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DirectDiskManager
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.wal.WALDiskManager
 import org.junit.jupiter.api.*
+
 import java.nio.ByteBuffer
 import java.nio.file.Paths
 import java.util.*
+
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
 import kotlin.time.measureTime
@@ -70,7 +72,7 @@ class WALDiskManagerTest {
      */
     @ExperimentalTime
     @RepeatedTest(5)
-    fun testUpdatePage() {
+    fun testUpdateWithCommit() {
         val page = Page(ByteBuffer.allocateDirect(PAGE_DATA_SIZE_BYTES))
         val data = this.initWithData(random.nextInt(65536))
 
@@ -100,6 +102,43 @@ class WALDiskManagerTest {
 
         /* Check if data remains the same. */
         this.compareData(newData)
+    }
+
+    /**
+     * Appends [Page]s of random bytes and checks, if those [Page]s' content remains the same after reading.
+     */
+    @ExperimentalTime
+    @RepeatedTest(5)
+    fun testUpadateWithRollback() {
+        val page = Page(ByteBuffer.allocateDirect(PAGE_DATA_SIZE_BYTES))
+        val data = this.initWithData(random.nextInt(65536))
+
+        val newData = Array(data.size) {
+            val bytes = ByteArray(PAGE_DATA_SIZE_BYTES)
+            random.nextBytes(bytes)
+            bytes
+        }
+
+        /* Update data with new data. */
+        for (i in newData.indices) {
+            this.manager!!.read((i + 1L), page)
+
+            Assertions.assertFalse(page.dirty)
+
+            page.putBytes(0, newData[i])
+
+            Assertions.assertTrue(page.dirty)
+
+            this.manager!!.update(page)
+            Assertions.assertArrayEquals(newData[i], page.getBytes(0))
+            Assertions.assertEquals(i + 1L, page.id)
+            Assertions.assertFalse(page.dirty)
+        }
+
+        this.manager!!.rollback()
+
+        /* Check if data remains the same. */
+        this.compareData(data)
     }
 
     /**

@@ -1,6 +1,7 @@
 package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer
 
 import ch.unibas.dmi.dbis.cottontail.storage.basics.MemorySize
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.PAGE_DATA_SIZE_BYTES
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DirectDiskManager
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.PageId
@@ -24,11 +25,11 @@ import java.util.concurrent.locks.StampedLock
 class BufferPool(val disk: DirectDiskManager, val policy: EvictionPolicy = DefaultEvictionPolicy, val size: Int = 100) {
 
     /** Allocates direct memory as [ByteBuffer] that is used to buffer [Page]s. This is not counted towards the heap used by the JVM! */
-    private val buffer = ByteBuffer.allocateDirect(this.size * Page.Constants.PAGE_DATA_SIZE_BYTES)
+    private val buffer = ByteBuffer.allocateDirect(this.size * PAGE_DATA_SIZE_BYTES)
 
     /** Array of [Page]s that are kept in memory. */
     private val pages = Array(this.size) {
-        Page(this.buffer.position(it * Page.Constants.PAGE_DATA_SIZE_BYTES).limit((it+1) * Page.Constants.PAGE_DATA_SIZE_BYTES).slice())
+        Page(this.buffer.position(it * PAGE_DATA_SIZE_BYTES).limit((it+1) * PAGE_DATA_SIZE_BYTES).slice())
     }
 
     /** Array of [PageRef]s that have been generated. [PageRef]s are de-/allocated when not used. */
@@ -45,7 +46,7 @@ class BufferPool(val disk: DirectDiskManager, val policy: EvictionPolicy = Defau
 
     /** The amount of memory used by this [BufferPool]. */
     val memoryUsage
-        get() = MemorySize((this.size * Page.Constants.PAGE_DATA_SIZE_BYTES).toDouble())
+        get() = MemorySize((this.size * PAGE_DATA_SIZE_BYTES).toDouble())
 
     init {
         this.pageRefs.forEach { pageRefsQueue.enqueue(it.pointer) }
@@ -130,7 +131,7 @@ class BufferPool(val disk: DirectDiskManager, val policy: EvictionPolicy = Defau
      */
     private fun freePage(priority: Priority): PageRef {
         /* Complex case: BufferPool full, PageRef needs replacement; find candidate... */
-        var pageRef: PageRef? = null
+        var pageRef: PageRef?
         do {
             val next = this.pageRefsQueue.dequeue()
             pageRef = this.pageRefs[next]

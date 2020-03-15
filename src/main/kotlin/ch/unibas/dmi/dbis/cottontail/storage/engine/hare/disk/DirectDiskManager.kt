@@ -21,7 +21,7 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000) : DiskManager(path
     init {
         if (!this.header.isConsistent) {
             if (!this.validate()) {
-                throw DataCorruptionException("CRC32C checksum mismatch (expected: ${this.header.checksum}, found: ${this.calculateChecksum()}) for HARE file ${this.path.fileName}.")
+                throw DataCorruptionException("CRC32C checksum mismatch (expected:${this.calculateChecksum()}, found: ${this.header.checksum}}) for HARE file ${this.path.fileName}.")
             }
         }
 
@@ -70,11 +70,13 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000) : DiskManager(path
     }
 
     /**
-     * Frees the [Page] identified by the given [PageId].
+     * Frees the given [Page] making space for new entries
      *
-     * @param pageId The [PageId] of the [Page] that should be freed.
+     * @param page The [Page] that should be freed.
      */
-    override fun free(pageId: PageId) {}
+    override fun free(page: Page) {
+        TODO()
+    }
 
     /**
      * Commits all changes made through this [DirectDiskManager].

@@ -1,7 +1,7 @@
 package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk
 
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.PAGE_DATA_SIZE_BYTES
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page.Constants.EMPTY
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page.Constants.PAGE_DATA_SIZE_BYTES
 
 import java.nio.ByteBuffer
 
@@ -27,12 +27,6 @@ class Page(val data: ByteBuffer) {
 
     /** Some constants related to [Page]s. */
     object Constants {
-        /** The number of bits to shift in order to get the page size (i.e. the N in 2^N) . */
-        const val PAGE_BIT_SHIFT = 12
-
-        /** The size of a [Page]. This value is constant.*/
-        const val PAGE_DATA_SIZE_BYTES = 1 shl PAGE_BIT_SHIFT
-
         /** The size of a [Page]. This value is constant.*/
         val EMPTY = ByteArray(PAGE_DATA_SIZE_BYTES)
     }
@@ -173,7 +167,7 @@ class Page(val data: ByteBuffer) {
     }
 
     /**
-     *
+     * Clears the data in this [Page] effectively setting it to zero.
      */
     fun clear() {
         this.data.position(0).put(EMPTY).rewind()

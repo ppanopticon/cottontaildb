@@ -8,9 +8,12 @@ import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.FILE_HEA
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.FILE_HEADER_VERSION
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.FILE_SANITY_CHECK
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.FILE_CONSISTENCY_OK
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.PAGE_BIT_SHIFT
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.PAGE_DATA_SIZE_BYTES
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.channels.FileLock
+import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
 import java.util.zip.CRC32C
@@ -18,10 +21,6 @@ import java.util.zip.CRC32C
 /**
  * The [DiskManager] facilitates reading and writing of [Page]s from/to the underlying disk storage. Only one
  * [DiskManager] can be opened per HARE file and it acquires an exclusive [FileLock] once created.
- *
- * The [DiskManager] only transfers bytes from and to [Page]s. The management of [Page]s is handled by the [BufferPool].
- *
- * @see BufferPool
  *
  * @version 1.0
  * @author Ralph Gasser
@@ -67,11 +66,11 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long) : AutoCloseabl
     abstract fun allocate(page: Page)
 
     /**
-     * Frees the [Page] identified by the given [PageId].
+     * Frees the given [Page] making space for new entries
      *
-     * @param pageId The [PageId] of the [Page] that should be freed.
+     * @param page The [Page] that should be freed.
      */
-    abstract fun free(pageId: PageId)
+    abstract fun free(page: Page)
 
     /**
      * Commits all changes made through this [DiskManager].
@@ -82,6 +81,15 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long) : AutoCloseabl
      * Rolls back all changes made through this [DiskManager].
      */
     abstract fun rollback()
+
+    /**
+     * Deletes the HARE file backing this [DiskManager]. Calling this method also
+     * closes the associated [FileChannel].
+     */
+    open fun delete() {
+        this.close()
+        Files.delete(this.path)
+    }
 
     /**
      * Closes this [DiskManager], releasing the underlying file.
@@ -99,11 +107,11 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long) : AutoCloseabl
      * @return [CRC32C] object for this [DiskManager]
      */
     fun calculateChecksum(): Long {
-        val page = Page(ByteBuffer.allocateDirect(Page.Constants.PAGE_DATA_SIZE_BYTES))
+        val page = Page(ByteBuffer.allocateDirect(PAGE_DATA_SIZE_BYTES))
         val crc32 = CRC32C()
         for (i in 1..this.pages) {
-            this.read(i, page)
-            crc32.update(page.data)
+            this.fileChannel.read(page.data.rewind(), this.pageIdToPosition(i))
+            crc32.update(page.data.rewind())
         }
         return crc32.value
     }
@@ -125,7 +133,7 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long) : AutoCloseabl
     protected fun pageIdToPosition(pageId: PageId): Long {
         check(this.fileChannel.isOpen) { "DiskManager for {${this.path}} was closed and cannot be used to access data." }
         if (pageId > this.header.pages || pageId < 1) throw PageIdOutOfBoundException(pageId, this)
-        return pageId shl Page.Constants.PAGE_BIT_SHIFT
+        return pageId shl PAGE_BIT_SHIFT
     }
 
     /**
@@ -136,7 +144,7 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long) : AutoCloseabl
      */
     protected inner class Header(new: Boolean) {
         /** A fixed 4096 byte [ByteBuffer] used to provide access to the header of this HARE file managed by this [DiskManager]. */
-        val buffer: ByteBuffer = ByteBuffer.allocateDirect(Page.Constants.PAGE_DATA_SIZE_BYTES)
+        val buffer: ByteBuffer = ByteBuffer.allocateDirect(PAGE_DATA_SIZE_BYTES)
 
         init {
             if (new) {

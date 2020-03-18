@@ -18,7 +18,6 @@ import kotlin.time.measureTime
 class BufferPoolTest {
     val path = Paths.get("./test-bufferpool-db.hare")
 
-
     var _manager: DirectDiskManager? = null
 
     var pool: BufferPool? = null
@@ -68,12 +67,13 @@ class BufferPoolTest {
         for (i in newData.indices) {
             val page = this.pool!!.get((i + 1L))
 
-            Assertions.assertEquals(i.toLong(), page.id)
+            Assertions.assertEquals((i + 1L), page.id)
 
             val stamp = page.retain(true)
             page.putBytes(stamp, 0, newData[i])
             page.release(stamp)
         }
+        this.pool!!.flush()
 
         /* Check if data remains the same. */
         this.compareData(newData)
@@ -86,14 +86,14 @@ class BufferPoolTest {
     private fun compareData(ref: Array<ByteArray>) {
         var readTime = Duration.ZERO
         for (i in ref.indices) {
-            var page: BufferPool.PageRef? = null
+            var page: BufferPool.PageRef?
             readTime += measureTime {
                 page = this.pool!!.get((i + 1L))
             }
             val stamp = page!!.retain(false)
 
             Assertions.assertArrayEquals(ref[i], page!!.getBytes(stamp,0))
-            Assertions.assertEquals(i.toLong(), page!!.id)
+            Assertions.assertEquals((i + 1L), page!!.id)
             page!!.release(stamp)
         }
         println("Reading ${this._manager!!.size `in` Units.MEGABYTE} took $readTime (${(this._manager!!.size `in` Units.MEGABYTE).value / readTime.inSeconds} MB/s).")

@@ -57,15 +57,24 @@ open class WriteAheadLog(val path: Path, val lockTimeout: Long = 5000L, private 
      * @param page The [Page] that was written.
      */
     @Synchronized
-    fun append(action: WALAction, page: Page) {
+    fun append(action: WALAction, id: PageId? = null, page: Page? = null) {
         check(this.fileChannel.isOpen) { "HARE Write Ahead Log (WAL) file for {${this.path}} has been closed and cannot be used for append." }
 
-        /* Prepare buffer and update checksum. */
-        if (action == WALAction.APPEND) {
-            this.header.maxPageId += 1
-            page.id = this.header.maxPageId
+        /* Load buffer with data and update checksum. */
+        when (action) {
+            WALAction.APPEND -> {
+                this.header.maxPageId += 1
+                this.buffer.rewind().putInt(action.ordinal).putLong(this.header.maxPageId).put(page?.data?.rewind() ?: Page.EMPTY.data.rewind())
+            }
+            WALAction.UPDATE -> {
+                require (id != null) { "HARE Write Ahead Log (WAL) UPDATE action requires a non-null page ID." }
+                this.buffer.rewind().putInt(action.ordinal).putLong(id).put(page?.data ?: Page.EMPTY.data.rewind())
+            }
+            WALAction.FREE -> {
+                require (id != null) { "HARE Write Ahead Log (WAL) FREE action requires a non-null page ID." }
+                this.buffer.rewind().putInt(action.ordinal).putLong(id).put(Page.EMPTY.data.rewind())
+            }
         }
-        this.buffer.rewind().putInt(action.ordinal).putLong(page.id).put(page.data).rewind()
         this.crc32.update(this.buffer)
 
         /* Update header of WAL file. */

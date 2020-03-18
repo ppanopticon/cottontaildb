@@ -1,7 +1,6 @@
 package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk
 
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.PAGE_DATA_SIZE_BYTES
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page.Constants.EMPTY
 
 import java.nio.ByteBuffer
 
@@ -17,35 +16,18 @@ import kotlin.math.max
  * when handed to the [Page]'s constructor. It is not recommended to use that [ByteBuffer] outside
  * of the [Page]s context.
  *
- * @see DirectDiskManager
- * @see BufferPool
+ * @see DiskManager
  *
  * @version 1.0
  * @author Ralph Gasser
  */
-class Page(val data: ByteBuffer) {
+inline class Page(val data: ByteBuffer) {
 
     /** Some constants related to [Page]s. */
-    object Constants {
+    companion object {
         /** The size of a [Page]. This value is constant.*/
-        val EMPTY = ByteArray(PAGE_DATA_SIZE_BYTES)
+        val EMPTY = Page(ByteBuffer.allocateDirect(PAGE_DATA_SIZE_BYTES))
     }
-
-    init {
-        /** Rewind ByteBuffer. */
-        this.data.rewind()
-        require(this.data.capacity() == PAGE_DATA_SIZE_BYTES) { throw IllegalArgumentException("A Page object must be backed by a ByteBuffer of exactly 4096 bytes.")}
-    }
-
-    /** The identifier for the [Page]. A value of -1 means, that this page is empty (i.e. uninitialized). */
-    @Volatile
-    var id: PageId = System.currentTimeMillis()
-        internal set
-
-    /** Internal flag: Indicating whether this [Page] has uncommitted changes. */
-    @Volatile
-    var dirty: Boolean = false
-        internal set
 
     fun getBytes(index: Int, bytes: ByteArray) : ByteArray {
         this.data.position(index).get(bytes).rewind()
@@ -71,7 +53,6 @@ class Page(val data: ByteBuffer) {
      */
     fun putByte(index: Int, value: Byte): Page {
         this.data.put(index, value)
-        this.dirty = true
         return this
     }
 
@@ -84,7 +65,6 @@ class Page(val data: ByteBuffer) {
      */
     fun putBytes(index: Int, value: ByteArray): Page {
         this.data.mark().position(index).put(value).rewind()
-        this.dirty = true
         return this
     }
 
@@ -97,7 +77,6 @@ class Page(val data: ByteBuffer) {
      */
     fun putShort(index: Int, value: Short): Page {
         this.data.putShort(index, value)
-        this.dirty = true
         return this
     }
 
@@ -110,7 +89,6 @@ class Page(val data: ByteBuffer) {
      */
     fun putChar(index: Int, value: Char): Page {
         this.data.putChar(index, value)
-        this.dirty = true
         return this
     }
 
@@ -123,7 +101,6 @@ class Page(val data: ByteBuffer) {
      */
     fun putInt(index: Int, value: Int): Page {
         this.data.putInt(index, value)
-        this.dirty = true
         return this
     }
 
@@ -136,7 +113,6 @@ class Page(val data: ByteBuffer) {
      */
     fun putLong(index: Int, value: Long): Page {
         this.data.putLong(index, value)
-        this.dirty = true
         return this
     }
 
@@ -149,7 +125,6 @@ class Page(val data: ByteBuffer) {
      */
     fun putFloat(index: Int, value: Float): Page {
         this.data.putFloat(index, value)
-        this.dirty = true
         return this
     }
 
@@ -162,7 +137,6 @@ class Page(val data: ByteBuffer) {
      */
     fun putDouble(index: Int, value: Double): Page {
         this.data.putDouble(index, value)
-        this.dirty = true
         return this
     }
 
@@ -170,8 +144,7 @@ class Page(val data: ByteBuffer) {
      * Clears the data in this [Page] effectively setting it to zero.
      */
     fun clear() {
-        this.data.position(0).put(EMPTY).rewind()
-        this.dirty = true
+        this.data.position(0).put(EMPTY.data.rewind())
     }
 }
 

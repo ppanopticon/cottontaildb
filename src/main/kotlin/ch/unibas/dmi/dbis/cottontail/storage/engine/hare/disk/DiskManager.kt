@@ -52,25 +52,26 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long) : AutoCloseabl
     abstract fun read(id: PageId, page: Page)
 
     /**
-     * Updates the [Page] in the HARE file managed by this [DirectDiskManager].
+     * Updates the [Page] identified by the given [PageId] in the HARE file managed by this [DiskManager].
      *
-     * @param page [Page] to update.
+     * @param id [PageId] of the [Page] that should be updated
+     * @param page [Page] the data the [Page] should be updated with.
      */
-    abstract fun update(page: Page)
+    abstract fun update(id: PageId, page: Page)
 
     /**
-     * Allocates new [Page] in the HARE file managed by this [DirectDiskManager].
+     * Allocates new [Page] in the HARE file managed by this [DiskManager].
      *
-     * @param page [Page] to append. Its [PageId] and flags will be updated.
+     * @param page [Page] to append. If empty, the allocated [Page] will be filled with zeros.
      */
-    abstract fun allocate(page: Page)
+    abstract fun allocate(page: Page? = null): PageId
 
     /**
-     * Frees the given [Page] making space for new entries
+     * Frees the [Page] identified by the given [PageId] making space for new entries
      *
-     * @param page The [Page] that should be freed.
+     * @param id The [PageId] that should be freed.
      */
-    abstract fun free(page: Page)
+    abstract fun free(id: PageId)
 
     /**
      * Commits all changes made through this [DiskManager].

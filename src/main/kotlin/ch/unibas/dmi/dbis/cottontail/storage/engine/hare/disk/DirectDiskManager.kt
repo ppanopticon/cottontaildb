@@ -38,43 +38,37 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000) : DiskManager(path
      * @param page [Page] to fetch data into. Its content will be updated.
      */
     override fun read(id: PageId, page: Page) {
-        this.fileChannel.read(page.data, this.pageIdToPosition(id))
-        page.id = id
-        page.dirty = false
-        page.data.rewind()
+        this.fileChannel.read(page.data.rewind(), this.pageIdToPosition(id))
     }
 
     /**
      * Updates the [Page] in the HARE file managed by this [DirectDiskManager].
      *
-     * @param page [Page] to update.
+     * @param id [PageId] of the [Page] that should be updated
+     * @param page [Page] the data the [Page] should be updated with.
      */
-    override fun update(page: Page) {
-        this.fileChannel.write(page.data,this.pageIdToPosition(page.id))
-        page.dirty = false
-        page.data.rewind()
+    override fun update(id: PageId, page: Page) {
+        this.fileChannel.write(page.data.rewind(), this.pageIdToPosition(id))
     }
 
     /**
-     * Appends the [Page] to the HARE file managed by this [DirectDiskManager].
+     * Allocates new [Page] in the HARE file managed by this [DirectDiskManager].
      *
-     * @param page [Page] to append. Its [PageId] and flags will be updated.
+     * @param page [Page] to append. If empty, the allocated [Page] will be filled with zeros.
      */
-    override fun allocate(page: Page) {
-        val pageId = ++this.header.pages
+    override fun allocate(page: Page?): PageId {
+        val newPageId = ++this.header.pages
         this.header.flush()
-        this.fileChannel.write(page.data, this.pageIdToPosition(pageId))
-        page.id = pageId
-        page.dirty = false
-        page.data.rewind()
+        this.fileChannel.write(page?.data?.rewind() ?: Page.EMPTY.data.rewind(), this.pageIdToPosition(newPageId))
+        return newPageId
     }
 
     /**
      * Frees the given [Page] making space for new entries
      *
-     * @param page The [Page] that should be freed.
+     * @param id The [PageId] that should be freed.
      */
-    override fun free(page: Page) {
+    override fun free(id: PageId) {
         TODO()
     }
 

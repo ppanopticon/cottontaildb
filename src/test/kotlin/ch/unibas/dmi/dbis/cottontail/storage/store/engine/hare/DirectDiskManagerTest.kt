@@ -4,7 +4,7 @@ import ch.unibas.dmi.dbis.cottontail.storage.basics.Units
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.*
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.PAGE_DATA_SIZE_BYTES
 
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 
@@ -92,17 +92,9 @@ class DirectDiskManagerTest {
         /* Update data with new data. */
         for (i in newData.indices) {
             this.manager!!.read((i + 1L), page)
-
-            assertFalse(page.dirty)
-
             page.putBytes(0, newData[i])
-
-            assertTrue(page.dirty)
-
-            this.manager!!.update(page)
+            this.manager!!.update((i + 1L), page)
             assertArrayEquals(newData[i], page.getBytes(0))
-            assertEquals(i + 1L, page.id)
-            assertFalse(page.dirty)
         }
 
         /* Check if data remains the same. */
@@ -121,8 +113,6 @@ class DirectDiskManagerTest {
                 this.manager!!.read((i + 1L), page)
             }
             assertArrayEquals(ref[i], page.getBytes(0))
-            assertEquals(i + 1L, page.id)
-            assertFalse(page.dirty)
         }
         println("Reading ${this.manager!!.size `in` Units.MEGABYTE} took $readTime (${(this.manager!!.size `in` Units.MEGABYTE).value / readTime.inSeconds} MB/s).")
     }
@@ -145,15 +135,11 @@ class DirectDiskManagerTest {
         for (i in data.indices) {
             page.putBytes(0, data[i])
 
-            assertTrue(page.dirty)
-
             writeTime += measureTime {
                 this.manager!!.allocate(page)
             }
             assertEquals(this.manager!!.pages, i+1L)
             assertEquals(((i+2)*PAGE_DATA_SIZE_BYTES).toDouble(), this.manager!!.size.value)
-            assertEquals((i + 1L), page.id)
-            assertFalse(page.dirty)
         }
         println("Writing ${this.manager!!.size `in` Units.MEGABYTE} took $writeTime (${(this.manager!!.size `in` Units.MEGABYTE).value / writeTime.inSeconds} MB/s).")
 

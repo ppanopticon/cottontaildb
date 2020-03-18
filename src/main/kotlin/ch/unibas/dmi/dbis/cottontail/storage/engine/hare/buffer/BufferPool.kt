@@ -7,10 +7,11 @@ import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.PageId
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.convertWriteLock
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.read
+
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap
-import it.unimi.dsi.fastutil.objects.ObjectHeapIndirectPriorityQueue
 
 import java.nio.ByteBuffer
+import java.util.*
 import java.util.concurrent.locks.StampedLock
 
 /**
@@ -22,7 +23,7 @@ import java.util.concurrent.locks.StampedLock
  * @version 1.0
  * @author Ralph Gasser
  */
-class BufferPool(val disk: DirectDiskManager, val policy: EvictionPolicy = DefaultEvictionPolicy, val size: Int = 100) {
+class BufferPool(val disk: DirectDiskManager, private val policy: EvictionPolicy = DefaultEvictionPolicy, val size: Int = 100) {
 
     /** Allocates direct memory as [ByteBuffer] that is used to buffer [Page]s. This is not counted towards the heap used by the JVM! */
     private val buffer = ByteBuffer.allocateDirect(this.size * PAGE_DATA_SIZE_BYTES)
@@ -32,11 +33,8 @@ class BufferPool(val disk: DirectDiskManager, val policy: EvictionPolicy = Defau
         Page(this.buffer.position(it * PAGE_DATA_SIZE_BYTES).limit((it+1) * PAGE_DATA_SIZE_BYTES).slice())
     }
 
-    /** Array of [PageRef]s that have been generated. [PageRef]s are de-/allocated when not used. */
-    private val pageRefs = Array(this.size) { PageRef(it) }
-
-    /** */
-    private val pageRefsQueue = ObjectHeapIndirectPriorityQueue(this.pageRefs, this.policy)
+    /** Internal queue that is maintained to get the [PageRef] that can be evicted next! */
+    private val pageRefsQueue = PriorityQueue(this.pages.size, this.policy)
 
     /** The internal directory that maps [PageId]s to [PageRef]s.*/
     private val pageDirectory = Long2ObjectOpenHashMap<PageRef>()
@@ -49,7 +47,9 @@ class BufferPool(val disk: DirectDiskManager, val policy: EvictionPolicy = Defau
         get() = MemorySize((this.size * PAGE_DATA_SIZE_BYTES).toDouble())
 
     init {
-        this.pageRefs.forEach { pageRefsQueue.enqueue(it.pointer) }
+        for (i in this.pages.indices) {
+            this.pageRefsQueue.offer(PageRef(-1L, i, Priority.UNINIT))
+        }
     }
 
     /**
@@ -64,19 +64,19 @@ class BufferPool(val disk: DirectDiskManager, val policy: EvictionPolicy = Defau
     fun get(pageId: PageId, priority: Priority = Priority.DEFAULT): PageRef {
         var stamp = this.directoryLock.readLock() /* Acquire non-exclusive lock. */
         try {
-            val pageRef = this.pageDirectory.getOrElse(pageId) {
+            val oldRef = this.pageDirectory.getOrElse(pageId) {
                 stamp = this.directoryLock.convertWriteLock(stamp)
-                freePage(priority)
+                freePage()
             }
 
             /* Now read page from disk. */
-            this.disk.read(pageId, this.pages[pageRef.pointer])
+            this.disk.read(pageId, this.pages[oldRef.pointer])
 
-            /* Update page directory and priority queue. */
-            this.pageDirectory[pageId] = pageRef
-
-            /* Return page. */
-            return pageRef
+            /* Update page directory and queue and return new PageRef. */
+            val newRef = PageRef(pageId, oldRef.pointer, priority)
+            this.pageDirectory[pageId] = newRef
+            this.pageRefsQueue.offer(newRef)
+            return newRef
         } finally {
             this.directoryLock.unlock(stamp)
         }
@@ -92,32 +92,42 @@ class BufferPool(val disk: DirectDiskManager, val policy: EvictionPolicy = Defau
         val stamp = this.directoryLock.writeLock() /* Acquire exclusive lock. */
         try {
             /* Get next free page object. */
-            val pageRef = freePage(priority)
-            this.pages[pageRef.pointer].id = -1
-            this.pages[pageRef.pointer].clear()
+            val oldRef = freePage()
 
-            /* Reset flags on page and read content from disk. */
-            this.disk.allocate(this.pages[pageRef.pointer])
+            /* Clear page and allocate new page on disk. */
+            val pageId = this.disk.allocate()
+            this.pages[oldRef.pointer].clear()
 
-            /* Update page directory and priority queue. */
-            this.pageDirectory[this.pages[pageRef.pointer].id] = pageRef
-
-            /* Return page. */
-            return pageRef
+            /* Update page directory and queue and return new PageRef. */
+            val newRef = PageRef(pageId, oldRef.pointer, priority)
+            this.pageDirectory[pageId] = newRef
+            this.pageRefsQueue.offer(newRef)
+            return newRef
         } finally {
             this.directoryLock.unlock(stamp)
         }
     }
 
-
     /**
-     * Flushes all dirty [Page]s to disk and resets their dirty flag. This method should be used with care,
-     * since it will cause all pages to be written to disk.
+     * Flushes all dirty [PageRef]s to disk and resets their dirty flag. This method should be used
+     * with care, since it will cause all [Page]s to be written to disk.
      */
     fun flush() = this.directoryLock.read {
-        for (p in this.pages) {
+        for (p in this.pageDirectory.values) {
             if (p.dirty) {
-                this.disk.update(p)
+                this.disk.update(p.id, this.pages[p.pointer])
+            }
+        }
+    }
+
+    /**
+     * Resets all dirty [PageRef]s to their state as stored on disk thus resetting their dirty flag. This
+     * method should be used with care, since it will cause all [Page]s to be read from disk.
+     */
+    fun reset() = this.directoryLock.read {
+        for (p in this.pageDirectory.values) {
+            if (p.dirty) {
+                this.disk.read(p.id, this.pages[p.pointer])
             }
         }
     }
@@ -126,28 +136,27 @@ class BufferPool(val disk: DirectDiskManager, val policy: EvictionPolicy = Defau
      * Tries to find a free [PageRef] and prepares that [PageRef] for re-use by the [BufferPool].
      * This method will block, until such a [PageRef] becomes available.
      *
-     * @param priority The [Priority] the new [PageRef] should have.
      * @return Index to the [PageRef] within [BufferPool.pages]
      */
-    private fun freePage(priority: Priority): PageRef {
+    private fun freePage(): PageRef {
         /* Complex case: BufferPool full, PageRef needs replacement; find candidate... */
         var pageRef: PageRef?
         do {
-            val next = this.pageRefsQueue.dequeue()
-            pageRef = this.pageRefs[next]
-            this.pageRefsQueue.enqueue(next)
+            pageRef = this.pageRefsQueue.poll()
+            if (!pageRef.isEligibleForGc) {
+                this.pageRefsQueue.offer(pageRef)
+            }
         } while (!pageRef!!.isEligibleForGc)
 
         /* ... remove reference from page directory...*/
-        this.pageDirectory.remove(this.pages[pageRef.pointer].id)
+        this.pageDirectory.remove(pageRef.id)
 
         /* ... and write page to disk if it's dirty. */
-        if (this.pages[pageRef.pointer].dirty) {
-            this.disk.update(this.pages[pageRef.pointer])
+        if (pageRef.dirty) {
+            this.disk.update(pageRef.id, this.pages[pageRef.pointer])
         }
 
         /* Update PageRefs priority and last access. */
-        pageRef.priority = priority
         return pageRef
     }
     
@@ -158,30 +167,25 @@ class BufferPool(val disk: DirectDiskManager, val policy: EvictionPolicy = Defau
      * @author Ralph Gasser
      * @version 1.0
      */
-    inner class PageRef(val pointer: Int) {
-        /** [PageId] of the [Page] held by this [PageRef]. */
-        val id: PageId
-            get() = this@BufferPool.pages[this.pointer].id
+    inner class PageRef(val id: PageId, val pointer: Int, val priority: Priority) {
 
         /** Returns true if no pin is currently registered for this [PageRef]. */
         val isEligibleForGc: Boolean
             get() = !this.pin.isReadLocked && !this.pin.isWriteLocked
 
-        /** The [Priority] of this [PageRef]. Acts as a hint for the [BufferPool]'s [EvictionPolicy]. */
+        /** Flag indicating whether or not this [PageRef] is dirty. */
         @Volatile
-        var priority: Priority = Priority.UNINIT
-            set(v) {
-                this@BufferPool.pageRefsQueue.changed(this.pointer)
-                field = v
-            }
+        var dirty = false
+
+        /** Counter that counts how often this [PageRef] was accessed. */
+        @Volatile
+        var accessed: Long = 0L
+            private set
 
         /** The last access to this [PageRef]. Acts as a hint for the [BufferPool]'s [EvictionPolicy]. */
         @Volatile
-        var lastAccess: Long = -1L
-            set(v) {
-                this@BufferPool.pageRefsQueue.changed(this.pointer)
-                field = v
-            }
+        var lastAccess: Long = System.currentTimeMillis()
+            private set
 
         /** [StampedLock] that acts as latch for concurrent read/write access to a [Page]. */
         private val pin = StampedLock()
@@ -206,41 +210,49 @@ class BufferPool(val disk: DirectDiskManager, val policy: EvictionPolicy = Defau
         fun getDouble(stamp: Long, index: Int): Double = withValidation(stamp) { this@BufferPool.pages[this.pointer].getDouble(index) }
 
         fun putBytes(stamp: Long, index: Int, value: ByteArray): PageRef = withValidation(stamp) {
+            this.dirty = true
             this@BufferPool.pages[this.pointer].putBytes(index, value)
             this
         }
 
         fun putByte(stamp: Long, index: Int, value: Byte): PageRef = withValidation(stamp) {
+            this.dirty = true
             this@BufferPool.pages[this.pointer].putByte(index, value)
             this
         }
 
         fun putShort(stamp: Long, index: Int, value: Short): PageRef = withValidation(stamp) {
+            this.dirty = true
             this@BufferPool.pages[this.pointer].putShort(index, value)
             this
         }
 
         fun putChar(stamp: Long, index: Int, value: Char): PageRef = withValidation(stamp) {
+            this.dirty = true
             this@BufferPool.pages[this.pointer].putChar(index, value)
             this
         }
 
         fun putInt(stamp: Long, index: Int, value: Int): PageRef = withValidation(stamp) {
+            this.dirty = true
             this@BufferPool.pages[this.pointer].putInt(index, value)
             this
         }
 
         fun putLong(stamp: Long, index: Int, value: Long): PageRef = withValidation(stamp) {
+            this.dirty = true
             this@BufferPool.pages[this.pointer].putLong(index, value)
             this
         }
 
         fun putFloat(stamp: Long, index: Int, value: Float): PageRef = withValidation(stamp) {
+            this.dirty = true
             this@BufferPool.pages[this.pointer].putFloat(index, value)
             this
         }
 
         fun putDouble(stamp: Long, index: Int, value: Double): PageRef = withValidation(stamp) {
+            this.dirty = true
             this@BufferPool.pages[this.pointer].putDouble(index, value)
             this
         }
@@ -260,14 +272,6 @@ class BufferPool(val disk: DirectDiskManager, val policy: EvictionPolicy = Defau
         }
 
         /**
-         * Tries to upgrade the read lock on this [PageRef] identified by the given stamp.
-         *
-         * @param stamp The stamp of the read lock that should be upgrade.
-         * @return New stamp
-         */
-        fun upgrade(stamp: Long): Long = this.pin.convertWriteLock(stamp)
-
-        /**
          * Releases the lock on this [PageRef] identified by the given stamp.
          *
          * @param stamp The stamp that identifies the lock that should be released.
@@ -282,7 +286,7 @@ class BufferPool(val disk: DirectDiskManager, val policy: EvictionPolicy = Defau
          */
         private inline fun <R> withValidation(stamp: Long, action: () -> R) = if (this.pin.validate(stamp)) {
             this.lastAccess = System.currentTimeMillis()
-            this@BufferPool.pageRefsQueue.changed(this.pointer)
+            this.accessed += 1
             action()
         } else {
             throw IllegalStateException("Stamp $stamp  could not be validated. Caller is not eligible to write PageRef.")

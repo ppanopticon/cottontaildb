@@ -86,16 +86,10 @@ class WALDiskManagerTest {
         for (i in newData.indices) {
             this.manager!!.read((i + 1L), page)
 
-            Assertions.assertFalse(page.dirty)
-
             page.putBytes(0, newData[i])
 
-            Assertions.assertTrue(page.dirty)
-
-            this.manager!!.update(page)
+            this.manager!!.update((i + 1L), page)
             Assertions.assertArrayEquals(newData[i], page.getBytes(0))
-            Assertions.assertEquals(i + 1L, page.id)
-            Assertions.assertFalse(page.dirty)
         }
 
         this.manager!!.commit()
@@ -123,16 +117,11 @@ class WALDiskManagerTest {
         for (i in newData.indices) {
             this.manager!!.read((i + 1L), page)
 
-            Assertions.assertFalse(page.dirty)
 
             page.putBytes(0, newData[i])
 
-            Assertions.assertTrue(page.dirty)
-
-            this.manager!!.update(page)
+            this.manager!!.update((i + 1L), page)
             Assertions.assertArrayEquals(newData[i], page.getBytes(0))
-            Assertions.assertEquals(i + 1L, page.id)
-            Assertions.assertFalse(page.dirty)
         }
 
         this.manager!!.rollback()
@@ -153,8 +142,6 @@ class WALDiskManagerTest {
                 this.manager!!.read((i + 1L), page)
             }
             Assertions.assertArrayEquals(ref[i], page.getBytes(0))
-            Assertions.assertEquals(i + 1L, page.id)
-            Assertions.assertFalse(page.dirty)
         }
         println("Reading ${this.manager!!.size `in` Units.MEGABYTE} took $readTime (${(this.manager!!.size `in` Units.MEGABYTE).value / readTime.inSeconds} MB/s).")
     }
@@ -177,7 +164,6 @@ class WALDiskManagerTest {
 
         for (i in data.indices) {
             page.putBytes(0, data[i])
-            Assertions.assertTrue(page.dirty)
             writeTime += measureTime {
                 this.manager!!.allocate(page)
             }

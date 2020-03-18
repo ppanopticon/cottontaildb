@@ -17,22 +17,6 @@ class PageTest {
 
     private val random = Random(System.currentTimeMillis())
 
-    @Test
-    fun testPageConstructorCorrect() {
-        val buffer = ByteBuffer.allocate(PAGE_DATA_SIZE_BYTES)
-        val page =  Page(buffer)
-        assertFalse(page.dirty)
-        assertEquals(-1L, page.id)
-    }
-
-    @RepeatedTest(10)
-    fun testPageConstructorIncorrect() {
-        val buffer = ByteBuffer.allocate(random.nextInt(8192))
-        if (buffer.capacity() != (PAGE_DATA_SIZE_BYTES)) {
-            assertThrows<IllegalArgumentException> { Page(buffer) }
-        }
-    }
-
     @RepeatedTest(10)
     fun writeBytesBatch() {
         val buffer = ByteBuffer.allocate(PAGE_DATA_SIZE_BYTES)
@@ -42,7 +26,6 @@ class PageTest {
 
         /* Write bytes. */
         page.putBytes(0, bytes)
-        assertTrue(page.dirty) /* Check dirty flag. */
         val read = page.getBytes(0)
 
         for (i in bytes.indices) {
@@ -59,7 +42,6 @@ class PageTest {
 
         /* Write bytes. */
         assertThrows<BufferOverflowException> { page.putBytes(0, bytes) }
-        assertFalse(page.dirty) /* Check dirty flag. */
     }
 
     @RepeatedTest(10)
@@ -74,8 +56,6 @@ class PageTest {
         for (i in ints.indices) {
             page.putInt(Int.SIZE_BYTES * i, ints[i])
         }
-        assertTrue(page.dirty) /* Check dirty flag. */
-
 
         /* Compare and read ints. */
         for (i in ints.indices) {
@@ -95,7 +75,6 @@ class PageTest {
         for (i in floats.indices) {
             page.putFloat(Int.SIZE_BYTES * i, floats[i])
         }
-        assertTrue(page.dirty) /* Check dirty flag. */
 
         /* Compare and read ints. */
         for (i in floats.indices) {
@@ -115,7 +94,6 @@ class PageTest {
         for (i in longs.indices) {
             page.putLong(Long.SIZE_BYTES * i, longs[i])
         }
-        assertTrue(page.dirty) /* Check dirty flag. */
 
         /* Compare and read ints. */
         for (i in longs.indices) {
@@ -135,7 +113,6 @@ class PageTest {
         for (i in doubles.indices) {
             page.putDouble(Long.SIZE_BYTES * i, doubles[i])
         }
-        assertTrue(page.dirty) /* Check dirty flag. */
 
         /* Compare and read ints. */
         for (i in doubles.indices) {
@@ -159,6 +136,5 @@ class PageTest {
         assertThrows<IndexOutOfBoundsException> {
             page.putDouble(PAGE_DATA_SIZE_BYTES + random.nextInt(PAGE_DATA_SIZE_BYTES), random.nextDouble())
         }
-        assertFalse(page.dirty) /* Check dirty flag. */
     }
 }

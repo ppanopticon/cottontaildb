@@ -48,32 +48,26 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000) : DiskManager(path, l
     }
 
     override fun read(id: PageId, page: Page): Unit = this.lock.optimisticRead {
-        this.fileChannel.read(page.data, this.pageIdToPosition(id))
-        page.id = id
-        page.dirty = false
-        page.data.rewind()
+        this.fileChannel.read(page.data.rewind(), this.pageIdToPosition(id))
     }
 
-    override fun update(page: Page): Unit = this.lock.optimisticRead {
+    override fun update(id: PageId, page: Page): Unit = this.lock.optimisticRead {
         withWAL { wal ->
-            if (page.id > wal.maxPageId || page.id < 1) throw PageIdOutOfBoundException(page.id, this)
-            wal.append(WALAction.UPDATE, page)
-            page.dirty = false
-            page.data.rewind()
+            if (id > wal.maxPageId || id < 1) throw PageIdOutOfBoundException(id, this)
+            wal.append(action = WALAction.UPDATE, id = id, page = page)
         }
     }
 
-    override fun allocate(page: Page): Unit = this.lock.read {
+    override fun allocate(page: Page?): PageId = this.lock.read {
         withWAL { wal ->
-            wal.append(WALAction.APPEND, page)
-            page.dirty = false
-            page.data.rewind()
+            wal.append(action = WALAction.APPEND, page = page)
+            wal.maxPageId
         }
     }
 
-    override fun free(page: Page) = this.lock.read {
+    override fun free(id: PageId) = this.lock.read {
         withWAL { wal ->
-            wal.append(WALAction.FREE, page)
+            wal.append(action = WALAction.FREE, id = id)
         }
     }
 
@@ -140,13 +134,13 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000) : DiskManager(path, l
      *
      * @param action The action that should be executed with the local [WriteAheadLog].
      */
-    private inline fun withWAL(action: (WriteAheadLog) -> Unit) {
+    private inline fun <R> withWAL(action: (WriteAheadLog) -> R) : R {
         check(this.fileChannel.isOpen) { "DiskManager for {${this.path}} was closed and cannot be used to access data." }
         if (this.wal == null) {
             this.wal = WriteAheadLog(this.path.parent.resolve("${this.path.fileName}.wal"), this.lockTimeout, this.pages)
             this.header.isConsistent = false
             this.header.flush()
         }
-        action(this.wal!!)
+        return action(this.wal!!)
     }
 }

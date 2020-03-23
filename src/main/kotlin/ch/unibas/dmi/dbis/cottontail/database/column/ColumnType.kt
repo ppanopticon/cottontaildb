@@ -15,68 +15,67 @@ import kotlin.reflect.full.safeCast
  * @see Column
  *
  * @author Ralph Gasser
- * @version 1.2
+ * @version 1.3
  */
 sealed class ColumnType<T : Value> {
 
     abstract val name: String
+    abstract val ordinal: Int
     abstract val type: KClass<T>
     abstract val numeric: Boolean
 
     companion object {
-        /** Array of all [ColumnType]s. */
-        private val COLUMN_TYPES = arrayOf(
-            BooleanColumnType(),
-            ByteColumnType(),
-            ShortColumnType() ,
-            IntColumnType(),
-            LongColumnType(),
-            FloatColumnType(),
-            DoubleColumnType(),
-            StringColumnType(),
-            Complex32ColumnType(),
-            Complex64ColumnType(),
-            IntVectorColumnType(),
-            LongVectorColumnType(),
-            FloatVectorColumnType(),
-            DoubleVectorColumnType(),
-            BooleanVectorColumnType(),
-            Complex32VectorColumnType(),
-            Complex64VectorColumnType()
-        )
-
         /**
          * Returns the [ColumnType] for the provided name.
          *
          * @param name For which to lookup the [ColumnType].
          */
         fun forName(name: String): ColumnType<*> = when (name.toUpperCase()) {
-            "BOOLEAN" -> COLUMN_TYPES[0]
-            "BYTE" -> COLUMN_TYPES[1]
-            "SHORT" -> COLUMN_TYPES[2]
-            "INTEGER" -> COLUMN_TYPES[3]
-            "LONG" -> COLUMN_TYPES[4]
-            "FLOAT" -> COLUMN_TYPES[5]
-            "DOUBLE" -> COLUMN_TYPES[6]
-            "STRING" -> COLUMN_TYPES[7]
-            "COMPLEX32" -> COLUMN_TYPES[8]
-            "COMPLEX64" -> COLUMN_TYPES[9]
-            "INT_VEC" -> COLUMN_TYPES[10]
-            "LONG_VEC" -> COLUMN_TYPES[11]
-            "FLOAT_VEC" -> COLUMN_TYPES[12]
-            "DOUBLE_VEC" -> COLUMN_TYPES[13]
-            "BOOL_VEC" -> COLUMN_TYPES[14]
-            "COMPLEX32_VEC" -> COLUMN_TYPES[15]
-            "COMPLEX64_VEC" -> COLUMN_TYPES[16]
+            "BOOLEAN" -> BooleanColumnType
+            "BYTE" -> ByteColumnType
+            "SHORT" -> ShortColumnType
+            "INTEGER" -> IntColumnType
+            "LONG" -> LongColumnType
+            "FLOAT" -> FloatColumnType
+            "DOUBLE" -> DoubleColumnType
+            "STRING" -> StringColumnType
+            "COMPLEX32" -> Complex32ColumnType
+            "COMPLEX64" -> Complex64ColumnType
+            "INT_VEC" -> IntVectorColumnType
+            "LONG_VEC" -> LongVectorColumnType
+            "FLOAT_VEC" -> FloatVectorColumnType
+            "DOUBLE_VEC" -> DoubleVectorColumnType
+            "BOOL_VEC" -> BooleanVectorColumnType
+            "COMPLEX32_VEC" -> Complex32VectorColumnType
+            "COMPLEX64_VEC" -> Complex64VectorColumnType
             else -> throw java.lang.IllegalArgumentException("The column type $name does not exists!")
         }
 
         /**
          * Returns the [ColumnType] for the provided name.
          *
-         * @param name For which to lookup the [ColumnType].
+         * @param ordinal for which to lookup the [ColumnType].
          */
-        fun forOrdinal(ordinal: Int): ColumnType<*> = COLUMN_TYPES[ordinal]
+        fun forOrdinal(ordinal: Int): ColumnType<*> = when(ordinal) {
+            0 -> BooleanColumnType
+            1 -> ByteColumnType
+            2 -> ShortColumnType
+            3 -> IntColumnType
+            4 -> LongColumnType
+            5 -> FloatColumnType
+            6 -> DoubleColumnType
+            7 -> StringColumnType
+            8 -> Complex32ColumnType
+            9 -> Complex64ColumnType
+            10 -> IntVectorColumnType
+            11 -> LongVectorColumnType
+            12 -> FloatVectorColumnType
+            13 -> DoubleVectorColumnType
+            14 -> BooleanVectorColumnType
+            15 -> Complex32VectorColumnType
+            16 -> Complex64VectorColumnType
+            else -> throw java.lang.IllegalArgumentException("The column type with ordinal $ordinal does not exists!")
+        }
     }
 
     fun cast(value: Value?): T? = this.type.safeCast(value)
@@ -104,65 +103,65 @@ sealed class ColumnType<T : Value> {
     override fun toString(): String = this.name
 }
 
-@Suppress("UNCHECKED_CAST")
-class BooleanColumnType : ColumnType<BooleanValue>() {
+object BooleanColumnType : ColumnType<BooleanValue>() {
     override val name = "BOOLEAN"
+    override val ordinal = 0
     override val numeric = true
     override val type: KClass<BooleanValue> = BooleanValue::class
     override fun serializer(size: Int): Serializer<BooleanValue> = BooleanValueSerializer
 }
 
-@Suppress("UNCHECKED_CAST")
-class ByteColumnType : ColumnType<ByteValue>() {
+object ByteColumnType : ColumnType<ByteValue>() {
     override val name = "BYTE"
+    override val ordinal = 1
     override val numeric = true
     override val type: KClass<ByteValue> = ByteValue::class
     override fun serializer(size: Int): Serializer<ByteValue> = ByteValueSerializer
 }
 
-@Suppress("UNCHECKED_CAST")
-class ShortColumnType : ColumnType<ShortValue>() {
+object ShortColumnType : ColumnType<ShortValue>() {
     override val name = "SHORT"
+    override val ordinal = 2
     override val numeric = true
     override val type: KClass<ShortValue> = ShortValue::class
     override fun serializer(size: Int): Serializer<ShortValue> = ShortValueSerializer
 }
 
-@Suppress("UNCHECKED_CAST")
-class IntColumnType : ColumnType<IntValue>() {
+object IntColumnType : ColumnType<IntValue>() {
     override val name = "INTEGER"
+    override val ordinal = 3
     override val numeric = true
     override val type: KClass<IntValue> = IntValue::class
     override fun serializer(size: Int): Serializer<IntValue> = IntValueSerializer
 }
 
-@Suppress("UNCHECKED_CAST")
-class LongColumnType : ColumnType<LongValue>() {
+object LongColumnType : ColumnType<LongValue>() {
     override val name = "LONG"
+    override val ordinal = 4
     override val numeric = true
     override val type: KClass<LongValue> = LongValue::class
     override fun serializer(size: Int): Serializer<LongValue> = LongValueSerializer
 }
 
-@Suppress("UNCHECKED_CAST")
-class FloatColumnType : ColumnType<FloatValue>() {
+object FloatColumnType : ColumnType<FloatValue>() {
     override val name = "FLOAT"
+    override val ordinal = 5
     override val numeric = true
     override val type: KClass<FloatValue> = FloatValue::class
     override fun serializer(size: Int): Serializer<FloatValue> = FloatValueSerializer
 }
 
-@Suppress("UNCHECKED_CAST")
-class DoubleColumnType : ColumnType<DoubleValue>() {
+object DoubleColumnType : ColumnType<DoubleValue>() {
     override val name = "DOUBLE"
+    override val ordinal = 6
     override val numeric = true
     override val type: KClass<DoubleValue> = DoubleValue::class
     override fun serializer(size: Int): Serializer<DoubleValue> = DoubleValueSerializer
 }
 
-@Suppress("UNCHECKED_CAST")
-class StringColumnType : ColumnType<StringValue>() {
+object StringColumnType : ColumnType<StringValue>() {
     override val name = "STRING"
+    override val ordinal = 7
     override val numeric = false
     override val type: KClass<StringValue> = StringValue::class
     override fun serializer(size: Int): Serializer<StringValue> {
@@ -171,25 +170,25 @@ class StringColumnType : ColumnType<StringValue>() {
     }
 }
 
-@Suppress("UNCHECKED_CAST")
-class Complex32ColumnType : ColumnType<Complex32Value>() {
+object Complex32ColumnType : ColumnType<Complex32Value>() {
     override val name = "COMPLEX32"
+    override val ordinal = 8
     override val numeric = true
     override val type: KClass<Complex32Value> = Complex32Value::class
     override fun serializer(size: Int): Serializer<Complex32Value> = Complex32ValueSerializer
 }
 
-@Suppress("UNCHECKED_CAST")
-class Complex64ColumnType : ColumnType<Complex64Value>() {
+object Complex64ColumnType : ColumnType<Complex64Value>() {
     override val name = "COMPLEX64"
+    override val ordinal = 9
     override val numeric = true
     override val type: KClass<Complex64Value> = Complex64Value::class
     override fun serializer(size: Int): Serializer<Complex64Value> = Complex64ValueSerializer
 }
 
-@Suppress("UNCHECKED_CAST")
-class IntVectorColumnType : ColumnType<IntVectorValue>() {
+object IntVectorColumnType : ColumnType<IntVectorValue>() {
     override val name = "INT_VEC"
+    override val ordinal = 10
     override val numeric = false
     override val type: KClass<IntVectorValue> = IntVectorValue::class
     override fun serializer(size: Int): Serializer<IntVectorValue> {
@@ -198,9 +197,9 @@ class IntVectorColumnType : ColumnType<IntVectorValue>() {
     }
 }
 
-@Suppress("UNCHECKED_CAST")
-class LongVectorColumnType : ColumnType<LongVectorValue>() {
+object LongVectorColumnType : ColumnType<LongVectorValue>() {
     override val name = "LONG_VEC"
+    override val ordinal = 11
     override val numeric = false
     override val type: KClass<LongVectorValue> = LongVectorValue::class
     override fun serializer(size: Int): Serializer<LongVectorValue> {
@@ -209,9 +208,9 @@ class LongVectorColumnType : ColumnType<LongVectorValue>() {
     }
 }
 
-@Suppress("UNCHECKED_CAST")
-class FloatVectorColumnType : ColumnType<FloatVectorValue>() {
+object FloatVectorColumnType : ColumnType<FloatVectorValue>() {
     override val name = "FLOAT_VEC"
+    override val ordinal = 12
     override val numeric = false
     override val type: KClass<FloatVectorValue> = FloatVectorValue::class
     override fun serializer(size: Int): Serializer<FloatVectorValue> {
@@ -220,9 +219,9 @@ class FloatVectorColumnType : ColumnType<FloatVectorValue>() {
     }
 }
 
-@Suppress("UNCHECKED_CAST")
-class DoubleVectorColumnType : ColumnType<DoubleVectorValue>() {
+object DoubleVectorColumnType : ColumnType<DoubleVectorValue>() {
     override val name = "DOUBLE_VEC"
+    override val ordinal = 13
     override val numeric = false
     override val type: KClass<DoubleVectorValue> = DoubleVectorValue::class
     override fun serializer(size: Int): Serializer<DoubleVectorValue> {
@@ -231,9 +230,9 @@ class DoubleVectorColumnType : ColumnType<DoubleVectorValue>() {
     }
 }
 
-@Suppress("UNCHECKED_CAST")
-class BooleanVectorColumnType : ColumnType<BooleanVectorValue>() {
+object BooleanVectorColumnType : ColumnType<BooleanVectorValue>() {
     override val name = "BOOL_VEC"
+    override val ordinal = 14
     override val numeric = false
     override val type: KClass<BooleanVectorValue> = BooleanVectorValue::class
     override fun serializer(size: Int): Serializer<BooleanVectorValue> {
@@ -242,9 +241,9 @@ class BooleanVectorColumnType : ColumnType<BooleanVectorValue>() {
     }
 }
 
-@Suppress("UNCHECKED_CAST")
-class Complex32VectorColumnType : ColumnType<Complex32VectorValue>() {
+object Complex32VectorColumnType : ColumnType<Complex32VectorValue>() {
     override val name = "COMPLEX32_VEC"
+    override val ordinal = 15
     override val numeric = false
     override val type: KClass<Complex32VectorValue> = Complex32VectorValue::class
     override fun serializer(size: Int): Serializer<Complex32VectorValue> {
@@ -253,9 +252,9 @@ class Complex32VectorColumnType : ColumnType<Complex32VectorValue>() {
     }
 }
 
-@Suppress("UNCHECKED_CAST")
-class Complex64VectorColumnType : ColumnType<Complex64VectorValue>() {
+object Complex64VectorColumnType : ColumnType<Complex64VectorValue>() {
     override val name = "COMPLEX64_VEC"
+    override val ordinal = 16
     override val numeric = false
     override val type: KClass<Complex64VectorValue> = Complex64VectorValue::class
     override fun serializer(size: Int): Serializer<Complex64VectorValue> {

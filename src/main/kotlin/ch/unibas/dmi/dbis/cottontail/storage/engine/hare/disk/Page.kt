@@ -29,6 +29,11 @@ inline class Page(val data: ByteBuffer) {
         val EMPTY = Page(ByteBuffer.allocateDirect(PAGE_DATA_SIZE_BYTES))
     }
 
+    fun getBytes(index: Int, byteBuffer: ByteBuffer): ByteBuffer {
+        byteBuffer.put(this.data.position(index).limit(index + byteBuffer.remaining())).rewind()
+        this.data.clear()
+        return byteBuffer
+    }
     fun getBytes(index: Int, bytes: ByteArray) : ByteArray {
         this.data.position(index).get(bytes).rewind()
         return bytes
@@ -63,7 +68,7 @@ inline class Page(val data: ByteBuffer) {
      * @return This [Page]
      */
     fun putBytes(index: Int, value: ByteArray): Page {
-        this.data.position(index).put(value).reset()
+        this.data.position(index).put(value).rewind()
         return this
     }
 
@@ -75,7 +80,7 @@ inline class Page(val data: ByteBuffer) {
      * @return This [Page]
      */
     fun putBytes(index: Int, value: ByteBuffer): Page {
-        this.data.position(index).put(value).reset()
+        this.data.position(index).put(value).rewind()
         return this
     }
 

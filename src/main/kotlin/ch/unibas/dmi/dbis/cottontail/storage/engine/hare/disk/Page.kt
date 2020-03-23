@@ -33,7 +33,6 @@ inline class Page(val data: ByteBuffer) {
         this.data.position(index).get(bytes).rewind()
         return bytes
     }
-
     fun getBytes(index: Int, limit: Int) : ByteArray = getBytes(index, ByteArray(max(PAGE_DATA_SIZE_BYTES, limit-index)))
     fun getBytes(index: Int) : ByteArray = getBytes(index, PAGE_DATA_SIZE_BYTES)
     fun getByte(index: Int): Byte = this.data.get(index)
@@ -45,7 +44,7 @@ inline class Page(val data: ByteBuffer) {
     fun getDouble(index: Int): Double =  this.data.getDouble(index)
 
     /**
-     * Writes a [Byte] to the given position and sets the dirty flag to true.
+     * Writes a [Byte] to the given position.
      *
      * @param index Position to write byte to.
      * @param value New [Byte] value to write.
@@ -57,19 +56,31 @@ inline class Page(val data: ByteBuffer) {
     }
 
     /**
-     * Writes a [ByteArray] to the given position and sets the dirty flag to true.
+     * Writes a [ByteArray] to the given position.
      *
      * @param index Position to write byte to.
      * @param value New [ByteArray] value to write.
      * @return This [Page]
      */
     fun putBytes(index: Int, value: ByteArray): Page {
-        this.data.mark().position(index).put(value).rewind()
+        this.data.position(index).put(value).reset()
         return this
     }
 
     /**
-     * Writes a [Short] to the given position and sets the dirty flag to true.
+     * Writes a [ByteBuffer] to the given position.
+     *
+     * @param index Position to write byte to.
+     * @param value New [ByteArray] value to write.
+     * @return This [Page]
+     */
+    fun putBytes(index: Int, value: ByteBuffer): Page {
+        this.data.position(index).put(value).reset()
+        return this
+    }
+
+    /**
+     * Writes a [Short] to the given position.
      *
      * @param index Position to write byte to.
      * @param value New [Short] value to write.
@@ -81,7 +92,7 @@ inline class Page(val data: ByteBuffer) {
     }
 
     /**
-     * Writes a [Char] to the given position and sets the dirty flag to true.
+     * Writes a [Char] to the given position.
      *
      * @param index Position to write byte to.
      * @param value New [Char] value to write.
@@ -93,7 +104,7 @@ inline class Page(val data: ByteBuffer) {
     }
 
     /**
-     * Writes a [Int] to the given position and sets the dirty flag to true.
+     * Writes a [Int] to the given position.
      *
      * @param index Position to write byte to.
      * @param value New [Int] value to write.
@@ -105,7 +116,7 @@ inline class Page(val data: ByteBuffer) {
     }
 
     /**
-     * Writes a [Long] to the given position and sets the dirty flag to true.
+     * Writes a [Long] to the given position.
      *
      * @param index Position to write byte to.
      * @param value New [Long] value to write.
@@ -117,7 +128,7 @@ inline class Page(val data: ByteBuffer) {
     }
 
     /**
-     * Writes a [Float] to the given position and sets the dirty flag to true.
+     * Writes a [Float] to the given position.
      *
      * @param index Position to write byte to.
      * @param value New [Float] value to write.
@@ -129,7 +140,7 @@ inline class Page(val data: ByteBuffer) {
     }
 
     /**
-     * Writes a [Double] to the given position and sets the dirty flag to true.
+     * Writes a [Double] to the given position.
      *
      * @param index Position to write byte to.
      * @param value New [Double] value to write.

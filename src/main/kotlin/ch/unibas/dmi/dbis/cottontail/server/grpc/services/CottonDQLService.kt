@@ -28,6 +28,7 @@ class CottonDQLService (val catalogue: Catalogue, val engine: ExecutionEngine, v
     /**
      *  gRPC endpoint for handling simple queries.
      */
+    @ExperimentalStdlibApi
     override fun query(request: CottontailGrpc.QueryMessage, responseObserver: StreamObserver<CottontailGrpc.QueryResponseMessage>) = try {
         /* Start the query by giving the start signal. */
         val queryId = if (request.queryId == null || request.queryId == "") {
@@ -73,6 +74,7 @@ class CottonDQLService (val catalogue: Catalogue, val engine: ExecutionEngine, v
     /**
      *  gRPC endpoint for handling batched queries.
      */
+    @ExperimentalStdlibApi
     override fun batchedQuery(request: CottontailGrpc.BatchedQueryMessage, responseObserver: StreamObserver<CottontailGrpc.QueryResponseMessage>) = try {
         /* Start the query by giving the start signal. */
         val start = System.currentTimeMillis()
@@ -130,6 +132,7 @@ class CottonDQLService (val catalogue: Catalogue, val engine: ExecutionEngine, v
      * @param responseObserver [StreamObserver] used to send back the results.
      * @param index Optional index of the result (for batched queries).
      */
+    @ExperimentalStdlibApi
     private fun spoolResults(queryId: String, results: Recordset, responseObserver: StreamObserver<CottontailGrpc.QueryResponseMessage>, index: Int = 0) {
         if (results.rowCount > 0) {
             val startSending = System.currentTimeMillis()

@@ -4,6 +4,7 @@ import ch.unibas.dmi.dbis.cottontail.database.column.*
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.ValidationException
 import ch.unibas.dmi.dbis.cottontail.model.values.*
 import ch.unibas.dmi.dbis.cottontail.model.values.types.Value
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.serializer.Serializer
 import ch.unibas.dmi.dbis.cottontail.utilities.name.Match
 import ch.unibas.dmi.dbis.cottontail.utilities.name.Name
 
@@ -14,9 +15,12 @@ import java.util.*
  * A definition class for a Cottontail DB column be it in a DB or in-memory context.  Specifies all the properties of such a and facilitates validation.
  *
  * @author Ralph Gasser
- * @version 1.3
+ * @version 1.4
  */
 class ColumnDef<T : Value>(val name: Name, val type: ColumnType<T>, val size: Int = -1, val nullable: Boolean = true) {
+
+    /** [Serializer] for this [ColumnDef]. */
+    val serializer: Serializer<T> = this.type.serializer(this.size)
 
     /**
      * Companion object with some convenience methods.

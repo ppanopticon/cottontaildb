@@ -2,10 +2,12 @@ package ch.unibas.dmi.dbis.cottontail.storage.store.engine.hare
 
 import ch.unibas.dmi.dbis.cottontail.storage.basics.Units
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.BufferPool
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.Priority
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.PAGE_DATA_SIZE_BYTES
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DirectDiskManager
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page
 import org.junit.jupiter.api.*
+import org.junit.jupiter.api.Assertions.assertTrue
 
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -36,6 +38,20 @@ class BufferPoolTest {
         Files.delete(this.path)
     }
 
+    /**
+     * Appends [Page]s of random bytes and checks, if those [Page]s' content remains the same after reading.
+     */
+    @ExperimentalTime
+    @RepeatedTest(5)
+    fun testPageRetention() {
+        val data = this.initWithData(random.nextInt(65536))
+        val page = this.pool!!.get(1L, Priority.HIGH)
+        page.release()
+        for (i in 1L until data.size) {
+            assertTrue(page === this.pool!!.get(1L))
+            this.pool!!.get(i, Priority.DEFAULT).release()
+        }
+    }
 
     /**
      * Appends [Page]s of random bytes and checks, if those [Page]s' content remains the same after reading.
@@ -69,9 +85,8 @@ class BufferPoolTest {
 
             Assertions.assertEquals((i + 1L), page.id)
 
-            val stamp = page.retain(true)
-            page.putBytes(stamp, 0, newData[i])
-            page.release(stamp)
+            page.putBytes(0, newData[i])
+            page.release()
         }
         this.pool!!.flush()
 
@@ -90,11 +105,10 @@ class BufferPoolTest {
             readTime += measureTime {
                 page = this.pool!!.get((i + 1L))
             }
-            val stamp = page!!.retain(false)
 
-            Assertions.assertArrayEquals(ref[i], page!!.getBytes(stamp,0))
+            Assertions.assertArrayEquals(ref[i], page!!.getBytes(0))
             Assertions.assertEquals((i + 1L), page!!.id)
-            page!!.release(stamp)
+            page!!.release()
         }
         println("Reading ${this._manager!!.size `in` Units.MEGABYTE} took $readTime (${(this._manager!!.size `in` Units.MEGABYTE).value / readTime.inSeconds} MB/s).")
     }
@@ -113,9 +127,8 @@ class BufferPoolTest {
 
         for (i in data.indices) {
             val page = this.pool!!.append()
-            val stamp = page.retain(true)
-            page.putBytes(stamp, 0, data[i])
-            page.release(stamp)
+            page.putBytes(0, data[i])
+            page.release()
         }
 
         /** Flush data to disk. */

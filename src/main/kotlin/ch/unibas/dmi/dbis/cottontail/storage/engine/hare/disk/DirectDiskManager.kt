@@ -1,11 +1,15 @@
 package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk
 
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.DataCorruptionException
+import ch.unibas.dmi.dbis.cottontail.utilities.extensions.read
+import ch.unibas.dmi.dbis.cottontail.utilities.extensions.write
 import java.nio.channels.FileLock
 import java.nio.file.Path
+import kotlin.concurrent.read
+import kotlin.concurrent.write
 
 /**
- * The [DirectDiskManager] facilitates reading and writing of [Page]s from/to the underlying disk storage. Only one
+ * The [DirectDiskManager] facilitates reading and writing of [Page]s from/to the underlying HARE page file. Only one
  * [DiskManager] can be opened per HARE file and it acquires an exclusive [FileLock] once created.
  *
  * As opposed to other [DiskManager] implementations, the [DirectDiskManager] persistently writes all changes directly
@@ -14,14 +18,14 @@ import java.nio.file.Path
  *
  * @see DiskManager
  *
- * @version 1.0
+ * @version 1.1
  * @author Ralph Gasser
  */
 class DirectDiskManager(path: Path, lockTimeout: Long = 5000) : DiskManager(path, lockTimeout) {
     init {
         if (!this.header.isConsistent) {
             if (!this.validate()) {
-                throw DataCorruptionException("CRC32C checksum mismatch (expected:${this.calculateChecksum()}, found: ${this.header.checksum}}) for HARE file ${this.path.fileName}.")
+                throw DataCorruptionException("CRC32C checksum mismatch (file: ${this.path}, expected:${this.calculateChecksum()}, found: ${this.header.checksum}}).")
             }
         }
 
@@ -38,7 +42,10 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000) : DiskManager(path
      * @param page [Page] to fetch data into. Its content will be updated.
      */
     override fun read(id: PageId, page: Page) {
-        this.fileChannel.read(page.data.rewind(), this.pageIdToPosition(id))
+        this.closeLock.read {
+            check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to read data (file: ${this.path})." }
+            this.fileChannel.read(page.data.rewind(), this.pageIdToPosition(id))
+        }
     }
 
     /**
@@ -48,7 +55,10 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000) : DiskManager(path
      * @param page [Page] the data the [Page] should be updated with.
      */
     override fun update(id: PageId, page: Page) {
-        this.fileChannel.write(page.data.rewind(), this.pageIdToPosition(id))
+        this.closeLock.read {
+            check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to write data (file: ${this.path})." }
+            this.fileChannel.write(page.data.rewind(), this.pageIdToPosition(id))
+        }
     }
 
     /**
@@ -56,7 +66,8 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000) : DiskManager(path
      *
      * @param page [Page] to append. If empty, the allocated [Page] will be filled with zeros.
      */
-    override fun allocate(page: Page?): PageId {
+    override fun allocate(page: Page?): PageId = this.closeLock.read {
+        check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to write data (file: ${this.path})." }
         val newPageId = ++this.header.pages
         this.header.flush()
         this.fileChannel.write(page?.data?.rewind() ?: Page.EMPTY.data.rewind(), this.pageIdToPosition(newPageId))
@@ -68,7 +79,8 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000) : DiskManager(path
      *
      * @param id The [PageId] that should be freed.
      */
-    override fun free(id: PageId) {
+    override fun free(id: PageId) = this.closeLock.read {
+        check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to write data (file: ${this.path})." }
         TODO()
     }
 
@@ -89,12 +101,18 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000) : DiskManager(path
     /**
      * Closes this [DiskManager]. Will cause the [DiskManager.Header] to be finalized properly.
      */
-    override fun close() {
-        /* Update consistency information in the header. */
-        this.header.checksum = this.calculateChecksum()
-        this.header.isConsistent = true
-        this.header.flush()
+    override fun close() = this.closeLock.write {
+        if (this.isOpen) {
+            /* Update consistency information in the header. */
+            this.header.checksum = this.calculateChecksum()
+            this.header.isConsistent = true
+            this.header.flush()
 
-        super.close()
+            /* Close FileChannel and release file lock. */
+            if (this.fileChannel.isOpen) {
+                this.fileLock.release()
+                this.fileChannel.close()
+            }
+        }
     }
 }

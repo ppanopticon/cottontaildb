@@ -1,11 +1,11 @@
 package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.wal
 
 /**
- * Enumeration of write-ahead log actions as used by HARE.
+ * Enumeration of write-ahead log actions as used by [WALDiskManager] and [WriteAheadLog].
  *
  * @author Ralph Gasser
  * @version 1.0
  */
 enum class WALAction {
-    UPDATE, APPEND, FREE
+    APPEND, UPDATE, FREE
 }

@@ -21,7 +21,7 @@ import kotlin.math.max
  * @version 1.0
  * @author Ralph Gasser
  */
-inline class Page(val data: ByteBuffer) {
+inline class Page(internal val data: ByteBuffer) {
 
     /** Some constants related to [Page]s. */
     companion object {
@@ -30,7 +30,7 @@ inline class Page(val data: ByteBuffer) {
     }
 
     fun getBytes(index: Int, byteBuffer: ByteBuffer): ByteBuffer {
-        byteBuffer.put(this.data.position(index).limit(index + byteBuffer.remaining())).rewind()
+        byteBuffer.put(this.data.position(index).limit(index + byteBuffer.remaining()))
         this.data.clear()
         return byteBuffer
     }

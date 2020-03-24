@@ -16,6 +16,15 @@ object Constants {
     /** The number of bits to shift in order to get the page size (i.e. the N in 2^N) . */
     val PAGE_BIT_SHIFT = System.getProperty("cottontail.page.shift")?.toIntOrNull() ?: 12
 
-    /** The size of a [Page]. This value is constant.*/
+    /** The size of a [Page] as Int. This value is constant. */
     val PAGE_DATA_SIZE_BYTES = 1 shl PAGE_BIT_SHIFT
+
+    /** The size of a [Page] as Long. This value is constant. */
+    val PAGE_DATA_SIZE_BYTES_LONG = 1L shl PAGE_BIT_SHIFT
+
+    /** The modulo mask of a [Page] as Int. Can be used to find the offset into a [Page] given an absolute position. This value is constant. */
+    val PAGE_MOD_MASK = PAGE_DATA_SIZE_BYTES-1
+
+    /** The modulo mask of a [Page] as Long. Can be used to find the offset into a [Page] given an absolute position. This value is constant. */
+    val PAGE_MOD_MASK_LONG = PAGE_DATA_SIZE_BYTES-1L
 }

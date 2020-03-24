@@ -1,9 +1,8 @@
-package ch.unibas.dmi.dbis.cottontail.storage.store.engine.hare
+package ch.unibas.dmi.dbis.cottontail.storage.store.engine.hare.disk
 
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.PAGE_DATA_SIZE_BYTES
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page
 import org.junit.jupiter.api.RepeatedTest
-import org.junit.jupiter.api.Test
 
 import org.junit.jupiter.api.Assertions.*
 

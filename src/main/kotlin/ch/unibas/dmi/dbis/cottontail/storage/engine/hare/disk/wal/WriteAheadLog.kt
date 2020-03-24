@@ -24,7 +24,6 @@ import java.util.zip.CRC32C
  */
 open class WriteAheadLog(val path: Path, val lockTimeout: Long = 5000L, private var pageIdStart: Long = 0L) : AutoCloseable {
 
-
     companion object {
         private const val WAL_ACTION_SIZE_BYTES = 4
         private const val WAL_PAGEID_SIZE_BYTES = 8

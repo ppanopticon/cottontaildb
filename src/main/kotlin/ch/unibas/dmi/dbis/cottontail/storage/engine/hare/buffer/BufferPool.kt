@@ -1,22 +1,21 @@
 package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer
 
 import ch.unibas.dmi.dbis.cottontail.storage.basics.MemorySize
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.Resource
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.PAGE_DATA_SIZE_BYTES
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DirectDiskManager
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DiskManager
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.PageId
-import ch.unibas.dmi.dbis.cottontail.utilities.extensions.convertWriteLock
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.read
-import io.netty.buffer.ByteBuf
+import ch.unibas.dmi.dbis.cottontail.utilities.extensions.write
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap
 
 import java.nio.ByteBuffer
 import java.util.*
-import java.util.concurrent.ConcurrentSkipListSet
 import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.locks.ReentrantReadWriteLock
 import java.util.concurrent.locks.StampedLock
 
 /**
@@ -25,10 +24,10 @@ import java.util.concurrent.locks.StampedLock
  *
  * @see DirectDiskManager
  *
- * @version 1.0
+ * @version 1.1
  * @author Ralph Gasser
  */
-class BufferPool(val disk: DiskManager, private val policy: EvictionPolicy = DefaultEvictionPolicy, val size: Int = 100) {
+class BufferPool(private val disk: DiskManager, private val policy: EvictionPolicy = DefaultEvictionPolicy, private val size: Int = 100): Resource {
 
     /** Allocates direct memory as [ByteBuffer] that is used to buffer [Page]s. This is not counted towards the heap used by the JVM! */
     private val buffer = ByteBuffer.allocateDirect(this.size * PAGE_DATA_SIZE_BYTES)
@@ -39,7 +38,7 @@ class BufferPool(val disk: DiskManager, private val policy: EvictionPolicy = Def
     }
 
     /** Array of [StampedLock]s that are being held. */
-    private val pins = Array(this.size) { AtomicInteger(0) }
+    private val pins = IntArray(this.size)
 
     /** The internal directory that maps [PageId]s to [PageRef]s.*/
     private val pageDirectory = Long2ObjectOpenHashMap<PageRef>()
@@ -50,9 +49,27 @@ class BufferPool(val disk: DiskManager, private val policy: EvictionPolicy = Def
     /** An internal lock that mediates access to the [BufferPool.pageDirectory]. */
     private val directoryLock = StampedLock()
 
-    /** The amount of memory used by this [BufferPool]. */
-    val memoryUsage
+    /** A [ReentrantReadWriteLock] that mediates access to the closed state of this [BufferPool]. */
+    private val closeLock = StampedLock()
+
+    /** Return true if this [DiskManager] and thus this [BufferPool] is still open. */
+    override val isOpen: Boolean
+        get() = this.disk.isOpen
+
+    /** Physical size of the HARE page file underpinning this [BufferPool]. */
+    val diskSize = this.disk.size
+
+    /** The amount of memory used by this [BufferPool] to buffer [PageRef]s. */
+    val memorySize
         get() = MemorySize((this.size * PAGE_DATA_SIZE_BYTES).toDouble())
+
+    /** Returns the total number of buffered [Page]s. */
+    val bufferedPages
+        get() = this.pageDirectory.size
+
+    /** Returns the total number of [Page]s stored in the HARE Page file underpinning this [BufferPool]. */
+    val totalPages
+        get() = this.disk.pages
 
     init {
         for (i in 0 until this.size) {
@@ -69,11 +86,12 @@ class BufferPool(val disk: DiskManager, private val policy: EvictionPolicy = Def
      * @param priority A [Priority] hint for the new [PageRef]. Acts as a hint to the [EvictionPolicy].
      * @return [PageRef] for the requested [Page]
      */
-    fun get(pageId: PageId, priority: Priority = Priority.DEFAULT): PageRef {
-        var stamp = this.directoryLock.readLock() /* Acquire non-exclusive lock. */
+    fun get(pageId: PageId, priority: Priority = Priority.DEFAULT): PageRef = this.closeLock.read {
+        check(this.disk.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
+        var directoryStamp = this.directoryLock.readLock()  /* Acquire non-exclusive lock to close lock.  */
         try {
             val ref = this.pageDirectory.getOrElse(pageId) {
-                stamp = this.directoryLock.tryConvertToWriteLock(stamp) /* Upgrade to exclusive lock */
+                directoryStamp = this.directoryLock.tryConvertToWriteLock(directoryStamp) /* Upgrade to exclusive lock */
                 val oldRef = freePage()
 
                 /* Now read page from disk. */
@@ -87,12 +105,12 @@ class BufferPool(val disk: DiskManager, private val policy: EvictionPolicy = Def
 
             /* Increment retention counter for new PageRef. */
             synchronized(this.pins[ref.pointer]) {
-                this.pins[ref.pointer].incrementAndGet()
+                this.pins[ref.pointer] += 1
                 ref.touch()
             }
             return ref
         } finally {
-            this.directoryLock.unlock(stamp)
+            this.directoryLock.unlock(directoryStamp)
         }
     }
 
@@ -102,9 +120,9 @@ class BufferPool(val disk: DiskManager, private val policy: EvictionPolicy = Def
      * @param priority A [Priority] hint for the new [PageRef]. Acts as a hint to the [EvictionPolicy].
      * @return [PageRef] for the appended [Page]
      */
-    fun append(priority: Priority = Priority.DEFAULT): PageRef {
-        val stamp = this.directoryLock.writeLock() /* Acquire exclusive lock. */
-        try {
+    fun append(priority: Priority = Priority.DEFAULT): PageRef = this.closeLock.read {
+        check(this.disk.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
+        this.directoryLock.write {
             /* Get next free page object. */
             val oldRef = freePage()
 
@@ -118,12 +136,10 @@ class BufferPool(val disk: DiskManager, private val policy: EvictionPolicy = Def
 
             /* Increment retention counter for new PageRef. */
             synchronized(this.pins[ref.pointer]) {
-                this.pins[ref.pointer].incrementAndGet()
+                this.pins[ref.pointer] += 1
                 ref.touch()
             }
             return ref
-        } finally {
-            this.directoryLock.unlock(stamp)
         }
     }
 
@@ -131,23 +147,36 @@ class BufferPool(val disk: DiskManager, private val policy: EvictionPolicy = Def
      * Flushes all dirty [PageRef]s to disk and resets their dirty flag. This method should be used
      * with care, since it will cause all [Page]s to be written to disk.
      */
-    fun flush() = this.directoryLock.read {
-        for (p in this.pageDirectory.values) {
-            if (p.dirty) {
-                this.disk.update(p.id, this.pages[p.pointer])
+    fun flush() = this.closeLock.read {
+        check(this.disk.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
+        this.directoryLock.read {
+            for (p in this.pageDirectory.values) {
+                if (p.dirty) {
+                    this.disk.update(p.id, this.pages[p.pointer])
+                }
             }
         }
     }
 
     /**
-     * Resets all dirty [PageRef]s to their state as stored on disk thus resetting their dirty flag. This
-     * method should be used with care, since it will cause all [Page]s to be read from disk.
+     * Synchronizes all dirty [PageRef]s with the version on disk thus resetting their dirty flag.
+     * This method should be used with care, since it will cause all [Page]s to be read from disk.
      */
-    fun reset() = this.directoryLock.read {
-        for (p in this.pageDirectory.values) {
-            if (p.dirty) {
-                this.disk.read(p.id, this.pages[p.pointer])
+    fun synchronize() = this.closeLock.read {
+        check(this.disk.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
+        this.directoryLock.read {
+            for (p in this.pageDirectory.values) {
+                if (p.dirty) {
+                    this.disk.read(p.id, this.pages[p.pointer])
+                }
             }
+        }
+    }
+
+    /** Closes this [BufferPool] and the underlying [DiskManager]. */
+    override fun close() = this.closeLock.write {
+        if (this.isOpen) {
+            this.disk.close()
         }
     }
 
@@ -162,7 +191,7 @@ class BufferPool(val disk: DiskManager, private val policy: EvictionPolicy = Def
             val pageRef = this.referenceQueue.poll()
             if (pageRef != null) {
                 synchronized(this.pins[pageRef.pointer]) {
-                    if (this.pins[pageRef.pointer].get() > 0) {
+                    if (this.pins[pageRef.pointer] > 0) {
                         pageRef.touch()
                         this.referenceQueue.offer(pageRef)
                     } else {
@@ -170,8 +199,9 @@ class BufferPool(val disk: DiskManager, private val policy: EvictionPolicy = Def
                         this.pageDirectory.remove(pageRef.id)
                     }
                 }
+
                 /* ... and write page to disk if it's dirty. */
-                if (this.pins[pageRef.pointer].get() == 0) {
+                if (this.pins[pageRef.pointer] == 0) {
                     if (pageRef.dirty) {
                         this.disk.update(pageRef.id, this.pages[pageRef.pointer])
                     }
@@ -181,7 +211,7 @@ class BufferPool(val disk: DiskManager, private val policy: EvictionPolicy = Def
             Thread.onSpinWait()
         } while (true)
     }
-    
+
     /**
      * A reference to a [Page] held by this [BufferPool]. These references are exposed to the upper
      * layers of the storage engine and access to a [Page] is only possible through such a [PageRef]
@@ -287,11 +317,11 @@ class BufferPool(val disk: DiskManager, private val policy: EvictionPolicy = Def
         }
 
         /**
-         *
+         * Releases this [PageRef]. Using a [Resource] after releasing it is unsafe and can cause problems.
          */
         fun release() {
             synchronized(this@BufferPool.pins[this.pointer]) {
-                this@BufferPool.pins[this.pointer].decrementAndGet()
+                this@BufferPool.pins[this.pointer] -= 1
             }
         }
     }

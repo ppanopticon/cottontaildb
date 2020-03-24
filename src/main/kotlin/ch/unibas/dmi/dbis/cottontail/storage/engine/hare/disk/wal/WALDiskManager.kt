@@ -1,11 +1,9 @@
 package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.wal
 
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.DataCorruptionException
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.PageIdOutOfBoundException
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DiskManager
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.PageId
-import ch.unibas.dmi.dbis.cottontail.utilities.extensions.optimisticRead
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.read
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.write
 import java.nio.channels.FileChannel
@@ -13,6 +11,8 @@ import java.nio.channels.FileLock
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.locks.StampedLock
+import kotlin.concurrent.read
+import kotlin.concurrent.write
 
 /**
  * The [WALDiskManager] facilitates reading and writing of [Page]s from/to the underlying disk storage. Only one
@@ -24,7 +24,7 @@ import java.util.concurrent.locks.StampedLock
  *
  * @see DiskManager
  *
- * @version 1.0
+ * @version 1.1
  * @author Ralph Gasser
  */
 class WALDiskManager(path: Path, lockTimeout: Long = 5000) : DiskManager(path, lockTimeout) {
@@ -34,7 +34,7 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000) : DiskManager(path, l
     private var wal: WriteAheadLog? = null
 
     /** A [StampedLock] to mediate access to [WriteAheadLog]. */
-    private val lock = StampedLock()
+    private val writeAheadLock = StampedLock()
 
     init {
         if (!this.header.isConsistent) {
@@ -47,34 +47,42 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000) : DiskManager(path, l
         }
     }
 
-    override fun read(id: PageId, page: Page): Unit = this.lock.optimisticRead {
-        this.fileChannel.read(page.data.rewind(), this.pageIdToPosition(id))
-    }
-
-    override fun update(id: PageId, page: Page): Unit = this.lock.optimisticRead {
-        withWAL { wal ->
-            if (id > wal.maxPageId || id < 1) throw PageIdOutOfBoundException(id, this)
-            wal.append(action = WALAction.UPDATE, id = id, page = page)
+    override fun read(id: PageId, page: Page) {
+        this.closeLock.read {
+            check(this.fileChannel.isOpen) { "FileChannel for this HARE page file {${this.path}} was closed and cannot be used to access data (file: ${this.path})." }
+            this.fileChannel.read(page.data.rewind(), this.pageIdToPosition(id))
         }
     }
 
-    override fun allocate(page: Page?): PageId = this.lock.read {
-        withWAL { wal ->
-            wal.append(action = WALAction.APPEND, page = page)
-            wal.maxPageId
+    override fun update(id: PageId, page: Page) = sharedWAL {
+        if (this.wal == null) {
+            this.initializeWAL()
         }
+        require(id <= this.wal!!.maxPageId && id >= 1) { "The given page ID $id is out of bounds for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
+        this.wal!!.append(action = WALAction.UPDATE, id = id, page = page)
     }
 
-    override fun free(id: PageId) = this.lock.read {
-        withWAL { wal ->
-            wal.append(action = WALAction.FREE, id = id)
+
+    override fun allocate(page: Page?): PageId = sharedWAL {
+        if (this.wal == null) {
+            this.initializeWAL()
         }
+        this.wal!!.append(action = WALAction.APPEND, page = page)
+        this.wal!!.maxPageId
+    }
+
+    override fun free(id: PageId) = sharedWAL {
+        if (this.wal == null) {
+            this.initializeWAL()
+        }
+        require(id <= this.wal!!.maxPageId && id >= 1) { "The given page ID $id is out of bounds for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
+        this.wal!!.append(action = WALAction.FREE, id = id)
     }
 
     /**
      * Performs a commit of all pending changes by replaying the [WriteAheadLog] file.
      */
-    override fun commit(): Unit = this.lock.write {
+    override fun commit(): Unit = exclusiveWAL {
         if (this.wal != null) {
             this.wal!!.replay { action, id, b ->
                 when (action) {
@@ -107,7 +115,7 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000) : DiskManager(path, l
     /**
      * Performs a rollback of all pending changes by discarding the [WriteAheadLog] file.
      */
-    override fun rollback() = this.lock.write {
+    override fun rollback() = exclusiveWAL {
         if (this.wal != null) {
             /* Update file header. */
             this.header.isConsistent = true
@@ -121,8 +129,9 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000) : DiskManager(path, l
     }
 
     /**
-     * Deletes the HARE file backing this [WALDiskManager] and associated [WriteAheadLog] files. Calling this
-     * method also closes the associated [FileChannel]s.
+     * Deletes the HARE page file backing this [WALDiskManager] and associated [WriteAheadLog] files.
+     *
+     * Calling this method also closes the associated [FileChannel]s.
      */
     override fun delete() {
         super.delete()
@@ -130,17 +139,60 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000) : DiskManager(path, l
     }
 
     /**
+     * Closes the HARE page file backing this [WALDiskManager] and associated [WriteAheadLog] files.
+     */
+    override fun close() = this.closeLock.write {
+        if (this.isOpen) {
+            /* Close WAL. */
+            this.wal?.close()
+
+            /* Close FileChannel and release file lock. */
+            if (this.fileChannel.isOpen) {
+                this.fileLock.release()
+                this.fileChannel.close()
+            }
+        }
+    }
+
+    /**
+     * Initializes a new [WriteAheadLog] for this [WALDiskManager].
+     */
+    private fun initializeWAL() {
+        this.wal = WriteAheadLog(this.path.parent.resolve("${this.path.fileName}.wal"), this.lockTimeout, this.pages)
+        this.header.isConsistent = false
+        this.header.flush()
+    }
+
+    /**
      * This function makes sure, that the [WriteAheadLog] exists for ever write action.
      *
      * @param action The action that should be executed with the local [WriteAheadLog].
      */
-    private inline fun <R> withWAL(action: (WriteAheadLog) -> R) : R {
-        check(this.fileChannel.isOpen) { "DiskManager for {${this.path}} was closed and cannot be used to access data." }
-        if (this.wal == null) {
-            this.wal = WriteAheadLog(this.path.parent.resolve("${this.path.fileName}.wal"), this.lockTimeout, this.pages)
-            this.header.isConsistent = false
-            this.header.flush()
+    private inline fun <R> sharedWAL(action: () -> R) : R {
+        this.closeLock.read {
+            check(this.fileChannel.isOpen) { "FileChannel for this HARE page file {${this.path}} was closed and cannot be used to write data (file: ${this.path})." }
+            this.writeAheadLock.read {
+                if (this.wal == null) {
+                    this.wal = WriteAheadLog(this.path.parent.resolve("${this.path.fileName}.wal"), this.lockTimeout, this.pages)
+                    this.header.isConsistent = false
+                    this.header.flush()
+                }
+                return action()
+            }
         }
-        return action(this.wal!!)
+    }
+
+    /**
+     * This function makes sure, that the [WriteAheadLog] exists for ever write action.
+     *
+     * @param action The action that should be executed with the local [WriteAheadLog].
+     */
+    private inline fun <R> exclusiveWAL(action: () -> R) : R {
+        this.closeLock.read {
+            check(this.fileChannel.isOpen) { "FileChannel for this HARE page file {${this.path}} was closed and cannot be used to write data (file: ${this.path})." }
+            this.writeAheadLock.write {
+                return action()
+            }
+        }
     }
 }

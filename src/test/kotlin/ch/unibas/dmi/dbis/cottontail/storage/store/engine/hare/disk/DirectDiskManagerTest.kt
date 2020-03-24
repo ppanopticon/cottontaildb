@@ -1,42 +1,49 @@
-package ch.unibas.dmi.dbis.cottontail.storage.store.engine.hare
+package ch.unibas.dmi.dbis.cottontail.storage.store.engine.hare.disk
 
 import ch.unibas.dmi.dbis.cottontail.storage.basics.Units
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.*
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.PAGE_DATA_SIZE_BYTES
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DirectDiskManager
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.wal.WALDiskManager
-import org.junit.jupiter.api.*
 
-import java.nio.ByteBuffer
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
+
 import java.nio.file.Paths
+import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.RepeatedTest
+import java.nio.ByteBuffer
+import java.nio.file.Files
 import java.util.*
-
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
 import kotlin.time.measureTime
 
-class WALDiskManagerTest {
-    val path = Paths.get("./test-wal-diskmgr-db.hare")
+class DirectDiskManagerTest {
+    val path = Paths.get("./test-direct-diskmgr-db.hare")
 
-    var manager: WALDiskManager? = null
+    var manager: DirectDiskManager? = null
 
     val random = SplittableRandom(System.currentTimeMillis())
 
     @BeforeEach
     fun beforeEach() {
-        this.manager = WALDiskManager(this.path)
+        DiskManager.create(this.path)
+        this.manager = DirectDiskManager(path = this.path)
+        assertEquals(PAGE_DATA_SIZE_BYTES.toDouble(), this.manager!!.size.value)
     }
 
     @AfterEach
     fun afterEach() {
-        this.manager!!.delete()
+        this.manager!!.close()
+        Files.delete(this.path)
     }
 
     @Test
     fun testCreationAndLoading() {
-        Assertions.assertEquals(this.path, this.manager!!.path)
-        Assertions.assertEquals(0, this.manager!!.pages)
-        Assertions.assertEquals(PAGE_DATA_SIZE_BYTES, this.manager!!.size.value.toInt())
+        assertEquals(this.path, this.manager!!.path)
+        assertEquals(0, this.manager!!.pages)
+        assertEquals(PAGE_DATA_SIZE_BYTES, this.manager!!.size.value.toInt())
+        assertTrue(this.manager!!.validate())
     }
 
     /**
@@ -61,7 +68,8 @@ class WALDiskManagerTest {
 
         /** Close and re-open this DiskManager. */
         this.manager!!.close()
-        this.manager = WALDiskManager(this.path)
+        this.manager = DirectDiskManager(this.path)
+        assertTrue(this.manager!!.validate())
 
         /* Check if data remains the same. */
         this.compareData(data)
@@ -72,7 +80,7 @@ class WALDiskManagerTest {
      */
     @ExperimentalTime
     @RepeatedTest(5)
-    fun testUpdateWithCommit() {
+    fun testUpdatePage() {
         val page = Page(ByteBuffer.allocateDirect(PAGE_DATA_SIZE_BYTES))
         val data = this.initWithData(random.nextInt(65536))
 
@@ -85,49 +93,13 @@ class WALDiskManagerTest {
         /* Update data with new data. */
         for (i in newData.indices) {
             this.manager!!.read((i + 1L), page)
-
             page.putBytes(0, newData[i])
-
             this.manager!!.update((i + 1L), page)
-            Assertions.assertArrayEquals(newData[i], page.getBytes(0))
+            assertArrayEquals(newData[i], page.getBytes(0))
         }
-
-        this.manager!!.commit()
 
         /* Check if data remains the same. */
         this.compareData(newData)
-    }
-
-    /**
-     * Appends [Page]s of random bytes and checks, if those [Page]s' content remains the same after reading.
-     */
-    @ExperimentalTime
-    @RepeatedTest(5)
-    fun testUpadateWithRollback() {
-        val page = Page(ByteBuffer.allocateDirect(PAGE_DATA_SIZE_BYTES))
-        val data = this.initWithData(random.nextInt(65536))
-
-        val newData = Array(data.size) {
-            val bytes = ByteArray(PAGE_DATA_SIZE_BYTES)
-            random.nextBytes(bytes)
-            bytes
-        }
-
-        /* Update data with new data. */
-        for (i in newData.indices) {
-            this.manager!!.read((i + 1L), page)
-
-
-            page.putBytes(0, newData[i])
-
-            this.manager!!.update((i + 1L), page)
-            Assertions.assertArrayEquals(newData[i], page.getBytes(0))
-        }
-
-        this.manager!!.rollback()
-
-        /* Check if data remains the same. */
-        this.compareData(data)
     }
 
     /**
@@ -141,7 +113,7 @@ class WALDiskManagerTest {
             readTime += measureTime {
                 this.manager!!.read((i + 1L), page)
             }
-            Assertions.assertArrayEquals(ref[i], page.getBytes(0))
+            assertArrayEquals(ref[i], page.getBytes(0))
         }
         println("Reading ${this.manager!!.size `in` Units.MEGABYTE} took $readTime (${(this.manager!!.size `in` Units.MEGABYTE).value / readTime.inSeconds} MB/s).")
     }
@@ -155,7 +127,6 @@ class WALDiskManagerTest {
     private fun initWithData(size: Int) : Array<ByteArray> {
         val page = Page(ByteBuffer.allocateDirect(PAGE_DATA_SIZE_BYTES))
         var writeTime = Duration.ZERO
-
         val data = Array(size) {
             val bytes = ByteArray(PAGE_DATA_SIZE_BYTES)
             random.nextBytes(bytes)
@@ -164,16 +135,13 @@ class WALDiskManagerTest {
 
         for (i in data.indices) {
             page.putBytes(0, data[i])
+
             writeTime += measureTime {
                 this.manager!!.allocate(page)
             }
+            assertEquals(this.manager!!.pages, i+1L)
+            assertEquals(((i+2)*PAGE_DATA_SIZE_BYTES).toDouble(), this.manager!!.size.value)
         }
-
-        /* Commit changes. */
-        writeTime += measureTime {
-            this.manager!!.commit()
-        }
-
         println("Writing ${this.manager!!.size `in` Units.MEGABYTE} took $writeTime (${(this.manager!!.size `in` Units.MEGABYTE).value / writeTime.inSeconds} MB/s).")
 
         return data

@@ -18,59 +18,24 @@ import java.nio.channels.SeekableByteChannel
  * @author Ralph Gasser
  * @version 1.0
  */
-interface ByteCursor : ByteChannel {
-
-    /** Size of an individual entry in bytes */
-    val entrySize: Int
+interface ByteCursor : ByteChannel, Iterator<TupleId> {
 
     /** The maximum [TupleId] supported by this [ByteCursor]. */
     val maximum: TupleId
 
-    /** Returns the [TupleId] this [ByteCursor] is currently pointing to. */
     fun tupleId(): TupleId
 
-    /**
-     * Sets the [TupleId] this [ByteCursor] is currently pointing to. Setting its value beyond
-     * [ByteCursor.maximum] will cause a [IndexOutOfBoundsException] to be thrown.
-     *
-     * @param new New [TupleId] this [ByteCursor] should be pointing to.
-     * @throws IndexOutOfBoundsException If [new] > [ByteCursor.maximum]
-     */
     fun tupleId(new: TupleId)
 
     /**
      * Moves this [ByteCursor] to the next [TupleId]. Returns true on success and false, if this
      * [ByteCursor] doesn't support a next [TupleId]
      */
-    fun next(): Boolean
-
-    /**
-     * Moves this [ByteCursor] to the next [TupleId]. Returns true on success and false, if this
-     * [ByteCursor] doesn't support a next [TupleId]
-     */
-    fun previous(): Boolean
+    fun previous(): TupleId
 
     /**
      * Appends a new entry to this [ByteCursor] effectively increasing [ByteCursor.maximum]. After
      * invocation of this method, [ByteCursor.position] should be equal to [ByteCursor.maximum]
      */
     fun append()
-
-    /**
-     * Absolute position of the [ByteCursor] in bytes relative to the beginning of the data structure
-     * that is addressed by [ByteCursor]
-     *
-     * @return Absolute position of the [ByteCursor] in bytes
-     */
-    fun position(): Long
-
-    /**
-     * Number of bytes that are remaining for read/write WITHIN the entry addressed by [ByteCursor.tupleId]
-     *
-     * @return Number of bytes that remaining for read/write
-     */
-    fun remaining(): Long
-
-    /** Resets the internal position to the start of the entry reference by [ByteCursor.tupleId]. */
-    fun reset()
 }

@@ -5,6 +5,7 @@ import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.BufferPool
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.Priority
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.PAGE_DATA_SIZE_BYTES
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DirectDiskManager
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DiskManager
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -28,13 +29,14 @@ class BufferPoolTest {
 
     @BeforeEach
     fun beforeEach() {
+        DiskManager.create(this.path)
         this._manager = DirectDiskManager(this.path)
         this.pool = BufferPool(this._manager!!)
     }
 
     @AfterEach
     fun afterEach() {
-        this._manager!!.close()
+        this.pool!!.close()
         Files.delete(this.path)
     }
 

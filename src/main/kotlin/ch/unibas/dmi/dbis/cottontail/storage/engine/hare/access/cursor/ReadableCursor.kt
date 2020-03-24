@@ -6,21 +6,24 @@ import ch.unibas.dmi.dbis.cottontail.model.values.types.Value
  *
  */
 interface ReadableCursor<T : Value> : AutoCloseable {
-    /** Current position of this [ReadableCursor]. */
-    var position: TupleId
+
 
     /** Maximum [TupleId] that can be reached through this [ReadableCursor]. */
     val maximum: TupleId
 
+    fun tupleId(): TupleId
+
+    fun tupleId(new: TupleId)
+
     /**
      * Moves this [ReadableCursor] to the next position.
      */
-    fun next(): Boolean
+    fun next(): TupleId
 
     /**
      * Moves this [ReadableCursor] to the previous position.
      */
-    fun previous(): Boolean
+    fun previous(): TupleId
 
     /**
      * Returns a boolean indicating whether the entry the the current [ReadableCursor] position is null

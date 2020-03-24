@@ -5,9 +5,8 @@ import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.model.values.DoubleValue
 import ch.unibas.dmi.dbis.cottontail.storage.basics.MemorySize
 import ch.unibas.dmi.dbis.cottontail.storage.basics.Units
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.column.HareColumn
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.column.FixedHareColumn
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.BufferPool
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DirectDiskManager
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page
 import ch.unibas.dmi.dbis.cottontail.utilities.name.Name
@@ -25,26 +24,21 @@ import kotlin.time.measureTime
 class HareDoubleCursorTest {
     val path = Paths.get("./test-cursor-db.hare")
 
-    var _manager: DirectDiskManager? = null
-
-    var _pool: BufferPool? = null
-
     var columnDef = ColumnDef(Name("test"), DoubleColumnType)
 
-    var hare: HareColumn<DoubleValue>? = null
+    var hare: FixedHareColumn<DoubleValue>? = null
 
     val random = SplittableRandom(System.currentTimeMillis())
 
     @BeforeEach
     fun beforeEach() {
-        this._manager = DirectDiskManager(this.path)
-        this._pool = BufferPool(this._manager!!)
-        this.hare = HareColumn(this._pool!!, columnDef)
+        FixedHareColumn.createDirect(this.path, this.columnDef)
+        this.hare = FixedHareColumn(this.path, false)
     }
 
     @AfterEach
     fun afterEach() {
-        this._manager!!.close()
+        this.hare!!.close()
         Files.delete(this.path)
     }
 

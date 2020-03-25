@@ -4,12 +4,7 @@ import ch.unibas.dmi.dbis.cottontail.storage.basics.MemorySize
 import ch.unibas.dmi.dbis.cottontail.storage.basics.Units
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.DataCorruptionException
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.Resource
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.FILE_HEADER_IDENTIFIER
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.FILE_HEADER_VERSION
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.FILE_SANITY_CHECK
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.FILE_CONSISTENCY_OK
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.PAGE_BIT_SHIFT
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.PAGE_DATA_SIZE_BYTES
+
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.channels.FileLock
@@ -19,7 +14,6 @@ import java.nio.file.StandardOpenOption
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import java.util.concurrent.locks.StampedLock
 import java.util.zip.CRC32C
-import kotlin.concurrent.write
 
 /**
  * The [DiskManager] facilitates reading and writing of [Page]s from/to the underlying HARE page file
@@ -29,27 +23,40 @@ import kotlin.concurrent.write
  * @version 1.1
  * @author Ralph Gasser
  */
-abstract class DiskManager(val path: Path, val lockTimeout: Long) : Resource {
+abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resource {
 
     companion object {
+        /** Identifier of every HARE file. */
+        val FILE_HEADER_IDENTIFIER = charArrayOf('H', 'A', 'R', 'E')
+
+        /** Version of the HARE file. */
+        const val FILE_HEADER_VERSION = 1.toByte()
+
+        /** Flag for when the file's consistency can be considered OK. Exact semantic depends on [DiskManager] implementation.  */
+        const val FILE_CONSISTENCY_OK = 0.toByte()
+
+        /** Flag for when the file's consistency must be checked. Exact semantic depends on [DiskManager] implementation.  */
+        const val FILE_SANITY_CHECK = 1.toByte()
+
         /**
          * Creates a new page file in the HARE format.
          *
          * @param path [Path] under which to create the page file.
          */
-        fun create(path: Path) {
+        fun create(path: Path, pageShift: Int = 18) {
             /* Prepare header data for page file in the HARE format. */
-            val data: ByteBuffer = ByteBuffer.allocateDirect(PAGE_DATA_SIZE_BYTES)
+            val data: ByteBuffer = ByteBuffer.allocateDirect(1 shl pageShift)
             data.putChar(FILE_HEADER_IDENTIFIER[0])             /* 0: Identifier H. */
             data.putChar(FILE_HEADER_IDENTIFIER[1])             /* 2: Identifier A. */
             data.putChar(FILE_HEADER_IDENTIFIER[2])             /* 4: Identifier R. */
             data.putChar(FILE_HEADER_IDENTIFIER[3])             /* 6: Identifier E. */
             data.putInt(FileType.DEFAULT.ordinal)               /* 8: Type of HARE file. */
             data.put(FILE_HEADER_VERSION)                       /* 12: Version of the HARE format. */
-            data.put(FILE_CONSISTENCY_OK)                       /* 13: Sanity byte; exact semantic depends on implementation. */
-            data.putLong(0L)                              /* 14: Page counter; number of pages. */
-            data.putInt(0)                                /* 22: Page counter; number of freed pages. */
-            data.putLong(0L)                              /* 26: CRC32 checksum for HARE file. */
+            data.putInt(pageShift)                              /* 13: Size of a HARE page. Indicated as bit shift. */
+            data.put(FILE_CONSISTENCY_OK)                       /* 17: Sanity byte; exact semantic depends on implementation. */
+            data.putLong(0L)                              /* 18: Page counter; number of pages. */
+            data.putInt(0)                                /* 26: Page counter; number of freed pages. */
+            data.putLong(0L)                              /* 30: CRC32 checksum for HARE file. */
 
             /** Write data to file and close. */
             val channel = FileChannel.open(path, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW, StandardOpenOption.SYNC, StandardOpenOption.SPARSE)
@@ -57,8 +64,6 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long) : Resource {
             channel.close()
         }
     }
-
-
 
     /** The [FileChannel] used to access the file managed by this [DiskManager]. */
     protected val fileChannel: FileChannel = FileChannel.open(this.path, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.DSYNC, StandardOpenOption.SPARSE)
@@ -72,13 +77,21 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long) : Resource {
     /** A [ReentrantReadWriteLock] that mediates access to the closed state of this [DiskManager]. */
     protected val closeLock = StampedLock()
 
-    /** Returns the size of the HARE page file managed by this [DiskManager]. */
-    val size
-        get() = MemorySize(this.fileChannel.size().toDouble(), Units.BYTE)
+    /** The bit shift used to determine the [Page] size of the page file managed by this [DiskManager]. */
+    val pageShift
+        get() = this.header.pageShift
+
+    /** The [Page] size of the page file managed by this [DiskManager]. */
+    val pageSize
+        get() = this.header.pageSize
 
     /** Number of [Page]s held by the HARE page file managed by this [DiskManager]. */
     val pages
         get() = this.header.pages
+
+    /** Returns the size of the HARE page file managed by this [DiskManager]. */
+    val size
+        get() = MemorySize(this.fileChannel.size().toDouble(), Units.BYTE)
 
     /** Return true if this [FileChannel] and thus this [DiskManager] is still open. */
     override val isOpen
@@ -91,6 +104,14 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long) : Resource {
      * @param page [Page] to fetch data into. Its content will be updated.
      */
     abstract fun read(id: PageId, page: Page)
+
+    /**
+     * Fetches the data starting from the given [PageId] into the given [Page] objects thereby replacing the content of those [Page].
+     *
+     * @param startId [PageId] to start fetching
+     * @param pages [Page]s to fetch data into. Their content will be updated.
+     */
+    abstract fun read(startId: PageId, pages: Array<Page>)
 
     /**
      * Updates the [Page] identified by the given [PageId] in the HARE file managed by this [DiskManager].
@@ -139,7 +160,7 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long) : Resource {
      * @return [CRC32C] object for this [DiskManager]
      */
     fun calculateChecksum(): Long {
-        val page = Page(ByteBuffer.allocateDirect(PAGE_DATA_SIZE_BYTES))
+        val page = Page(ByteBuffer.allocateDirect(this.header.pageShift))
         val crc32 = CRC32C()
         for (i in 1..this.pages) {
             this.fileChannel.read(page.data.rewind(), this.pageIdToPosition(i))
@@ -164,7 +185,7 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long) : Resource {
      */
     protected fun pageIdToPosition(pageId: PageId): Long {
         require(pageId <= this.header.pages && pageId >= 1) { "The given page ID $pageId is out of bounds for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
-        return pageId shl PAGE_BIT_SHIFT
+        return pageId shl this.header.pageShift
     }
 
     /**
@@ -174,8 +195,8 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long) : Resource {
      * @author Ralph Gasser
      */
     protected inner class Header {
-        /** A fixed 4096 byte [ByteBuffer] used to provide access to the header of this HARE file managed by this [DiskManager]. */
-        val buffer: ByteBuffer = ByteBuffer.allocateDirect(PAGE_DATA_SIZE_BYTES)
+        /** A fixed [ByteBuffer] used to provide access to the header of this HARE file managed by this [DiskManager]. */
+        val buffer: ByteBuffer = ByteBuffer.allocate(1 shl ByteBuffer.allocate(4).also { this@DiskManager.fileChannel.read(it, 13) }.getInt(0))
 
         init {
             /* Read the file header. */
@@ -183,53 +204,54 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long) : Resource {
             this.buffer.rewind()
 
             /** Make necessary check on startup. */
-            require(this.buffer.char == FILE_HEADER_IDENTIFIER[0]) { DataCorruptionException("HARE identifier missing in HARE page file ${this@DiskManager.path.fileName}.") }
-            require(this.buffer.char == FILE_HEADER_IDENTIFIER[1]) { DataCorruptionException("HARE identifier missing in HARE page file ${this@DiskManager.path.fileName}.") }
-            require(this.buffer.char == FILE_HEADER_IDENTIFIER[2]) { DataCorruptionException("HARE identifier missing in HARE page file ${this@DiskManager.path.fileName}.") }
-            require(this.buffer.char == FILE_HEADER_IDENTIFIER[3]) { DataCorruptionException("HARE identifier missing in HARE page file ${this@DiskManager.path.fileName}.") }
+            require(this.buffer.char == FILE_HEADER_IDENTIFIER[0]) { DataCorruptionException("HARE identifier missing in HARE page file (file: ${this@DiskManager.path.fileName}).") }
+            require(this.buffer.char == FILE_HEADER_IDENTIFIER[1]) { DataCorruptionException("HARE identifier missing in HARE page file (file: ${this@DiskManager.path.fileName}).") }
+            require(this.buffer.char == FILE_HEADER_IDENTIFIER[2]) { DataCorruptionException("HARE identifier missing in HARE page file (file: ${this@DiskManager.path.fileName}).") }
+            require(this.buffer.char == FILE_HEADER_IDENTIFIER[3]) { DataCorruptionException("HARE identifier missing in HARE page file (file: ${this@DiskManager.path.fileName}).") }
             require(this.buffer.int == FileType.DEFAULT.ordinal)
-            require(this.buffer.get() == FILE_HEADER_VERSION) { DataCorruptionException("HARE file version is incorrect in HARE page file ${this@DiskManager.path.fileName}.") }
-            require(this.pages >= 0) { DataCorruptionException("Negative number of allocated pages found in HARE page file ${this@DiskManager.path.fileName}.") }
-            require(this.freed >= 0) { DataCorruptionException("Negative number of freed pages found in HARE page file ${this@DiskManager.path.fileName}.") }
+            require(this.buffer.get() == FILE_HEADER_VERSION) { DataCorruptionException("File version mismatch in HARE page file (file: ${this@DiskManager.path.fileName}).") }
+            require(this.buffer.int >= 12) { DataCorruptionException("Page shift mismatch in HARE page file (file: ${this@DiskManager.path.fileName}).") }
+            this.buffer.get()
+            require(this.buffer.long >= 0) { DataCorruptionException("Negative number of allocated pages found in HARE page file (file: ${this@DiskManager.path.fileName}).") }
+            require(this.buffer.long >= 0) { DataCorruptionException("Negative number of freed pages found in HARE page file (file: ${this@DiskManager.path.fileName}).") }
         }
+
+        /** The bit shift used to determine the [Page] size of the page file managed by this [DiskManager]. */
+        val pageShift: Int = this.buffer.getInt(13)
+
+        /** The [Page] size of the page file managed by this [DiskManager]. */
+        val pageSize: Int = 1 shl this.pageShift
+
+        /** Sets file sanity byte according to consistency status. */
+        var isConsistent: Boolean
+            get() = this.buffer.get(17) == FILE_CONSISTENCY_OK
+            set(v) {
+                if (v) {
+                    this.buffer.put(17, FILE_CONSISTENCY_OK)
+                } else {
+                    this.buffer.put(17, FILE_SANITY_CHECK)
+                }
+            }
 
         /** Total number of [Page]s managed by this [DiskManager]. */
         var pages: Long
-            get() = this.buffer.getLong(14)
+            get() = this.buffer.getLong(18)
             set(v) {
-                this.buffer.putLong(14, v)
+                this.buffer.putLong(18, v)
             }
 
         /** Total number of freed [Page]s managed by this [DiskManager]. */
         var freed: Int
-            get() = this.buffer.getInt(22)
+            get() = this.buffer.getInt(26)
             set(v) {
-                this.buffer.putInt(22, v)
-            }
-
-        /** Sets file sanity byte according to consistency status. */
-        var isConsistent: Boolean
-            get() = this.buffer.get(13) == FILE_CONSISTENCY_OK
-            set(v) {
-                if (v) {
-                    this.buffer.put(13, FILE_CONSISTENCY_OK)
-                } else {
-                    this.buffer.put(13, FILE_SANITY_CHECK)
-                }
+                this.buffer.putInt(26, v)
             }
 
         /** CRC32C checksum for the HARE file. */
         var checksum: Long
-            get() = this.buffer.getLong(26)
+            get() = this.buffer.getLong(30)
             set(v) {
-                this.buffer.putLong(26, v)
-            }
-
-
-        /** Total number of used [Page]s. */
-        val used: Long
-            get() {
-                return this.buffer.getLong(10) - this. buffer.getInt(18)
+                this.buffer.putLong(30, v)
             }
 
         /**

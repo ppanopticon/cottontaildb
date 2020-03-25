@@ -2,9 +2,9 @@ package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.wal
 
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.DataCorruptionException
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.*
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.FILE_HEADER_VERSION
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.FILE_CONSISTENCY_OK
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.PAGE_DATA_SIZE_BYTES
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DiskManager.Companion.FILE_CONSISTENCY_OK
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DiskManager.Companion.FILE_HEADER_IDENTIFIER
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DiskManager.Companion.FILE_HEADER_VERSION
 
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
@@ -22,12 +22,41 @@ import java.util.zip.CRC32C
  * @author Ralph Gasser
  * @version 1.0
  */
-open class WriteAheadLog(val path: Path, val lockTimeout: Long = 5000L, private var pageIdStart: Long = 0L) : AutoCloseable {
+open class WriteAheadLog(val path: Path, val lockTimeout: Long = 5000L) : AutoCloseable {
 
     companion object {
-        private const val WAL_ACTION_SIZE_BYTES = 4
-        private const val WAL_PAGEID_SIZE_BYTES = 8
-        val WAL_PAGE_SIZE = WAL_ACTION_SIZE_BYTES + WAL_PAGEID_SIZE_BYTES + PAGE_DATA_SIZE_BYTES
+        /** Prefix used in the [WriteAheadLog] for each entry. */
+        private const val WAL_HEADER_SIZE = 64
+
+        /** Prefix used in the [WriteAheadLog] for each entry. */
+        private const val WAL_PREFIX_BYTES = 12
+
+        /**
+         * Creates a new page file in the HARE format.
+         *
+         * @param path [Path] under which to create the page file.
+         */
+        fun create(path: Path, maxPageId: PageId, pageShift: Int = 12) {
+            /* Prepare header data for page file in the HARE format. */
+            val data: ByteBuffer = ByteBuffer.allocateDirect(WAL_HEADER_SIZE)
+            data.putChar(FILE_HEADER_IDENTIFIER[0])             /* 0: Identifier H. */
+            data.putChar(FILE_HEADER_IDENTIFIER[1])             /* 2: Identifier A. */
+            data.putChar(FILE_HEADER_IDENTIFIER[2])             /* 4: Identifier R. */
+            data.putChar(FILE_HEADER_IDENTIFIER[3])             /* 6: Identifier E. */
+            data.putInt(FileType.WAL.ordinal)               /* 8: Type of HARE file. */
+            data.put(FILE_HEADER_VERSION)                       /* 12: Version of the HARE format. */
+            data.putInt(pageShift)                              /* 13: Size of a HARE page. Indicated as bit shift. */
+            data.put(FILE_CONSISTENCY_OK)                       /* 17: Sanity byte; exact semantic depends on implementation. */
+            data.putLong(0L)                              /* 18: Page counter; number of pages. */
+            data.putLong(0L)                              /* 26: Page counter; number of transferred pages. */
+            data.putLong(maxPageId)                             /* 34: Maximum page ID. */
+            data.putLong(0L)                              /* 42: CRC32 checksum for HARE file. */
+
+            /** Write data to file and close. */
+            val channel = FileChannel.open(path, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW, StandardOpenOption.SYNC, StandardOpenOption.SPARSE)
+            channel.write(data.rewind())
+            channel.close()
+        }
     }
 
     /** [FileChannel] used to write to this [WriteAheadLog]*/
@@ -36,14 +65,14 @@ open class WriteAheadLog(val path: Path, val lockTimeout: Long = 5000L, private 
     /** Acquire lock on [WriteAheadLog] file. */
     private val fileLock = FileUtilities.acquireFileLock(this.fileChannel, this.lockTimeout)
 
-    /** Internal [ByteBuffer] used for writing WAL entries. */
-    private val buffer: ByteBuffer = ByteBuffer.allocate(WAL_PAGE_SIZE)
-
     /** Accessor to the [Header] of the HARE [WriteAheadLog] file. */
-    private val header = Header(this.fileChannel.size() == 0L)
+    private val header = Header()
 
     /** The [CRC32C] object used to calculate the CRC32 checksum of this [WriteAheadLog]. */
     private val crc32 = CRC32C()
+
+    /** A local [ByteBuffer] for data allocation. Can hold up to on WAL page. */
+    private val allocationBuffer = ByteBuffer.allocateDirect(this.header.walPageSize)
 
     /** The maximum [PageId] 'seen' by this [WriteAheadLog].  */
     val maxPageId
@@ -60,28 +89,44 @@ open class WriteAheadLog(val path: Path, val lockTimeout: Long = 5000L, private 
         check(this.fileChannel.isOpen) { "HARE Write Ahead Log (WAL) file for {${this.path}} has been closed and cannot be used for append." }
 
         /* Load buffer with data and update checksum. */
+        this.allocationBuffer.clear()
         when (action) {
             WALAction.APPEND -> {
                 this.header.maxPageId += 1
-                this.buffer.rewind().putInt(action.ordinal).putLong(this.header.maxPageId).put(page?.data?.rewind() ?: Page.EMPTY.data.rewind())
+                this.allocationBuffer.putInt(action.ordinal).putLong(this.header.maxPageId)
+                if (page != null) {
+                    this.allocationBuffer.put(page.data)
+                } else {
+                    repeat(this.header.pageSize) { this.allocationBuffer.put(0) }
+                }
             }
             WALAction.UPDATE -> {
                 require (id != null) { "HARE Write Ahead Log (WAL) UPDATE action requires a non-null page ID." }
-                this.buffer.rewind().putInt(action.ordinal).putLong(id).put(page?.data ?: Page.EMPTY.data.rewind())
+                this.allocationBuffer.putInt(action.ordinal).putLong(id)
+                if (page != null) {
+                    this.allocationBuffer.put(page.data)
+                } else {
+                    repeat(this.header.pageSize) { this.allocationBuffer.put(0) }
+                }
             }
             WALAction.FREE -> {
                 require (id != null) { "HARE Write Ahead Log (WAL) FREE action requires a non-null page ID." }
-                this.buffer.rewind().putInt(action.ordinal).putLong(id).put(Page.EMPTY.data.rewind())
+                this.allocationBuffer.putInt(action.ordinal).putLong(id)
+                repeat(this.header.pageSize) { this.allocationBuffer.put(0) }
             }
         }
-        this.crc32.update(this.buffer)
+
+        /** Calculate CRC32 checksum. */
+        this.allocationBuffer.flip()
+        this.crc32.update(this.allocationBuffer)
+
+        /* Write to WAL file. */
+        this.allocationBuffer.flip()
+        this.fileChannel.write(this.allocationBuffer)
 
         /* Update header of WAL file. */
         this.header.entries += 1
         this.header.checksum = crc32.value
-
-        /* Write to WAL file. */
-        this.fileChannel.write(this.buffer.rewind(), this.header.entries * WAL_PAGE_SIZE)
         this.header.flush()
     }
 
@@ -91,16 +136,24 @@ open class WriteAheadLog(val path: Path, val lockTimeout: Long = 5000L, private 
      * @param consumer A function that consumes the [WriteAheadLog] entry and return true on success.
      */
     @Synchronized
-    fun replay(consumer: (WALAction, Long, ByteBuffer) -> Boolean) {
+    fun replay(consumer: (WALAction, PageId, FileChannel) -> Boolean) {
         check(this.fileChannel.isOpen) { "HARE Write Ahead Log (WAL) file for {${this.path}} has been closed and cannot be used for replay." }
 
-        for (i in (this.header.transferred + 1)..this.header.entries) {
-            this.fileChannel.read(this.buffer.rewind(), i * WAL_PAGE_SIZE)
-            val action = WALAction.values()[this.buffer.rewind().int]
-            val pageId = this.buffer.long
+        /* Initialize ByteBuffer to read prefixes.*/
+        val prefixBuffer = ByteBuffer.allocateDirect(WAL_PREFIX_BYTES)
+
+        /* Initialize FileChannel position. */
+        this.fileChannel.position(WAL_HEADER_SIZE.toLong())
+
+        for (i in this.header.transferred..this.header.entries) {
+            this.fileChannel.read(prefixBuffer.rewind())
+            prefixBuffer.rewind()
+
+            val action = WALAction.values()[prefixBuffer.int]
+            val pageId = prefixBuffer.long
 
             /* Execute consumer; if it returns true, update WAL header. */
-            if (consumer(action, pageId, this.buffer)) {
+            if (consumer(action, pageId, this.fileChannel)) {
                 this.header.transferred ++
                 this.header.flush()
             }
@@ -130,78 +183,75 @@ open class WriteAheadLog(val path: Path, val lockTimeout: Long = 5000L, private 
      * @version 1.0
      * @author Ralph Gasser
      */
-    private inner class Header(new: Boolean) {
-        /** A fixed 4096 byte [ByteBuffer] used to provide access to the header of this HARE file managed by this [DiskManager]. */
-        private val buffer: ByteBuffer = ByteBuffer.allocateDirect(WAL_PAGE_SIZE)
+    private inner class Header {
+        /** A [ByteBuffer] used to provide access to the header of this HARE WAL file. */
+        private val buffer: ByteBuffer = ByteBuffer.allocateDirect(WAL_HEADER_SIZE)
 
         init {
-            if (new) {
-                /* Initialize new WAL file header. */
-                this.buffer.putChar(Constants.FILE_HEADER_IDENTIFIER[0])             /* 0: Identifier H. */
-                this.buffer.putChar(Constants.FILE_HEADER_IDENTIFIER[1])             /* 2: Identifier A. */
-                this.buffer.putChar(Constants.FILE_HEADER_IDENTIFIER[2])             /* 4: Identifier R. */
-                this.buffer.putChar(Constants.FILE_HEADER_IDENTIFIER[3])             /* 6: Identifier E. */
-                this.buffer.putInt(FileType.DEFAULT.ordinal)                         /* 8: Type of HARE file. */
-                this.buffer.put(FILE_HEADER_VERSION)                                 /* 12: Version of the HARE format. */
-                this.buffer.put(FILE_CONSISTENCY_OK)                                      /* 13: Sanity byte; 0 if file was properly closed, 1 if not.  */
-                this.buffer.putLong(0L)                                        /* 14: Number of entries in this Write Ahead Log. */
-                this.buffer.putLong(0L)                                        /* 22: Number of transferred entries in this Write Ahead Log. */
-                this.buffer.putLong(this@WriteAheadLog.pageIdStart)                  /* 30: Last Page ID allocated (set by caller). */
-                this.buffer.putLong(0L)                                        /* 38: CRC32 checksum for HARE file. */
-            } else {
-                /** Make necessary check on startup. */
-                require(this.buffer.char == Constants.FILE_HEADER_IDENTIFIER[0]) { DataCorruptionException("HARE identifier missing in HARE WAL file ${this@WriteAheadLog.path.fileName}.") }
-                require(this.buffer.char == Constants.FILE_HEADER_IDENTIFIER[1]) { DataCorruptionException("HARE identifier missing in HARE WAL file ${this@WriteAheadLog.path.fileName}.") }
-                require(this.buffer.char == Constants.FILE_HEADER_IDENTIFIER[2]) { DataCorruptionException("HARE identifier missing in HARE WAL file ${this@WriteAheadLog.path.fileName}.") }
-                require(this.buffer.char == Constants.FILE_HEADER_IDENTIFIER[3]) { DataCorruptionException("HARE identifier missing in HARE WAL file ${this@WriteAheadLog.path.fileName}.") }
-                require(this.buffer.int == FileType.WAL.ordinal) { DataCorruptionException("HARE file type mismatch in HARE WAL file ${this@WriteAheadLog.path.fileName}.") }
-                require(this.buffer.get() == FILE_HEADER_VERSION) { DataCorruptionException("HARE file version mismatch in HARE file ${this@WriteAheadLog.path.fileName}.") }
-                require(this.entries >= 0) { DataCorruptionException("Negative number of entries found in HARE WAL file ${this@WriteAheadLog.path.fileName}.") }
-                require(this.transferred >= 0) { DataCorruptionException("Negative number of transferred entries found in HARE WAL file ${this@WriteAheadLog.path.fileName}.") }
-                require(this.maxPageId >= 0) { DataCorruptionException("Negative number for last PageId found in HARE file ${this@WriteAheadLog.path.fileName}.") }
+            /* Read the file header. */
+            this@WriteAheadLog.fileChannel.read(this.buffer)
+            this.buffer.rewind()
 
-                val pageBuffer = ByteBuffer.allocateDirect(WAL_PAGE_SIZE)
-                for (i in 1..this.entries) {
-                    this@WriteAheadLog.fileChannel.read(pageBuffer.rewind(), i * WAL_PAGE_SIZE)
-                    this@WriteAheadLog.crc32.update(pageBuffer)
-                    require(crc32.value == this.checksum) { DataCorruptionException("CRC32C checksum not correct (expected: ${this.checksum}, found: ${crc32.value}) in HARE WAL file ${this@WriteAheadLog.path.fileName}.") }
-                }
+            /** Make necessary check on startup. */
+            if(this.buffer.char != FILE_HEADER_IDENTIFIER[0]) { throw DataCorruptionException("HARE identifier missing in HARE WAL file (file: ${this@WriteAheadLog.path.fileName}).") }
+            if(this.buffer.char != FILE_HEADER_IDENTIFIER[1]) { throw DataCorruptionException("HARE identifier missing in HARE WAL file (file: ${this@WriteAheadLog.path.fileName}).") }
+            if(this.buffer.char != FILE_HEADER_IDENTIFIER[2]) { throw DataCorruptionException("HARE identifier missing in HARE WAL file (file: ${this@WriteAheadLog.path.fileName}).") }
+            if(this.buffer.char != FILE_HEADER_IDENTIFIER[3]) { throw DataCorruptionException("HARE identifier missing in HARE WAL file (file: ${this@WriteAheadLog.path.fileName}).") }
+            if(this.buffer.int != FileType.WAL.ordinal) { throw DataCorruptionException("HARE file type mismatch in HARE WAL file (file: ${this@WriteAheadLog.path.fileName}).") }
+            if(this.buffer.get() != FILE_HEADER_VERSION) { throw DataCorruptionException("HARE file version mismatch in HARE file (file: ${this@WriteAheadLog.path.fileName}).") }
+            if(this.buffer.int < 12) { throw DataCorruptionException("Page shift mismatch in HARE page file (file: ${this@WriteAheadLog.path.fileName}).") }
+            this.buffer.get()
+            if(this.buffer.long < 0) { throw DataCorruptionException("Negative number of entries found in HARE WAL file (file: ${this@WriteAheadLog.path.fileName}).") }
+            if(this.buffer.long < 0) { throw DataCorruptionException("Negative number of transferred entries found in HARE WAL file (file: ${this@WriteAheadLog.path.fileName}).") }
+            if(this.buffer.long < 0) { throw DataCorruptionException("Negative number for last page ID found in HARE file (file: ${this@WriteAheadLog.path.fileName}).") }
 
-                /* Update last page id. */
-                this@WriteAheadLog.pageIdStart = this.maxPageId
+            val expectedPageSize = WAL_PREFIX_BYTES + (1 shl this.buffer.getInt(13))
+            val pageBuffer = ByteBuffer.allocateDirect(expectedPageSize)
+            for (i in 1..this.entries) {
+                this@WriteAheadLog.fileChannel.read(pageBuffer.rewind())
+                this@WriteAheadLog.crc32.update(pageBuffer)
+                require(crc32.value == this.checksum) { DataCorruptionException("CRC32C checksum not correct (expected: ${this.checksum}, found: ${crc32.value}) in HARE WAL file ${this@WriteAheadLog.path.fileName}.") }
             }
 
             /* Flush changes to disk. */
             this.flush()
         }
 
+        /** The bit shift used to determine the [Page] size of the page file managed by this [DiskManager]. */
+        val pageShift: Int = this.buffer.getInt(13)
+
+        /** The bit shift used to determine the [Page] size of the page file managed by this [DiskManager]. */
+        val pageSize: Int = (1 shl this.pageShift)
+
+        /** Size of an individual [WriteAheadLog] page in bytes. */
+        val walPageSize = this.pageSize + WAL_PREFIX_BYTES
 
         /** Total number of entries contained in this [WriteAheadLog] file. */
         var entries: Long
-            get() = this.buffer.getLong(14)
+            get() = this.buffer.getLong(18)
             set(v) {
-                this.buffer.putLong(14, v)
+                this.buffer.putLong(18, v)
             }
 
         /** Total number of entries contained in this [WriteAheadLog] file. */
         var transferred: Long
-            get() = this.buffer.getLong(22)
+            get() = this.buffer.getLong(26)
             set(v) {
-                this.buffer.putLong(22, v)
+                this.buffer.putLong(26, v)
             }
 
         /** The last [PageId] that was allocated; used to keep track of [PageId] for newly allocated [Page]s. */
         var maxPageId: Long
-            get() = this.buffer.getLong(30)
+            get() = this.buffer.getLong(34)
             set(v) {
-                this.buffer.putLong(30, v)
+                this.buffer.putLong(34, v)
             }
 
         /** Total number of entries contained in this [WriteAheadLog] file. */
         var checksum: Long
-            get() = this.buffer.getLong(38)
+            get() = this.buffer.getLong(42)
             set(v) {
-                this.buffer.putLong(38, v)
+                this.buffer.putLong(42, v)
             }
 
         /**

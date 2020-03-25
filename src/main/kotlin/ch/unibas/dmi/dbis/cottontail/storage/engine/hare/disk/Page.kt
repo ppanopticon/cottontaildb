@@ -1,52 +1,43 @@
 package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk
 
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Constants.PAGE_DATA_SIZE_BYTES
-
 import java.nio.ByteBuffer
 
 import kotlin.math.max
 
 /**
  * This is a wrapper for an individual data [Page] managed by the HARE storage engine. At their core,
- * [Page]s are mere chunks of data with a fixed size of 4096 bytes each. However, each [Page] has a
- * 16 byte header used for flags and properties set by the storage engine and used internally.
- *
- * [Page]s are backed by a [ByteBuffer] object. That [ByteBuffer] must have a capacity of exactly
- * 4096 bytes, otherwise an exception will be thrown. The [ByteBuffer] backing a page is rewinded
- * when handed to the [Page]'s constructor. It is not recommended to use that [ByteBuffer] outside
- * of the [Page]s context.
+ * [Page]s are mere chunks of data  by a [ByteBuffer] with a fixed size= 2^n.
  *
  * @see DiskManager
  *
- * @version 1.0
+ * @version 1.1
  * @author Ralph Gasser
  */
-inline class Page(internal val data: ByteBuffer) {
-
-    /** Some constants related to [Page]s. */
-    companion object {
-        /** The size of a [Page]. This value is constant.*/
-        val EMPTY = Page(ByteBuffer.allocateDirect(PAGE_DATA_SIZE_BYTES))
-    }
+inline class Page(private val _data: ByteBuffer) {
+    /**
+     * This is an internal accessor which creates a duplicate view of the [ByteBuffer] backing this [Page].
+     * It should only be used by the HARE storage engine.
+     */
+    internal val data: ByteBuffer
+        get() = this._data.duplicate().rewind()
 
     fun getBytes(index: Int, byteBuffer: ByteBuffer): ByteBuffer {
         byteBuffer.put(this.data.position(index).limit(index + byteBuffer.remaining()))
-        this.data.clear()
         return byteBuffer
     }
     fun getBytes(index: Int, bytes: ByteArray) : ByteArray {
         this.data.position(index).get(bytes).rewind()
         return bytes
     }
-    fun getBytes(index: Int, limit: Int) : ByteArray = getBytes(index, ByteArray(max(PAGE_DATA_SIZE_BYTES, limit-index)))
-    fun getBytes(index: Int) : ByteArray = getBytes(index, PAGE_DATA_SIZE_BYTES)
-    fun getByte(index: Int): Byte = this.data.get(index)
-    fun getShort(index: Int): Short = this.data.getShort(index)
-    fun getChar(index: Int): Char = this.data.getChar(index)
-    fun getInt(index: Int): Int = this.data.getInt(index)
-    fun getLong(index: Int): Long = this.data.getLong(index)
-    fun getFloat(index: Int): Float = this.data.getFloat(index)
-    fun getDouble(index: Int): Double =  this.data.getDouble(index)
+    fun getBytes(index: Int, limit: Int) : ByteArray = getBytes(index, ByteArray(max(this._data.capacity(), limit-index)))
+    fun getBytes(index: Int) : ByteArray = getBytes(index, this._data.capacity())
+    fun getByte(index: Int): Byte = this._data.get(index)
+    fun getShort(index: Int): Short = this._data.getShort(index)
+    fun getChar(index: Int): Char = this._data.getChar(index)
+    fun getInt(index: Int): Int = this._data.getInt(index)
+    fun getLong(index: Int): Long = this._data.getLong(index)
+    fun getFloat(index: Int): Float = this._data.getFloat(index)
+    fun getDouble(index: Int): Double =  this._data.getDouble(index)
 
     /**
      * Writes a [Byte] to the given position.
@@ -56,7 +47,7 @@ inline class Page(internal val data: ByteBuffer) {
      * @return This [Page]
      */
     fun putByte(index: Int, value: Byte): Page {
-        this.data.put(index, value)
+        this._data.put(index, value)
         return this
     }
 
@@ -68,7 +59,7 @@ inline class Page(internal val data: ByteBuffer) {
      * @return This [Page]
      */
     fun putBytes(index: Int, value: ByteArray): Page {
-        this.data.position(index).put(value).rewind()
+        this._data.position(index).put(value).rewind()
         return this
     }
 
@@ -80,7 +71,7 @@ inline class Page(internal val data: ByteBuffer) {
      * @return This [Page]
      */
     fun putBytes(index: Int, value: ByteBuffer): Page {
-        this.data.position(index).put(value).rewind()
+        this._data.position(index).put(value).rewind()
         return this
     }
 
@@ -92,7 +83,7 @@ inline class Page(internal val data: ByteBuffer) {
      * @return This [Page]
      */
     fun putShort(index: Int, value: Short): Page {
-        this.data.putShort(index, value)
+        this._data.putShort(index, value)
         return this
     }
 
@@ -104,7 +95,7 @@ inline class Page(internal val data: ByteBuffer) {
      * @return This [Page]
      */
     fun putChar(index: Int, value: Char): Page {
-        this.data.putChar(index, value)
+        this._data.putChar(index, value)
         return this
     }
 
@@ -116,7 +107,7 @@ inline class Page(internal val data: ByteBuffer) {
      * @return This [Page]
      */
     fun putInt(index: Int, value: Int): Page {
-        this.data.putInt(index, value)
+        this._data.putInt(index, value)
         return this
     }
 
@@ -128,7 +119,7 @@ inline class Page(internal val data: ByteBuffer) {
      * @return This [Page]
      */
     fun putLong(index: Int, value: Long): Page {
-        this.data.putLong(index, value)
+        this._data.putLong(index, value)
         return this
     }
 
@@ -140,7 +131,7 @@ inline class Page(internal val data: ByteBuffer) {
      * @return This [Page]
      */
     fun putFloat(index: Int, value: Float): Page {
-        this.data.putFloat(index, value)
+        this._data.putFloat(index, value)
         return this
     }
 
@@ -152,7 +143,7 @@ inline class Page(internal val data: ByteBuffer) {
      * @return This [Page]
      */
     fun putDouble(index: Int, value: Double): Page {
-        this.data.putDouble(index, value)
+        this._data.putDouble(index, value)
         return this
     }
 
@@ -160,7 +151,9 @@ inline class Page(internal val data: ByteBuffer) {
      * Clears the data in this [Page] effectively setting it to zero.
      */
     fun clear() {
-        this.data.position(0).put(EMPTY.data.rewind())
+        for (i in 0 until this._data.capacity()) {
+            this._data.put(0, 0)
+        }
     }
 }
 

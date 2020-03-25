@@ -3,10 +3,9 @@ package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.DataCorruptionException
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.read
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.write
+import java.nio.ByteBuffer
 import java.nio.channels.FileLock
 import java.nio.file.Path
-import kotlin.concurrent.read
-import kotlin.concurrent.write
 
 /**
  * The [DirectDiskManager] facilitates reading and writing of [Page]s from/to the underlying HARE page file. Only one
@@ -18,10 +17,10 @@ import kotlin.concurrent.write
  *
  * @see DiskManager
  *
- * @version 1.1
+ * @version 1.2
  * @author Ralph Gasser
  */
-class DirectDiskManager(path: Path, lockTimeout: Long = 5000) : DiskManager(path, lockTimeout) {
+class DirectDiskManager(path: Path, lockTimeout: Long = 5000, private val preAllocatePages: Int = 32) : DiskManager(path, lockTimeout) {
     init {
         if (!this.header.isConsistent) {
             if (!this.validate()) {
@@ -44,7 +43,22 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000) : DiskManager(path
     override fun read(id: PageId, page: Page) {
         this.closeLock.read {
             check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to read data (file: ${this.path})." }
-            this.fileChannel.read(page.data.rewind(), this.pageIdToPosition(id))
+            this.fileChannel.read(page.data, this.pageIdToPosition(id))
+        }
+    }
+
+    /**
+     * Fetches the data starting from the given [PageId] into the given [Page] objects thereby replacing the content of those [Page]s.
+     *
+     * @param startId [PageId] to start fetching
+     * @param pages [Page]s to fetch data into. Their content will be updated.
+     */
+    override fun read(startId: PageId, pages: Array<Page>) {
+        this.closeLock.read {
+            check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to read data (file: ${this.path})." }
+            val buffers = Array(pages.size) { pages[it].data }
+            this.fileChannel.position(this.pageIdToPosition(startId))
+            this.fileChannel.read(buffers)
         }
     }
 
@@ -57,7 +71,7 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000) : DiskManager(path
     override fun update(id: PageId, page: Page) {
         this.closeLock.read {
             check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to write data (file: ${this.path})." }
-            this.fileChannel.write(page.data.rewind(), this.pageIdToPosition(id))
+            this.fileChannel.write(page.data, this.pageIdToPosition(id))
         }
     }
 
@@ -70,7 +84,15 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000) : DiskManager(path
         check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to write data (file: ${this.path})." }
         val newPageId = ++this.header.pages
         this.header.flush()
-        this.fileChannel.write(page?.data?.rewind() ?: Page.EMPTY.data.rewind(), this.pageIdToPosition(newPageId))
+        if (page != null) {
+            this.fileChannel.write(page.data, this.pageIdToPosition(newPageId))
+        }
+
+        /* Pre-allocate pages if file has reached limit. */
+        if (this.fileChannel.size() == ((this.header.pages+1) shl this.header.pageShift)) {
+            this.fileChannel.write(ByteBuffer.allocate(1), (this.header.pages + this.preAllocatePages) shl this.header.pageShift)
+        }
+
         return newPageId
     }
 

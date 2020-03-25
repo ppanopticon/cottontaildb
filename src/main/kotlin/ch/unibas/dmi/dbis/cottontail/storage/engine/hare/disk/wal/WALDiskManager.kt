@@ -6,13 +6,13 @@ import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.PageId
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.read
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.write
+import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.channels.FileLock
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.concurrent.locks.ReentrantLock
 import java.util.concurrent.locks.StampedLock
-import kotlin.concurrent.read
-import kotlin.concurrent.write
 
 /**
  * The [WALDiskManager] facilitates reading and writing of [Page]s from/to the underlying disk storage. Only one
@@ -24,16 +24,16 @@ import kotlin.concurrent.write
  *
  * @see DiskManager
  *
- * @version 1.1
+ * @version 1.2
  * @author Ralph Gasser
  */
-class WALDiskManager(path: Path, lockTimeout: Long = 5000) : DiskManager(path, lockTimeout) {
+class WALDiskManager(path: Path, lockTimeout: Long = 5000, private val preAllocatePages: Int = 32) : DiskManager(path, lockTimeout) {
 
     /** Reference to the [WriteAheadLog]. The [WriteAheadLog] is created whenever a write starts and removed on commit or rollback. */
     @Volatile
     private var wal: WriteAheadLog? = null
 
-    /** A [StampedLock] to mediate access to [WriteAheadLog]. */
+    /** A [ReentrantLock] to mediate access to [WriteAheadLog]. */
     private val writeAheadLock = StampedLock()
 
     init {
@@ -49,83 +49,83 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000) : DiskManager(path, l
 
     override fun read(id: PageId, page: Page) {
         this.closeLock.read {
-            check(this.fileChannel.isOpen) { "FileChannel for this HARE page file {${this.path}} was closed and cannot be used to access data (file: ${this.path})." }
-            this.fileChannel.read(page.data.rewind(), this.pageIdToPosition(id))
+            check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to access data (file: ${this.path})." }
+            this.fileChannel.read(page.data, this.pageIdToPosition(id))
         }
     }
 
-    override fun update(id: PageId, page: Page) = sharedWAL {
-        if (this.wal == null) {
-            this.initializeWAL()
+    override fun read(startId: PageId, pages: Array<Page>) {
+        this.closeLock.read {
+            check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to access data (file: ${this.path})." }
+            val buffers = Array(pages.size) { pages[it].data }
+            this.fileChannel.position(this.pageIdToPosition(startId))
+            this.fileChannel.read(buffers)
         }
-        require(id <= this.wal!!.maxPageId && id >= 1) { "The given page ID $id is out of bounds for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
-        this.wal!!.append(action = WALAction.UPDATE, id = id, page = page)
+    }
+
+    override fun update(id: PageId, page: Page) = createOrUseSharedWAL {
+        require(id <= it.maxPageId && id >= 1) { "The given page ID $id is out of bounds for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
+        it.append(action = WALAction.UPDATE, id = id, page = page)
     }
 
 
-    override fun allocate(page: Page?): PageId = sharedWAL {
-        if (this.wal == null) {
-            this.initializeWAL()
-        }
-        this.wal!!.append(action = WALAction.APPEND, page = page)
-        this.wal!!.maxPageId
+    override fun allocate(page: Page?): PageId = createOrUseSharedWAL {
+        it.append(action = WALAction.APPEND, page = page)
+        it.maxPageId
     }
 
-    override fun free(id: PageId) = sharedWAL {
-        if (this.wal == null) {
-            this.initializeWAL()
-        }
-        require(id <= this.wal!!.maxPageId && id >= 1) { "The given page ID $id is out of bounds for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
-        this.wal!!.append(action = WALAction.FREE, id = id)
+    override fun free(id: PageId) = createOrUseSharedWAL {
+        require(id <= it.maxPageId && id >= 1) { "The given page ID $id is out of bounds for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
+        it.append(action = WALAction.FREE, id = id)
     }
 
     /**
      * Performs a commit of all pending changes by replaying the [WriteAheadLog] file.
      */
-    override fun commit(): Unit = exclusiveWAL {
-        if (this.wal != null) {
-            this.wal!!.replay { action, id, b ->
-                when (action) {
-                    WALAction.UPDATE -> this.fileChannel.write(b, this.pageIdToPosition(id))
-                    WALAction.APPEND -> {
-                        /* Default case; page has not been allocated yet */
-                        if (id-1 == this.header.pages) {
-                            this.header.pages++
-                            this.header.flush()
-                        }
-                        this.fileChannel.write(b, this.pageIdToPosition(id))
-                    }
-                    WALAction.FREE -> TODO()
+    override fun commit(): Unit = useExclusiveWAL {
+        val pageSizeLong = this.pageSize.toLong()
+        it.replay { action, id, b ->
+            when (action) {
+                WALAction.UPDATE ->{
+                    this.fileChannel.transferFrom(b, this.pageIdToPosition(id), pageSizeLong)
                 }
-                true
+                WALAction.APPEND -> {
+                    /* Default case; page has not been allocated yet */
+                    if (id-1 == this.header.pages) {
+                        this.header.pages += this.preAllocatePages
+                        this.header.flush()
+                        this.fileChannel.write(ByteBuffer.allocate(1), (this.header.pages + this.preAllocatePages) shl this.header.pageShift)
+                    }
+                    this.fileChannel.transferFrom(b, this.pageIdToPosition(id), pageSizeLong)
+                }
+                WALAction.FREE -> TODO()
             }
-
-            /* Update file header. */
-            this.header.isConsistent = true
-            this.header.checksum = this.calculateChecksum()
-            this.header.flush()
-
-            /** Delete WAL. */
-            this.wal!!.close()
-            this.wal!!.delete()
-            this.wal = null
+            true
         }
+
+        /* Update file header. */
+        this.header.isConsistent = true
+        this.header.checksum = this.calculateChecksum()
+        this.header.flush()
+
+        /** Delete WAL. */
+        it.close()
+        it.delete()
+        this.wal = null
     }
 
     /**
      * Performs a rollback of all pending changes by discarding the [WriteAheadLog] file.
      */
-    override fun rollback() = exclusiveWAL {
-        if (this.wal != null) {
-            /* Update file header. */
-            this.header.isConsistent = true
-            this.header.flush()
+    override fun rollback() = useExclusiveWAL {
+        /* Update file header. */
+        this.header.isConsistent = true
+        this.header.flush()
 
-            /** Delete WAL. */
-            this.wal!!.close()
-            this.wal!!.delete()
-            this.wal = null
-        }
+        /** Delete WAL. */
+        it.close()
+        it.delete()
+        this.wal = null
     }
 
     /**
@@ -155,43 +155,42 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000) : DiskManager(path, l
     }
 
     /**
-     * Initializes a new [WriteAheadLog] for this [WALDiskManager].
-     */
-    private fun initializeWAL() {
-        this.wal = WriteAheadLog(this.path.parent.resolve("${this.path.fileName}.wal"), this.lockTimeout, this.pages)
-        this.header.isConsistent = false
-        this.header.flush()
-    }
-
-    /**
-     * This function makes sure, that the [WriteAheadLog] exists for ever write action.
+     * This function acquires a lock on the [WriteAheadLog] entry then checks, if the [WriteAheadLog]
+     * exists. If not, a new [WriteAheadLog] is created.
      *
      * @param action The action that should be executed with the local [WriteAheadLog].
      */
-    private inline fun <R> sharedWAL(action: () -> R) : R {
+    private inline fun <R> createOrUseSharedWAL(action: (WriteAheadLog) -> R) : R {
         this.closeLock.read {
             check(this.fileChannel.isOpen) { "FileChannel for this HARE page file {${this.path}} was closed and cannot be used to write data (file: ${this.path})." }
             this.writeAheadLock.read {
-                if (this.wal == null) {
-                    this.wal = WriteAheadLog(this.path.parent.resolve("${this.path.fileName}.wal"), this.lockTimeout, this.pages)
-                    this.header.isConsistent = false
-                    this.header.flush()
+                synchronized(this) {
+                    if (this.wal == null) {
+                        val walPath = this.path.parent.resolve("${this.path.fileName}.wal")
+                        WriteAheadLog.create(walPath, this.pages, this.pageShift)
+                        this.wal = WriteAheadLog(walPath, this.lockTimeout)
+                        this.header.isConsistent = false
+                        this.header.flush()
+                    }
                 }
-                return action()
+                return action(this.wal!!)
             }
         }
     }
 
     /**
-     * This function makes sure, that the [WriteAheadLog] exists for ever write action.
+     * This function acquires a lock on the [WriteAheadLog] entry then checks, if the [WriteAheadLog]
+     * exists. If so, the action will be executed, otherwise, nothing happens.
      *
      * @param action The action that should be executed with the local [WriteAheadLog].
      */
-    private inline fun <R> exclusiveWAL(action: () -> R) : R {
+    private inline fun useExclusiveWAL(action: (WriteAheadLog) -> Unit) {
         this.closeLock.read {
             check(this.fileChannel.isOpen) { "FileChannel for this HARE page file {${this.path}} was closed and cannot be used to write data (file: ${this.path})." }
             this.writeAheadLock.write {
-                return action()
+                if (this.wal != null) {
+                    action(this.wal!!)
+                }
             }
         }
     }

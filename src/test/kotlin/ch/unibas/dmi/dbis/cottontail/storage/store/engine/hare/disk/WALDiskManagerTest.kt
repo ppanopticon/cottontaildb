@@ -1,9 +1,10 @@
 package ch.unibas.dmi.dbis.cottontail.storage.store.engine.hare.disk
 
 import ch.unibas.dmi.dbis.cottontail.storage.basics.Units
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.Page
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DirectDiskManager
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DiskManager
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DataPage
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.wal.WALDiskManager
 import org.junit.jupiter.api.*
 import org.junit.jupiter.params.ParameterizedTest
@@ -47,7 +48,7 @@ class WALDiskManagerTest {
     }
 
     /**
-     * Appends [Page]s of random bytes and checks, if those [Page]s' content remains the same after reading.
+     * Appends [DataPage]s of random bytes and checks, if those [DataPage]s' content remains the same after reading.
      */
     @ExperimentalTime
     @ParameterizedTest(name="WALDiskManager (Append / Commit / Read): pageSize={0}")
@@ -61,7 +62,7 @@ class WALDiskManagerTest {
     }
 
     /**
-     * Appends [Page]s of random bytes and checks, if those [Page]s' content remains the same after reading.
+     * Appends [DataPage]s of random bytes and checks, if those [DataPage]s' content remains the same after reading.
      */
     @ExperimentalTime
     @ParameterizedTest(name="WALDiskManager (Append / Commit / Close / Read): pageSize={0}")
@@ -79,13 +80,13 @@ class WALDiskManagerTest {
     }
 
     /**
-     * Updates [Page]s with random bytes and checks, if those [Page]s' content remains the same after reading.
+     * Updates [DataPage]s with random bytes and checks, if those [DataPage]s' content remains the same after reading.
      */
     @ExperimentalTime
     @ParameterizedTest(name="WALDiskManager (Append / Commit / Update / Commit / Read): pageSize={0}")
     @ValueSource(ints = [5000, 10000, 20000, 50000, 100000])
     fun testUpdateWithCommit(size: Int) {
-        val page = Page(ByteBuffer.allocateDirect(this.manager!!.pageSize))
+        val page = DataPage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
         val data = this.initWithData(size)
 
         val newData = Array(data.size) {
@@ -112,13 +113,13 @@ class WALDiskManagerTest {
     }
 
     /**
-     * Appends [Page]s of random bytes and checks, if those [Page]s' content remains the same after reading.
+     * Appends [DataPage]s of random bytes and checks, if those [DataPage]s' content remains the same after reading.
      */
     @ExperimentalTime
     @ParameterizedTest(name="WALDiskManager (Append / Commit / Update / Rollback / Read): pageSize={0}")
     @ValueSource(ints = [5000, 10000, 20000, 50000, 100000])
     fun testUpdateWithRollback(size: Int) {
-        val page = Page(ByteBuffer.allocateDirect(this.manager!!.pageSize))
+        val page = DataPage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
         val data = this.initWithData(size)
 
         val newData = Array(data.size) {
@@ -150,7 +151,7 @@ class WALDiskManagerTest {
      */
     @ExperimentalTime
     private fun compareSingleRead(ref: Array<ByteArray>) {
-        val page = Page(ByteBuffer.allocateDirect(this.manager!!.pageSize))
+        val page = DataPage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
         var readTime = Duration.ZERO
         for (i in ref.indices) {
             readTime += measureTime {
@@ -166,10 +167,10 @@ class WALDiskManagerTest {
      */
     @ExperimentalTime
     private fun compareMultiRead(ref: Array<ByteArray>) {
-        val page1 = Page(ByteBuffer.allocateDirect(this.manager!!.pageSize))
-        val page2 = Page(ByteBuffer.allocateDirect(this.manager!!.pageSize))
-        val page3 = Page(ByteBuffer.allocateDirect(this.manager!!.pageSize))
-        val page4 = Page(ByteBuffer.allocateDirect(this.manager!!.pageSize))
+        val page1: Page = DataPage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
+        val page2: Page = DataPage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
+        val page3: Page = DataPage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
+        val page4: Page = DataPage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
 
         var readTime = Duration.ZERO
         for (i in ref.indices step 4) {
@@ -188,11 +189,11 @@ class WALDiskManagerTest {
     /**
      * Initializes this [DirectDiskManager] with random data.
      *
-     * @param size The number of [Page]s to write.
+     * @param size The number of [DataPage]s to write.
      */
     @ExperimentalTime
     private fun initWithData(size: Int) : Array<ByteArray> {
-        val page = Page(ByteBuffer.allocateDirect(this.manager!!.pageSize))
+        val page = DataPage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
         var writeTime = Duration.ZERO
 
         val data = Array(size) {

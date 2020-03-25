@@ -1,6 +1,6 @@
 package ch.unibas.dmi.dbis.cottontail.storage.store.engine.hare.disk
 
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DataPage
 
 import org.junit.jupiter.api.Assertions.*
 
@@ -12,7 +12,7 @@ import java.nio.BufferOverflowException
 import java.nio.ByteBuffer
 import kotlin.random.Random
 
-class PageTest {
+class DataPageTest {
 
     private val random = Random(System.currentTimeMillis())
 
@@ -20,7 +20,7 @@ class PageTest {
     @ValueSource(ints = [4096, 8192, 16384, 32768])
     fun writeBytesBatch(pageSize: Int) {
         val buffer = ByteBuffer.allocate(pageSize)
-        val page = Page(buffer)
+        val page = DataPage(buffer)
         val bytes = ByteArray(random.nextInt(pageSize))
         random.nextBytes(bytes)
 
@@ -37,7 +37,7 @@ class PageTest {
     @ValueSource(ints = [4096, 8192, 16384, 32768])
     fun writeBytesBatchTooLarge(pageSize: Int) {
         val buffer = ByteBuffer.allocate(pageSize)
-        val page = Page(buffer)
+        val page = DataPage(buffer)
         val bytes = ByteArray(pageSize + random.nextInt(pageSize))
         random.nextBytes(bytes)
 
@@ -49,7 +49,7 @@ class PageTest {
     @ValueSource(ints = [4096, 8192, 16384, 32768])
     fun writeInts(pageSize: Int) {
         val buffer = ByteBuffer.allocate(pageSize)
-        val page = Page(buffer)
+        val page = DataPage(buffer)
         val ints = IntArray(random.nextInt(pageSize/Int.SIZE_BYTES)) {
             random.nextInt()
         }
@@ -69,7 +69,7 @@ class PageTest {
     @ValueSource(ints = [4096, 8192, 16384, 32768])
     fun writeFloats(pageSize: Int) {
         val buffer = ByteBuffer.allocate(pageSize)
-        val page = Page(buffer)
+        val page = DataPage(buffer)
         val floats = FloatArray(random.nextInt(pageSize/Int.SIZE_BYTES)) {
             random.nextFloat()
         }
@@ -89,7 +89,7 @@ class PageTest {
     @ValueSource(ints = [4096, 8192, 16384, 32768])
     fun writeLongs(pageSize: Int) {
         val buffer = ByteBuffer.allocate(pageSize)
-        val page = Page(buffer)
+        val page = DataPage(buffer)
         val longs = LongArray(random.nextInt(pageSize/Long.SIZE_BYTES)) {
             random.nextLong()
         }
@@ -109,7 +109,7 @@ class PageTest {
     @ValueSource(ints = [4096, 8192, 16384, 32768])
     fun writeDoubles(pageSize: Int) {
         val buffer = ByteBuffer.allocate(pageSize)
-        val page = Page(buffer)
+        val page = DataPage(buffer)
         val doubles = DoubleArray(random.nextInt(pageSize/Long.SIZE_BYTES)) {
             random.nextDouble()
         }
@@ -129,7 +129,7 @@ class PageTest {
     @ValueSource(ints = [4096, 8192, 16384, 32768])
     fun writeOverflow(pageSize: Int) {
         val buffer = ByteBuffer.allocate(pageSize)
-        val page = Page(buffer)
+        val page = DataPage(buffer)
         assertThrows<IndexOutOfBoundsException> {
             page.putInt(pageSize + random.nextInt(pageSize), random.nextInt())
         }

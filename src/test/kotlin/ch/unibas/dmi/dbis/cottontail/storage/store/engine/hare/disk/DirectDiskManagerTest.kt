@@ -1,6 +1,8 @@
 package ch.unibas.dmi.dbis.cottontail.storage.store.engine.hare.disk
 
 import ch.unibas.dmi.dbis.cottontail.storage.basics.Units
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.Page
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.PageRef
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.*
 
 import org.junit.jupiter.api.Test
@@ -50,7 +52,7 @@ class DirectDiskManagerTest {
     }
 
     /**
-     * Appends [Page]s of random bytes and checks, if those [Page]s' content remains the same after reading.
+     * Appends [DataPage]s of random bytes and checks, if those [DataPage]s' content remains the same after reading.
      */
     @ExperimentalTime
     @ParameterizedTest(name="DirectDiskManager (Append / Read): pageSize={0}")
@@ -64,7 +66,7 @@ class DirectDiskManagerTest {
     }
 
     /**
-     * Appends [Page]s of random bytes and checks, if those [Page]s' content remains the same after reading.
+     * Appends [DataPage]s of random bytes and checks, if those [DataPage]s' content remains the same after reading.
      */
     @ExperimentalTime
     @ParameterizedTest(name="DirectDiskManager (Append / Close / Read): pageSize={0}")
@@ -83,13 +85,13 @@ class DirectDiskManagerTest {
     }
 
     /**
-     * Updates [Page]s with random bytes and checks, if those [Page]s' content remains the same after reading.
+     * Updates [DataPage]s with random bytes and checks, if those [DataPage]s' content remains the same after reading.
      */
     @ExperimentalTime
     @ParameterizedTest(name="DirectDiskManager (Append / Update / Read): pageSize={0}")
     @ValueSource(ints = [5000, 10000, 20000, 50000, 100000])
     fun testUpdatePage(size: Int) {
-        val page = Page(ByteBuffer.allocateDirect(pageSize))
+        val page = DataPage(ByteBuffer.allocateDirect(pageSize))
         val data = this.initWithData(size)
 
         val newData = Array(data.size) {
@@ -121,7 +123,7 @@ class DirectDiskManagerTest {
      */
     @ExperimentalTime
     private fun compareSingleRead(ref: Array<ByteArray>) {
-        val page = Page(ByteBuffer.allocateDirect(pageSize))
+        val page = DataPage(ByteBuffer.allocateDirect(pageSize))
 
         var readTime = Duration.ZERO
         for (i in ref.indices) {
@@ -139,10 +141,10 @@ class DirectDiskManagerTest {
      */
     @ExperimentalTime
     private fun compareMultiRead(ref: Array<ByteArray>) {
-        val page1 = Page(ByteBuffer.allocateDirect(pageSize))
-        val page2 = Page(ByteBuffer.allocateDirect(pageSize))
-        val page3 = Page(ByteBuffer.allocateDirect(pageSize))
-        val page4 = Page(ByteBuffer.allocateDirect(pageSize))
+        val page1: Page = DataPage(ByteBuffer.allocateDirect(pageSize))
+        val page2: Page = DataPage(ByteBuffer.allocateDirect(pageSize))
+        val page3: Page = DataPage(ByteBuffer.allocateDirect(pageSize))
+        val page4: Page = DataPage(ByteBuffer.allocateDirect(pageSize))
 
         var readTime = Duration.ZERO
         for (i in ref.indices step 4) {
@@ -161,11 +163,11 @@ class DirectDiskManagerTest {
     /**
      * Initializes this [DirectDiskManager] with random data.
      *
-     * @param size The number of [Page]s to write.
+     * @param size The number of [DataPage]s to write.
      */
     @ExperimentalTime
     private fun initWithData(size: Int) : Array<ByteArray> {
-        val page = Page(ByteBuffer.allocateDirect(pageSize))
+        val page = DataPage(ByteBuffer.allocateDirect(pageSize))
         var writeTime = Duration.ZERO
         val data = Array(size) {
             val bytes = ByteArray(pageSize)

@@ -4,15 +4,8 @@ import ch.unibas.dmi.dbis.cottontail.grpc.CottonDDLGrpc
 import ch.unibas.dmi.dbis.cottontail.grpc.CottonDMLGrpc
 import ch.unibas.dmi.dbis.cottontail.grpc.CottonDQLGrpc
 import ch.unibas.dmi.dbis.cottontail.grpc.CottontailGrpc
-import ch.unibas.dmi.dbis.cottontail.model.exceptions.DatabaseException
-import ch.unibas.dmi.dbis.cottontail.server.grpc.helper.DataHelper
-import ch.unibas.dmi.dbis.cottontail.utilities.VectorUtility
 
-import com.google.gson.GsonBuilder
 import io.grpc.ManagedChannelBuilder
-
-import java.nio.file.Files
-import java.nio.file.Paths
 
 
 object Playground {

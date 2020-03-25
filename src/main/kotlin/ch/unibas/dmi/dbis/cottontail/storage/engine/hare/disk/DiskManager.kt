@@ -3,6 +3,7 @@ package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk
 import ch.unibas.dmi.dbis.cottontail.storage.basics.MemorySize
 import ch.unibas.dmi.dbis.cottontail.storage.basics.Units
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.DataCorruptionException
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.Page
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.Resource
 
 import java.nio.ByteBuffer
@@ -160,7 +161,7 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
      * @return [CRC32C] object for this [DiskManager]
      */
     fun calculateChecksum(): Long {
-        val page = Page(ByteBuffer.allocateDirect(this.header.pageShift))
+        val page = DataPage(ByteBuffer.allocateDirect(this.header.pageShift))
         val crc32 = CRC32C()
         for (i in 1..this.pages) {
             this.fileChannel.read(page.data.rewind(), this.pageIdToPosition(i))

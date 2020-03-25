@@ -1,8 +1,9 @@
 package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.wal
 
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.DataCorruptionException
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.Page
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DiskManager
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DataPage
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.PageId
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.read
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.write

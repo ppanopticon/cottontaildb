@@ -1,6 +1,7 @@
 package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.wal
 
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.DataCorruptionException
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.Page
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.*
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DiskManager.Companion.FILE_CONSISTENCY_OK
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DiskManager.Companion.FILE_HEADER_IDENTIFIER
@@ -217,10 +218,10 @@ open class WriteAheadLog(val path: Path, val lockTimeout: Long = 5000L) : AutoCl
             this.flush()
         }
 
-        /** The bit shift used to determine the [Page] size of the page file managed by this [DiskManager]. */
+        /** The bit shift used to determine the [DataPage] size of the page file managed by this [DiskManager]. */
         val pageShift: Int = this.buffer.getInt(13)
 
-        /** The bit shift used to determine the [Page] size of the page file managed by this [DiskManager]. */
+        /** The bit shift used to determine the [DataPage] size of the page file managed by this [DiskManager]. */
         val pageSize: Int = (1 shl this.pageShift)
 
         /** Size of an individual [WriteAheadLog] page in bytes. */
@@ -240,7 +241,7 @@ open class WriteAheadLog(val path: Path, val lockTimeout: Long = 5000L) : AutoCl
                 this.buffer.putLong(26, v)
             }
 
-        /** The last [PageId] that was allocated; used to keep track of [PageId] for newly allocated [Page]s. */
+        /** The last [PageId] that was allocated; used to keep track of [PageId] for newly allocated [DataPage]s. */
         var maxPageId: Long
             get() = this.buffer.getLong(34)
             set(v) {

@@ -1,6 +1,7 @@
 package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk
 
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.DataCorruptionException
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.Page
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.read
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.write
 import java.nio.ByteBuffer
@@ -63,10 +64,10 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000, private val preAll
     }
 
     /**
-     * Updates the [Page] in the HARE file managed by this [DirectDiskManager].
+     * Updates the [DataPage] in the HARE file managed by this [DirectDiskManager].
      *
      * @param id [PageId] of the [Page] that should be updated
-     * @param page [Page] the data the [Page] should be updated with.
+     * @param data [Page] the data the [Page] should be updated with.
      */
     override fun update(id: PageId, page: Page) {
         this.closeLock.read {

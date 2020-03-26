@@ -149,6 +149,7 @@ class BufferPoolTest {
                 page.putBytes(0, data[i])
                 this.pool!!.append(data = page)
             }
+            page.release()
         }
 
         /** Flush data to disk. */

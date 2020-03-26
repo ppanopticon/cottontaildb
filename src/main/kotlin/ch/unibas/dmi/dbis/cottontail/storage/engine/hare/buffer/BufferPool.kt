@@ -85,10 +85,7 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 100, pri
         check(this.disk.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
         var directoryStamp = this.directoryLock.readLock()  /* Acquire non-exclusive lock to close lock.  */
         try {
-            val ref = this.pageDirectory.get(pageId)
-            return if (ref != null) {
-                ref.retain()
-            } else {
+            val ref = this.pageDirectory.getOrElse(pageId) {
                 directoryStamp = this.directoryLock.tryConvertToWriteLock(directoryStamp) /* Upgrade to exclusive lock */
                 /* Detach new PageRef. */
                 val newRef = evictPage(pageId, priority)
@@ -98,8 +95,9 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 100, pri
 
                 /* Update page directory and queue and return new PageRef. */
                 this.pageDirectory[pageId] = newRef
-                return newRef
+                newRef
             }
+            return ref.retain()
         } finally {
             this.directoryLock.unlock(directoryStamp)
         }
@@ -132,7 +130,7 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 100, pri
     fun detach(): PageRef = this.closeLock.read {
         check(this.disk.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
         this.directoryLock.write {
-            return evictPage(-1L, Priority.LOW)
+            return evictPage(-1L, Priority.LOW).retain()
         }
     }
 
@@ -181,9 +179,6 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 100, pri
      */
     private fun evictPage(id: PageId, priority: Priority): PageReference {
         val pageRef: PageReference = this.evictionQueue.poll()
-        if (pageRef.dirty && pageRef.id != -1L) {
-            this.disk.update(pageRef.id, pageRef.page)
-        }
         return PageReference(id, priority, pageRef.pointer)
     }
 
@@ -194,7 +189,7 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 100, pri
      * @author Ralph Gasser
      * @version 1.0
      */
-    inner class PageReference(override val id: PageId, override val priority: Priority, val pointer: Int): PageRef {
+        inner class PageReference(override val id: PageId, override val priority: Priority, val pointer: Int): PageRef {
 
         /** Reference to the [DataPage] this [PageReference] is pointing to. */
         override val page: DataPage
@@ -312,7 +307,7 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 100, pri
          * @throws IllegalStateException If the [PageReference] has already been released completely.
          */
         override fun retain(): PageReference = this.lock.write {
-            check (this.pinCount != PIN_COUNT_DISPOSED) { "PageRef has already been disposed and cannot be retained again."  }
+            check (this.pinCount > PIN_COUNT_DISPOSED) { "PageRef has already been disposed and cannot be retained again."  }
             if (this.pinCount == 0) {
                 this@BufferPool.evictionQueue.dequeue(this)
             }
@@ -328,7 +323,7 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 100, pri
          * @throws IllegalStateException If the [PageReference] has already been released completely.
          */
         override fun release(): PageReference = this.lock.write {
-            check (this.pinCount != PIN_COUNT_DISPOSED) { "PageRef has already been disposed and cannot be released again."  }
+            check (this.pinCount > 0) { "PageRef has already been disposed and cannot be released again."  }
             this.pinCount -= 1
             if (this.pinCount == 0) {
                 this@BufferPool.evictionQueue.enqueue(this)
@@ -344,6 +339,9 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 100, pri
         internal fun prepareForEviction(): Boolean = this.lock.write {
             if (this.pinCount == 0) {
                 this@BufferPool.pageDirectory.remove(this.id)
+                if (this.dirty && this.id != -1L) {
+                    this@BufferPool.disk.update(this.id, this.page)
+                }
                 this.pinCount = PIN_COUNT_DISPOSED
                 true
             } else {

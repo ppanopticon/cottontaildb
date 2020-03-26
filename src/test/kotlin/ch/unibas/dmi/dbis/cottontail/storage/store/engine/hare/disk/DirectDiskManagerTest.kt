@@ -2,7 +2,6 @@ package ch.unibas.dmi.dbis.cottontail.storage.store.engine.hare.disk
 
 import ch.unibas.dmi.dbis.cottontail.storage.basics.Units
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.Page
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.PageRef
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.*
 
 import org.junit.jupiter.api.Test
@@ -141,10 +140,10 @@ class DirectDiskManagerTest {
      */
     @ExperimentalTime
     private fun compareMultiRead(ref: Array<ByteArray>) {
-        val page1: Page = DataPage(ByteBuffer.allocateDirect(pageSize))
-        val page2: Page = DataPage(ByteBuffer.allocateDirect(pageSize))
-        val page3: Page = DataPage(ByteBuffer.allocateDirect(pageSize))
-        val page4: Page = DataPage(ByteBuffer.allocateDirect(pageSize))
+        val page1 = DataPage(ByteBuffer.allocateDirect(pageSize))
+        val page2 = DataPage(ByteBuffer.allocateDirect(pageSize))
+        val page3 = DataPage(ByteBuffer.allocateDirect(pageSize))
+        val page4 = DataPage(ByteBuffer.allocateDirect(pageSize))
 
         var readTime = Duration.ZERO
         for (i in ref.indices step 4) {

@@ -1,6 +1,7 @@
 package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer
 
 import ch.unibas.dmi.dbis.cottontail.storage.basics.MemorySize
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.Page
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.PageRef
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.Releasable.Companion.PIN_COUNT_DISPOSED
 
@@ -91,7 +92,7 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 100, pri
                 val newRef = evictPage(pageId, priority)
 
                 /* Now read page from disk. */
-                this.disk.read(pageId, newRef.page)
+                this.disk.read(pageId, newRef._dataPage)
 
                 /* Update page directory and queue and return new PageRef. */
                 this.pageDirectory[pageId] = newRef
@@ -104,28 +105,27 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 100, pri
     }
 
     /**
-     * Appends a new [PageReference] to the HARE page file managed by this [BufferPool] and returns a [PageReference] for that [PageReference]
+     * Appends a new [PageRef] to the HARE page file managed by this [BufferPool] and returns a [PageRef] for that [PageRef]
      *
-     * @param priority A [Priority] hint for the new [PageReference]. Acts as a hint to the [EvictionQueue].
-     * @param data [PageReference] containing the data that should be appended. That [PageReference] must be a detached [PageReference]
-     * @return [PageReference] for the appended [DataPage]
+     * @param data [PageRef] containing the data that should be appended. That [PageRef] must be a detached [PageRef]
+     * @return [PageRef] for the appended [DataPage]
      */
     fun append(data: PageRef): PageId = this.closeLock.read {
         check(this.disk.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
         this.directoryLock.write {
-            check (data.id == -1L) { }
-            return this.disk.allocate(data.page)
+            check (data.id == -1L && data is PageReference) { "Only pages detached from this BufferPool can be appended." }
+            return this.disk.allocate(data._dataPage)
         }
     }
 
     /**
-     * Detaches a [PageReference]. Detached [PageReference]s are [PageReference]s that don't show up in the [BufferPool.pageDirectory]
-     * but are still retained (i.e. have a pin count > 0). Otherwise they behave as an ordinary [PageReference]. Detached
-     * [PageReference]s also count towards [BufferPool.size].
+     * Detaches a [PageRef]. Detached [PageRef]s are [PageRef]s that don't show up in the [BufferPool.pageDirectory]
+     * but are still retained (i.e. have a pin count > 0). Otherwise they behave as an ordinary [PageRef]. Detached
+     * [PageRef]s also count towards [BufferPool.size].
      *
-     * A caller can detach a [PageReference] to use it as a buffer e.g. in combination with [BufferPool.append].
+     * A caller can detach a [PageRef] to use it as a buffer e.g. in combination with [BufferPool.append].
      *
-     * @return A detached [PageReference].
+     * @return A detached [PageRef].
      */
     fun detach(): PageRef = this.closeLock.read {
         check(this.disk.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
@@ -135,7 +135,7 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 100, pri
     }
 
     /**
-     * Flushes all dirty [PageReference]s to disk and resets their dirty flag. This method should be used
+     * Flushes all dirty [PageRef]s to disk and resets their dirty flag. This method should be used
      * with care, since it will cause all [DataPage]s to be written to disk.
      */
     fun flush() = this.closeLock.read {
@@ -143,14 +143,14 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 100, pri
         this.directoryLock.read {
             for (p in this.pageDirectory.values) {
                 if (p.dirty) {
-                    this.disk.update(p.id, p.page)
+                    this.disk.update(p.id, p._dataPage)
                 }
             }
         }
     }
 
     /**
-     * Synchronizes all dirty [PageReference]s with the version on disk thus resetting their dirty flag.
+     * Synchronizes all dirty [PageRef]s with the version on disk thus resetting their dirty flag.
      * This method should be used with care, since it will cause all [DataPage]s to be read from disk.
      */
     fun synchronize() = this.closeLock.read {
@@ -158,7 +158,7 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 100, pri
         this.directoryLock.read {
             for (p in this.pageDirectory.values) {
                 if (p.dirty) {
-                    this.disk.update(p.id, p.page)
+                    this.disk.read(p.id, p._dataPage)
                 }
             }
         }
@@ -187,22 +187,17 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 100, pri
      * layers of the storage engine and access to a [DataPage] is only possible through such a [PageReference]
      *
      * @author Ralph Gasser
-     * @version 1.0
+     * @version 1.1
      */
-        inner class PageReference(override val id: PageId, override val priority: Priority, val pointer: Int): PageRef {
+    inner class PageReference(override val id: PageId, override val priority: Priority, internal val pointer: Int): PageRef {
+        /** Internal reference to [DataPage] this [PageReference] is pointing to. */
+        internal val _dataPage: DataPage = this@BufferPool.pages[this.pointer]
 
-        /** Reference to the [DataPage] this [PageReference] is pointing to. */
-        override val page: DataPage
+        /** Public reference to the [Page] this [PageReference] is pointing to. */
+        override val page: Page
             get() {
                 check (this.pinCount != PIN_COUNT_DISPOSED) { "PageRef has already been disposed and cannot be used to access a page anymore."  }
                 return this@BufferPool.pages[this.pointer]
-            }
-
-        /** Reference to the [ByteBuffer] that backs the [Page] this [PageReference] is pointing to. The returned [ByteBuffer] is readonly. */
-        override val data: ByteBuffer
-            get() {
-                check (this.pinCount != PIN_COUNT_DISPOSED) { "PageRef has already been disposed and cannot be used to access a page anymore."  }
-                return this@BufferPool.pages[this.pointer].data.asReadOnlyBuffer()
             }
 
         /** Counter that counts how often this [PageReference] was accessed. Acts as a hint to the the [BufferPool]'s [EvictionQueue]. */
@@ -225,77 +220,78 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 100, pri
         override var pinCount = 0
             internal set
 
-        internal val lock: StampedLock = StampedLock()
+        /** Internal lock used to protect access to the this [PageReference] during eviction. */
+        private val evictionLock: StampedLock = StampedLock()
 
-        override fun getBytes(index: Int, byteBuffer: ByteBuffer): ByteBuffer = this.lock.optimisticRead {
+        override fun getBytes(index: Int, byteBuffer: ByteBuffer): ByteBuffer = this.evictionLock.optimisticRead {
             this.page.getBytes(index, byteBuffer)
         }
-        override fun getBytes(index: Int, bytes: ByteArray): ByteArray = this.lock.optimisticRead { this.page.getBytes(index, bytes) }
-        override fun getBytes(index: Int, limit: Int): ByteArray = this.lock.optimisticRead { this.page.getBytes(index, limit) }
-        override fun getBytes(index: Int): ByteArray = this.lock.optimisticRead { this.page.getBytes(index) }
-        override fun getByte(index: Int): Byte = this.lock.optimisticRead { this.page.getByte(index) }
-        override fun getShort(index: Int): Short = this.lock.optimisticRead { this.page.getShort(index) }
-        override fun getChar(index: Int): Char = this.lock.optimisticRead { this.page.getChar(index) }
-        override fun getInt(index: Int): Int = this.lock.optimisticRead { this.page.getInt(index) }
-        override fun getLong(index: Int): Long = this.lock.optimisticRead { this.page.getLong(index) }
-        override fun getFloat(index: Int): Float =  this.lock.optimisticRead { this.page.getFloat(index) }
-        override fun getDouble(index: Int): Double = this.lock.optimisticRead { this.page.getDouble(index) }
+        override fun getBytes(index: Int, bytes: ByteArray): ByteArray = this.evictionLock.optimisticRead { this.page.getBytes(index, bytes) }
+        override fun getBytes(index: Int, limit: Int): ByteArray = this.evictionLock.optimisticRead { this.page.getBytes(index, limit) }
+        override fun getBytes(index: Int): ByteArray = this.evictionLock.optimisticRead { this.page.getBytes(index) }
+        override fun getByte(index: Int): Byte = this.evictionLock.optimisticRead { this.page.getByte(index) }
+        override fun getShort(index: Int): Short = this.evictionLock.optimisticRead { this.page.getShort(index) }
+        override fun getChar(index: Int): Char = this.evictionLock.optimisticRead { this.page.getChar(index) }
+        override fun getInt(index: Int): Int = this.evictionLock.optimisticRead { this.page.getInt(index) }
+        override fun getLong(index: Int): Long = this.evictionLock.optimisticRead { this.page.getLong(index) }
+        override fun getFloat(index: Int): Float =  this.evictionLock.optimisticRead { this.page.getFloat(index) }
+        override fun getDouble(index: Int): Double = this.evictionLock.optimisticRead { this.page.getDouble(index) }
 
-        override fun putBytes(index: Int, value: ByteArray): PageReference = this.lock.write {
+        override fun putBytes(index: Int, value: ByteArray): PageReference = this.evictionLock.optimisticRead {
             this.dirty = true
             this.page.putBytes(index, value)
             this
         }
 
-        override fun putBytes(index: Int, value: ByteBuffer): PageReference = this.lock.write {
+        override fun putBytes(index: Int, value: ByteBuffer): PageReference = this.evictionLock.optimisticRead {
             this.dirty = true
             this.page.putBytes(index, value)
             this
         }
 
-        override fun putByte(index: Int, value: Byte): PageReference = this.lock.write {
+        override fun putByte(index: Int, value: Byte): PageReference = this.evictionLock.optimisticRead {
             this.dirty = true
             this.page.putByte(index, value)
             this
         }
 
-        override fun putShort(index: Int, value: Short): PageReference = this.lock.write {
+        override fun putShort(index: Int, value: Short): PageReference = this.evictionLock.optimisticRead {
             this.dirty = true
             this.page.putShort(index, value)
             this
         }
 
-        override fun putChar(index: Int, value: Char): PageReference = this.lock.write {
+        override fun putChar(index: Int, value: Char): PageReference = this.evictionLock.optimisticRead {
             this.dirty = true
             this.page.putChar(index, value)
             this
         }
 
-        override fun putInt(index: Int, value: Int): PageReference = this.lock.write {
+        override fun putInt(index: Int, value: Int): PageReference = this.evictionLock.optimisticRead {
             this.dirty = true
             this.page.putInt(index, value)
             this
         }
 
-        override fun putLong(index: Int, value: Long): PageReference = this.lock.write {
+        override fun putLong(index: Int, value: Long): PageReference = this.evictionLock.optimisticRead {
             this.dirty = true
             this.page.putLong(index, value)
             this
         }
 
-        override fun putFloat(index: Int, value: Float): PageReference = this.lock.write {
+        override fun putFloat(index: Int, value: Float): PageReference = this.evictionLock.optimisticRead {
             this.dirty = true
             this.page.putFloat(index, value)
             this
         }
 
-        override fun putDouble(index: Int, value: Double): PageReference = this.lock.write {
+        override fun putDouble(index: Int, value: Double): PageReference = this.evictionLock.optimisticRead {
             this.dirty = true
             this.page.putDouble(index, value)
             this
         }
 
-        override fun clear(): PageReference {
+        override fun clear(): PageReference = this.evictionLock.optimisticRead {
             this.dirty = true
             this.page.clear()
             return this
@@ -306,7 +302,7 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 100, pri
          *
          * @throws IllegalStateException If the [PageReference] has already been released completely.
          */
-        override fun retain(): PageReference = this.lock.write {
+        override fun retain(): PageReference = this.evictionLock.write {
             check (this.pinCount > PIN_COUNT_DISPOSED) { "PageRef has already been disposed and cannot be retained again."  }
             if (this.pinCount == 0) {
                 this@BufferPool.evictionQueue.dequeue(this)
@@ -322,7 +318,7 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 100, pri
          *
          * @throws IllegalStateException If the [PageReference] has already been released completely.
          */
-        override fun release(): PageReference = this.lock.write {
+        override fun release(): PageReference = this.evictionLock.write {
             check (this.pinCount > 0) { "PageRef has already been disposed and cannot be released again."  }
             this.pinCount -= 1
             if (this.pinCount == 0) {
@@ -336,11 +332,11 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 100, pri
          *
          * @return true if [PageRef] was successfully prepared for eviction, false otherwise.
          */
-        internal fun prepareForEviction(): Boolean = this.lock.write {
+        internal fun prepareForEviction(): Boolean = this.evictionLock.write {
             if (this.pinCount == 0) {
                 this@BufferPool.pageDirectory.remove(this.id)
                 if (this.dirty && this.id != -1L) {
-                    this@BufferPool.disk.update(this.id, this.page)
+                    this@BufferPool.disk.update(this.id, this._dataPage)
                 }
                 this.pinCount = PIN_COUNT_DISPOSED
                 true

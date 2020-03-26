@@ -9,7 +9,6 @@ import java.nio.ByteBuffer
  * @author Ralph Gasser
  */
 interface Page {
-    val data: ByteBuffer
     fun getBytes(index: Int, byteBuffer: ByteBuffer): ByteBuffer
     fun getBytes(index: Int, bytes: ByteArray) : ByteArray
     fun getBytes(index: Int, limit: Int) : ByteArray

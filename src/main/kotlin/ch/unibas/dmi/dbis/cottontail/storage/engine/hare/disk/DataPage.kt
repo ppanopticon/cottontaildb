@@ -1,9 +1,10 @@
 package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk
 
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.Page
+import ch.unibas.dmi.dbis.cottontail.utilities.extensions.exclusive
+import ch.unibas.dmi.dbis.cottontail.utilities.extensions.shared
 import java.nio.ByteBuffer
-
-import kotlin.math.max
+import java.util.concurrent.locks.StampedLock
 
 /**
  * This is a wrapper for an individual data [DataPage] managed by the HARE storage engine. At their core,
@@ -14,31 +15,34 @@ import kotlin.math.max
  * @version 1.1
  * @author Ralph Gasser
  */
-inline class DataPage(private val _data: ByteBuffer) : Page {
-    /**
-     * This is an internal accessor which creates a duplicate view of the [ByteBuffer] backing this [DataPage].
-     * It should only be used by the HARE storage engine.
-     */
-    override val data: ByteBuffer
-        get() = this._data.duplicate().rewind()
+class DataPage(internal val _data: ByteBuffer) : Page {
 
-    override fun getBytes(index: Int, byteBuffer: ByteBuffer): ByteBuffer {
-        byteBuffer.put(this.data.position(index).limit(index + byteBuffer.remaining()))
+    init {
+        this._data.clear() /* Safety measure: ByteBuffer is reset. */
+    }
+
+    /** A [StampedLock] that mediates access to this [DataPage]'s [ByteBuffer].  */
+    internal val lock: StampedLock = StampedLock()
+
+    override fun getBytes(index: Int, byteBuffer: ByteBuffer): ByteBuffer = this.lock.exclusive {
+        this._data.position(index).limit(index + byteBuffer.remaining())
+        byteBuffer.put(this._data.position(index))
+        this._data.clear()
         return byteBuffer
     }
-    override fun getBytes(index: Int, bytes: ByteArray) : ByteArray {
-        this.data.position(index).get(bytes)
+    override fun getBytes(index: Int, bytes: ByteArray) : ByteArray = this.lock.exclusive {
+        this._data.position(index).get(bytes).clear()
         return bytes
     }
-    override fun getBytes(index: Int, limit: Int) : ByteArray = getBytes(index, ByteArray(max(this._data.capacity(), limit-index)))
+    override fun getBytes(index: Int, limit: Int) : ByteArray = getBytes(index, ByteArray(limit-index))
     override fun getBytes(index: Int) : ByteArray = getBytes(index, this._data.capacity())
-    override fun getByte(index: Int): Byte = this._data.get(index)
-    override fun getShort(index: Int): Short = this._data.getShort(index)
-    override fun getChar(index: Int): Char = this._data.getChar(index)
-    override fun getInt(index: Int): Int = this._data.getInt(index)
-    override fun getLong(index: Int): Long = this._data.getLong(index)
-    override fun getFloat(index: Int): Float = this._data.getFloat(index)
-    override fun getDouble(index: Int): Double =  this._data.getDouble(index)
+    override fun getByte(index: Int): Byte = this.lock.shared { this._data.get(index) }
+    override fun getShort(index: Int): Short = this.lock.shared { this._data.getShort(index) }
+    override fun getChar(index: Int): Char = this.lock.shared { this._data.getChar(index) }
+    override fun getInt(index: Int): Int = this.lock.shared { this._data.getInt(index) }
+    override fun getLong(index: Int): Long = this.lock.shared { this._data.getLong(index) }
+    override fun getFloat(index: Int): Float = this.lock.shared { this._data.getFloat(index) }
+    override fun getDouble(index: Int): Double =  this.lock.shared { this._data.getDouble(index) }
 
     /**
      * Writes a [Byte] to the given position.
@@ -47,7 +51,7 @@ inline class DataPage(private val _data: ByteBuffer) : Page {
      * @param value New [Byte] value to write.
      * @return This [DataPage]
      */
-    override fun putByte(index: Int, value: Byte): DataPage {
+    override fun putByte(index: Int, value: Byte): DataPage = this.lock.exclusive {
         this._data.put(index, value)
         return this
     }
@@ -59,7 +63,7 @@ inline class DataPage(private val _data: ByteBuffer) : Page {
      * @param value New [ByteArray] value to write.
      * @return This [DataPage]
      */
-    override fun putBytes(index: Int, value: ByteArray): DataPage {
+    override fun putBytes(index: Int, value: ByteArray): DataPage = this.lock.exclusive {
         this._data.position(index).put(value).rewind()
         return this
     }
@@ -71,7 +75,7 @@ inline class DataPage(private val _data: ByteBuffer) : Page {
      * @param value New [ByteArray] value to write.
      * @return This [DataPage]
      */
-    override fun putBytes(index: Int, value: ByteBuffer): DataPage {
+    override fun putBytes(index: Int, value: ByteBuffer): DataPage = this.lock.exclusive {
         this._data.position(index).put(value).rewind()
         return this
     }
@@ -83,7 +87,7 @@ inline class DataPage(private val _data: ByteBuffer) : Page {
      * @param value New [Short] value to write.
      * @return This [DataPage]
      */
-    override fun putShort(index: Int, value: Short): DataPage {
+    override fun putShort(index: Int, value: Short): DataPage = this.lock.exclusive {
         this._data.putShort(index, value)
         return this
     }
@@ -95,7 +99,7 @@ inline class DataPage(private val _data: ByteBuffer) : Page {
      * @param value New [Char] value to write.
      * @return This [DataPage]
      */
-    override fun putChar(index: Int, value: Char): DataPage {
+    override fun putChar(index: Int, value: Char): DataPage = this.lock.exclusive {
         this._data.putChar(index, value)
         return this
     }
@@ -107,7 +111,7 @@ inline class DataPage(private val _data: ByteBuffer) : Page {
      * @param value New [Int] value to write.
      * @return This [DataPage]
      */
-    override fun putInt(index: Int, value: Int): DataPage {
+    override fun putInt(index: Int, value: Int): DataPage = this.lock.exclusive {
         this._data.putInt(index, value)
         return this
     }
@@ -119,7 +123,7 @@ inline class DataPage(private val _data: ByteBuffer) : Page {
      * @param value New [Long] value to write.
      * @return This [DataPage]
      */
-    override fun putLong(index: Int, value: Long): DataPage {
+    override fun putLong(index: Int, value: Long): DataPage = this.lock.exclusive {
         this._data.putLong(index, value)
         return this
     }
@@ -131,7 +135,7 @@ inline class DataPage(private val _data: ByteBuffer) : Page {
      * @param value New [Float] value to write.
      * @return This [DataPage]
      */
-    override fun putFloat(index: Int, value: Float): DataPage {
+    override fun putFloat(index: Int, value: Float): DataPage = this.lock.exclusive {
         this._data.putFloat(index, value)
         return this
     }
@@ -143,7 +147,7 @@ inline class DataPage(private val _data: ByteBuffer) : Page {
      * @param value New [Double] value to write.
      * @return This [DataPage]
      */
-    override fun putDouble(index: Int, value: Double): DataPage {
+    override fun putDouble(index: Int, value: Double): DataPage = this.lock.exclusive {
         this._data.putDouble(index, value)
         return this
     }
@@ -151,7 +155,7 @@ inline class DataPage(private val _data: ByteBuffer) : Page {
     /**
      * Clears the data in this [DataPage] effectively setting it to zero.
      */
-    override fun clear(): DataPage {
+    override fun clear(): DataPage = this.lock.exclusive {
         for (i in 0 until this._data.capacity()) {
             this._data.put(0, 0)
         }

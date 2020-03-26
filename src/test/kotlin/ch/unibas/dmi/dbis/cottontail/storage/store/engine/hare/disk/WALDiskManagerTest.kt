@@ -167,10 +167,10 @@ class WALDiskManagerTest {
      */
     @ExperimentalTime
     private fun compareMultiRead(ref: Array<ByteArray>) {
-        val page1: Page = DataPage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
-        val page2: Page = DataPage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
-        val page3: Page = DataPage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
-        val page4: Page = DataPage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
+        val page1 = DataPage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
+        val page2 = DataPage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
+        val page3 = DataPage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
+        val page4 = DataPage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
 
         var readTime = Duration.ZERO
         for (i in ref.indices step 4) {

@@ -2,6 +2,7 @@ package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk
 
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.DataCorruptionException
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.Page
+import ch.unibas.dmi.dbis.cottontail.utilities.extensions.exclusive
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.read
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.write
 import java.nio.ByteBuffer
@@ -41,10 +42,10 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000, private val preAll
      * @param id [PageId] to fetch data for.
      * @param page [Page] to fetch data into. Its content will be updated.
      */
-    override fun read(id: PageId, page: Page) {
+    override fun read(id: PageId, page: DataPage) {
         this.closeLock.read {
             check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to read data (file: ${this.path})." }
-            this.fileChannel.read(page.data, this.pageIdToPosition(id))
+            this.fileChannel.read(page._data, this.pageIdToPosition(id))
         }
     }
 
@@ -52,14 +53,19 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000, private val preAll
      * Fetches the data starting from the given [PageId] into the given [Page] objects thereby replacing the content of those [Page]s.
      *
      * @param startId [PageId] to start fetching
-     * @param pages [Page]s to fetch data into. Their content will be updated.
+     * @param pages [DataPage]s to fetch data into. Their content will be updated.
      */
-    override fun read(startId: PageId, pages: Array<Page>) {
+    override fun read(startId: PageId, pages: Array<DataPage>) {
         this.closeLock.read {
             check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to read data (file: ${this.path})." }
-            val buffers = Array(pages.size) { pages[it].data }
+            val locks = Array(pages.size) { pages[it].lock.writeLock() }
+            val buffers = Array(pages.size) { pages[it]._data }
             this.fileChannel.position(this.pageIdToPosition(startId))
             this.fileChannel.read(buffers)
+            locks.indices.forEach { i ->
+                buffers[i].clear()
+                pages[i].lock.unlockWrite(locks[i])
+            }
         }
     }
 
@@ -67,26 +73,30 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000, private val preAll
      * Updates the [DataPage] in the HARE file managed by this [DirectDiskManager].
      *
      * @param id [PageId] of the [Page] that should be updated
-     * @param data [Page] the data the [Page] should be updated with.
+     * @param page [DataPage] the data the [Page] should be updated with.
      */
-    override fun update(id: PageId, page: Page) {
+    override fun update(id: PageId, page: DataPage) {
         this.closeLock.read {
             check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to write data (file: ${this.path})." }
-            this.fileChannel.write(page.data, this.pageIdToPosition(id))
+            page.lock.exclusive {
+                this.fileChannel.write(page._data, this.pageIdToPosition(id))
+                page._data.clear()
+            }
         }
     }
 
     /**
      * Allocates new [Page] in the HARE file managed by this [DirectDiskManager].
      *
-     * @param page [Page] to append. If empty, the allocated [Page] will be filled with zeros.
+     * @param page [DataPage] to append. If empty, the allocated [Page] will be filled with zeros.
      */
-    override fun allocate(page: Page?): PageId = this.closeLock.read {
+    override fun allocate(page: DataPage?): PageId = this.closeLock.read {
         check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to write data (file: ${this.path})." }
         val newPageId = ++this.header.pages
         this.header.flush()
-        if (page != null) {
-            this.fileChannel.write(page.data, this.pageIdToPosition(newPageId))
+        page?.lock?.exclusive {
+            this.fileChannel.write(page._data, this.pageIdToPosition(newPageId))
+            page._data.clear()
         }
 
         /* Pre-allocate pages if file has reached limit. */

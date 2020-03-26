@@ -18,6 +18,14 @@ inline fun <T> StampedLock.read(action: () -> T): T {
 }
 
 /**
+ * Executes the given [action] under the (shared) read lock of this [StampedLock].
+ *
+ * @param action The action to execute. Must be side-effect free and
+ * @return the return value of the action.
+ */
+inline fun <T> StampedLock.shared(action: () -> T) = read(action)
+
+/**
  * Tries to execute the given [action] under and optimistic read lock of this [StampedLock]. If the optimistic lock
  * fails or a lock was acquire while executing the action, then a fallback to an ordinary read lock is used.
  *
@@ -38,7 +46,17 @@ inline fun <T> StampedLock.optimisticRead(action: () -> T): T {
 }
 
 /**
- * Executes the given [action] under the read lock of this [StampedLock].
+ * Tries to execute the given [action] under and optimistic lock of this [StampedLock]. If the optimistic lock
+ * fails or a lock was acquire while executing the action, then a fallback to an ordinary read lock is used.
+ *
+ * @param action The action to execute. Must be idempotent and side-effect free.
+ * @return the return value of the action.
+ */
+inline fun <T> StampedLock.optimistic(action: () -> T): T = optimisticRead(action)
+
+
+/**
+ * Executes the given [action] under the write lock of this [StampedLock].
  *
  * @param action The action to execute. Must be side-effect free.
  * @return the return value of the action.
@@ -51,6 +69,14 @@ inline fun <T> StampedLock.write(action: () -> T): T {
         this.unlock(stamp)
     }
 }
+
+/**
+ * Executes the given [action] under the (exclusive) write lock of this [StampedLock].
+ *
+ * @param action The action to execute. Must be side-effect free.
+ * @return the return value of the action.
+ */
+inline fun <T> StampedLock.exclusive(action: () -> T): T = write(action)
 
 /**
  * Executes the given [action] under the read lock of this [StampedLock].

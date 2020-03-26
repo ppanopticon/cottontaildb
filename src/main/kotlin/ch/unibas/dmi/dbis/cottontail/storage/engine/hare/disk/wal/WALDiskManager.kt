@@ -5,6 +5,7 @@ import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.Page
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DiskManager
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DataPage
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.PageId
+import ch.unibas.dmi.dbis.cottontail.utilities.extensions.exclusive
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.read
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.write
 import java.nio.ByteBuffer
@@ -48,29 +49,37 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000, private val preAlloca
         }
     }
 
-    override fun read(id: PageId, page: Page) {
+    override fun read(id: PageId, page: DataPage) {
         this.closeLock.read {
             check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to access data (file: ${this.path})." }
-            this.fileChannel.read(page.data, this.pageIdToPosition(id))
+            page.lock.exclusive {
+                this.fileChannel.read(page._data, this.pageIdToPosition(id))
+                page._data.clear()
+            }
         }
     }
 
-    override fun read(startId: PageId, pages: Array<Page>) {
+    override fun read(startId: PageId, pages: Array<DataPage>) {
         this.closeLock.read {
             check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to access data (file: ${this.path})." }
-            val buffers = Array(pages.size) { pages[it].data }
+            val locks = Array(pages.size) { pages[it].lock.writeLock() }
+            val buffers = Array(pages.size) { pages[it]._data }
             this.fileChannel.position(this.pageIdToPosition(startId))
             this.fileChannel.read(buffers)
+            locks.indices.forEach { i ->
+                buffers[i].clear()
+                pages[i].lock.unlockWrite(locks[i])
+            }
         }
     }
 
-    override fun update(id: PageId, page: Page) = createOrUseSharedWAL {
+    override fun update(id: PageId, page: DataPage) = createOrUseSharedWAL {
         require(id <= it.maxPageId && id >= 1) { "The given page ID $id is out of bounds for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
         it.append(action = WALAction.UPDATE, id = id, page = page)
     }
 
 
-    override fun allocate(page: Page?): PageId = createOrUseSharedWAL {
+    override fun allocate(page: DataPage?): PageId = createOrUseSharedWAL {
         it.append(action = WALAction.APPEND, page = page)
         it.maxPageId
     }

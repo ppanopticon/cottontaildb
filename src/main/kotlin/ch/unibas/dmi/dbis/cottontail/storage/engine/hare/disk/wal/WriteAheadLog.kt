@@ -6,6 +6,7 @@ import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.*
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DiskManager.Companion.FILE_CONSISTENCY_OK
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DiskManager.Companion.FILE_HEADER_IDENTIFIER
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DiskManager.Companion.FILE_HEADER_VERSION
+import ch.unibas.dmi.dbis.cottontail.utilities.extensions.exclusive
 
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
@@ -86,7 +87,7 @@ open class WriteAheadLog(val path: Path, val lockTimeout: Long = 5000L) : AutoCl
      * @param page The [Page] that was written.
      */
     @Synchronized
-    fun append(action: WALAction, id: PageId? = null, page: Page? = null) {
+    fun append(action: WALAction, id: PageId? = null, page: DataPage? = null) {
         check(this.fileChannel.isOpen) { "HARE Write Ahead Log (WAL) file for {${this.path}} has been closed and cannot be used for append." }
 
         /* Load buffer with data and update checksum. */
@@ -96,7 +97,10 @@ open class WriteAheadLog(val path: Path, val lockTimeout: Long = 5000L) : AutoCl
                 this.header.maxPageId += 1
                 this.allocationBuffer.putInt(action.ordinal).putLong(this.header.maxPageId)
                 if (page != null) {
-                    this.allocationBuffer.put(page.data)
+                    page.lock.exclusive {
+                        this.allocationBuffer.put(page._data)
+                        page._data.clear()
+                    }
                 } else {
                     repeat(this.header.pageSize) { this.allocationBuffer.put(0) }
                 }
@@ -105,7 +109,10 @@ open class WriteAheadLog(val path: Path, val lockTimeout: Long = 5000L) : AutoCl
                 require (id != null) { "HARE Write Ahead Log (WAL) UPDATE action requires a non-null page ID." }
                 this.allocationBuffer.putInt(action.ordinal).putLong(id)
                 if (page != null) {
-                    this.allocationBuffer.put(page.data)
+                    page.lock.exclusive {
+                        this.allocationBuffer.put(page._data)
+                        page._data.clear()
+                    }
                 } else {
                     repeat(this.header.pageSize) { this.allocationBuffer.put(0) }
                 }

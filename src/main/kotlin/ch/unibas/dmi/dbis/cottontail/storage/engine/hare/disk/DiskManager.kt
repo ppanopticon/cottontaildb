@@ -102,9 +102,9 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
      * Fetches the data identified by the given [PageId] into the given [Page] object thereby replacing the content of that [Page].
      *
      * @param id [PageId] to fetch data for.
-     * @param page [Page] to fetch data into. Its content will be updated.
+     * @param page [DataPage] to fetch data into. Its content will be updated.
      */
-    abstract fun read(id: PageId, page: Page)
+    abstract fun read(id: PageId, page: DataPage)
 
     /**
      * Fetches the data starting from the given [PageId] into the given [Page] objects thereby replacing the content of those [Page].
@@ -112,7 +112,7 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
      * @param startId [PageId] to start fetching
      * @param pages [Page]s to fetch data into. Their content will be updated.
      */
-    abstract fun read(startId: PageId, pages: Array<Page>)
+    abstract fun read(startId: PageId, pages: Array<DataPage>)
 
     /**
      * Updates the [Page] identified by the given [PageId] in the HARE file managed by this [DiskManager].
@@ -120,14 +120,14 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
      * @param id [PageId] of the [Page] that should be updated
      * @param page [Page] the data the [Page] should be updated with.
      */
-    abstract fun update(id: PageId, page: Page)
+    abstract fun update(id: PageId, page: DataPage)
 
     /**
      * Allocates new [Page] in the HARE file managed by this [DiskManager].
      *
      * @param page [Page] to append. If empty, the allocated [Page] will be filled with zeros.
      */
-    abstract fun allocate(page: Page? = null): PageId
+    abstract fun allocate(page: DataPage? = null): PageId
 
     /**
      * Frees the [Page] identified by the given [PageId] making space for new entries
@@ -161,11 +161,11 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
      * @return [CRC32C] object for this [DiskManager]
      */
     fun calculateChecksum(): Long {
-        val page = DataPage(ByteBuffer.allocateDirect(this.header.pageShift))
+        val page = ByteBuffer.allocateDirect(this.header.pageSize)
         val crc32 = CRC32C()
         for (i in 1..this.pages) {
-            this.fileChannel.read(page.data.rewind(), this.pageIdToPosition(i))
-            crc32.update(page.data.rewind())
+            this.fileChannel.read(page, this.pageIdToPosition(i))
+            crc32.update(page.flip())
         }
         return crc32.value
     }

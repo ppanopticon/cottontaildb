@@ -4,20 +4,19 @@ import ch.unibas.dmi.dbis.cottontail.storage.basics.MemorySize
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.Page
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.PageRef
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.Releasable.Companion.PIN_COUNT_DISPOSED
-
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.Resource
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DataPage
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DirectDiskManager
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DiskManager
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DataPage
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.PageId
-
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.optimisticRead
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.read
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.write
-
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap
-
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import java.nio.ByteBuffer
+import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import java.util.concurrent.locks.StampedLock
 
@@ -73,6 +72,36 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 100, pri
         this.pages.indices.forEach { this.evictionQueue.enqueue(PageReference(-1, Priority.LOW, it)) }
     }
 
+    /** Internal queue of [PageId] ranges that should be pre-fetched. */
+    private val prefetchQueue = ArrayBlockingQueue<LongRange>(5)
+
+    /** A background job that pre-fetches [Pages] based on entries in the [BufferPool.prefetchQueue]*/
+    private val job = GlobalScope.launch {
+        while (true) {
+            val range = this@BufferPool.prefetchQueue.poll()
+            if (range != null) {
+                this@BufferPool.directoryLock.write {
+                    if (! this@BufferPool.pageDirectory.contains(range.first)) {
+                        val pageRefs = range.map {
+                            this@BufferPool.evictPage(it, Priority.DEFAULT)
+                        }
+                        val pages = Array(pageRefs.size) {
+                            pageRefs[it]._dataPage
+                        }
+                        this@BufferPool.disk.read(range.first, pages)
+                        pageRefs.forEach {
+                            this@BufferPool.pageDirectory[it.id] = it
+                            it.retain()
+                            it.release()
+                        }
+                    }
+                }
+            }
+            Thread.onSpinWait()
+        }
+    }
+
+
     /**
      * Reads the [DataPage] identified by the given [PageId]. If a [PageReference] for the requested [DataPage]
      * exists in the [BufferPool], that [PageReference] is returned. Otherwise, the [DataPage] is read from
@@ -102,6 +131,15 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 100, pri
         } finally {
             this.directoryLock.unlock(directoryStamp)
         }
+    }
+
+    /**
+     * Adds a range of [PageId] to this [BufferPool]'s prefetch queue.
+     *
+     * @param range [LongRange] that should be pre-fetched.
+     */
+    fun prefetch(range: LongRange) {
+        this.prefetchQueue.offer(range)
     }
 
     /**
@@ -236,7 +274,8 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 100, pri
         override fun getLong(index: Int): Long = this.evictionLock.optimisticRead { this.page.getLong(index) }
         override fun getFloat(index: Int): Float =  this.evictionLock.optimisticRead { this.page.getFloat(index) }
         override fun getDouble(index: Int): Double = this.evictionLock.optimisticRead { this.page.getDouble(index) }
-
+        override fun getSlice(start: Int, end: Int): ByteBuffer = this.evictionLock.optimisticRead { this.page.getSlice(start, end) }
+        override fun getSlice(): ByteBuffer = this.evictionLock.optimisticRead { this.page.getSlice() }
         override fun putBytes(index: Int, value: ByteArray): PageReference = this.evictionLock.optimisticRead {
             this.dirty = true
             this.page.putBytes(index, value)

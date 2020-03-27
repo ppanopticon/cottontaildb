@@ -1,6 +1,7 @@
 package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.serializer
 
 import ch.unibas.dmi.dbis.cottontail.model.values.types.Value
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.Page
 import java.nio.channels.ReadableByteChannel
 import java.nio.channels.WritableByteChannel
 
@@ -26,7 +27,7 @@ interface Serializer<T: Value> : org.mapdb.Serializer<T> {
      * @param channel [WritableByteChannel] to write the [Value] to.
      * @param value The [Value] to serialize.
      */
-    fun serialize(channel: WritableByteChannel, value: T)
+    fun serialize(page: Page, offset: Int, value: T)
 
     /**
      * Deserializes a [Value] by reading from the given [ReadableByteChannel].
@@ -34,5 +35,5 @@ interface Serializer<T: Value> : org.mapdb.Serializer<T> {
      * @param channel [ReadableByteChannel] to read the [Value] from.
      * @return Deserialized [Value]
      */
-    fun deserialize(channel: ReadableByteChannel): T
+    fun deserialize(page: Page, offset: Int): T
 }

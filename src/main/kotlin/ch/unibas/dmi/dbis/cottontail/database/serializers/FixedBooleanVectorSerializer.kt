@@ -1,11 +1,10 @@
 package ch.unibas.dmi.dbis.cottontail.database.serializers
 
 import ch.unibas.dmi.dbis.cottontail.model.values.BooleanVectorValue
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.Page
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.serializer.Serializer
 import org.mapdb.DataInput2
 import org.mapdb.DataOutput2
-import java.nio.channels.ReadableByteChannel
-import java.nio.channels.WritableByteChannel
 import java.util.*
 
 
@@ -26,11 +25,11 @@ class FixedBooleanVectorSerializer(override val logicalSize: Int): Serializer<Bo
     }
 
     override val physicalSize: Int = ((this.logicalSize+63)/64) * kotlin.Long.Companion.SIZE_BYTES
-    override fun serialize(channel: WritableByteChannel, value: BooleanVectorValue) {
+    override fun serialize(page: Page, offset: Int, value: BooleanVectorValue) {
         TODO("Not yet implemented")
     }
 
-    override fun deserialize(channel: ReadableByteChannel): BooleanVectorValue {
+    override fun deserialize(page: Page, offset: Int): BooleanVectorValue {
         TODO("Not yet implemented")
     }
 }

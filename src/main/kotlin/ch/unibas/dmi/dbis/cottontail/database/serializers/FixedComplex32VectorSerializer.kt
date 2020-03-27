@@ -3,12 +3,10 @@ package ch.unibas.dmi.dbis.cottontail.database.serializers
 import ch.unibas.dmi.dbis.cottontail.model.values.Complex32Value
 import ch.unibas.dmi.dbis.cottontail.model.values.Complex32VectorValue
 import ch.unibas.dmi.dbis.cottontail.model.values.FloatValue
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.Page
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.serializer.Serializer
-
 import org.mapdb.DataInput2
 import org.mapdb.DataOutput2
-import java.nio.channels.ReadableByteChannel
-import java.nio.channels.WritableByteChannel
 
 /**
  * A [Serializer] for [Complex32VectorValue]s that a fixed in length.
@@ -32,11 +30,12 @@ class FixedComplex32VectorSerializer(override val logicalSize: Int) : Serializer
     }
 
     override val physicalSize: Int = this.logicalSize * 2 * Int.Companion.SIZE_BYTES
-    override fun serialize(channel: WritableByteChannel, value: Complex32VectorValue) {
+    override fun serialize(page: Page, offset: Int, value: Complex32VectorValue) {
         TODO("Not yet implemented")
     }
 
-    override fun deserialize(channel: ReadableByteChannel): Complex32VectorValue {
+    override fun deserialize(page: Page, offset: Int): Complex32VectorValue {
         TODO("Not yet implemented")
     }
+
 }

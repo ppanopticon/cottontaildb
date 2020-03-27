@@ -1,11 +1,10 @@
 package ch.unibas.dmi.dbis.cottontail.database.serializers
 
 import ch.unibas.dmi.dbis.cottontail.model.values.IntVectorValue
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.Page
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.serializer.Serializer
 import org.mapdb.DataInput2
 import org.mapdb.DataOutput2
-import java.nio.channels.ReadableByteChannel
-import java.nio.channels.WritableByteChannel
 
 /**
  * A [Serializer] for [IntVectorValue]s that are fixed in length.
@@ -28,11 +27,12 @@ class FixedIntVectorSerializer(override val logicalSize: Int): Serializer<IntVec
     }
 
     override val physicalSize: Int = this.logicalSize * Int.Companion.SIZE_BYTES
-    override fun serialize(channel: WritableByteChannel, value: IntVectorValue) {
+    override fun serialize(page: Page, offset: Int, value: IntVectorValue) {
         TODO("Not yet implemented")
     }
 
-    override fun deserialize(channel: ReadableByteChannel): IntVectorValue {
+    override fun deserialize(page: Page, offset: Int): IntVectorValue {
         TODO("Not yet implemented")
     }
+
 }

@@ -92,7 +92,7 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000, private val preAll
      */
     override fun allocate(page: DataPage?): PageId = this.closeLock.read {
         check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to write data (file: ${this.path})." }
-        val newPageId = ++this.header.pages
+        val newPageId = this.header.pages++
         this.header.flush()
         page?.lock?.exclusive {
             this.fileChannel.write(page._data, this.pageIdToPosition(newPageId))

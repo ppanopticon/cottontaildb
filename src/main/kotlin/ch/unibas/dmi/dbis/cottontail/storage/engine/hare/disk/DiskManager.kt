@@ -27,6 +27,16 @@ import java.util.zip.CRC32C
 abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resource {
 
     companion object {
+
+        /** Size of the HARE page file header. */
+        const val FILE_HEADER_SIZE = 64
+
+        /** Minimum page shift, results in a minimum page size of 4069 bytes. */
+        const val MIN_PAGE_SHIFT = 12
+
+        /** Maximum page shift, results in a maximum page size of 4'194'304 bytes. */
+        const val MAX_PAGE_SHIFT = 22
+
         /** Identifier of every HARE file. */
         val FILE_HEADER_IDENTIFIER = charArrayOf('H', 'A', 'R', 'E')
 
@@ -46,7 +56,7 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
          */
         fun create(path: Path, pageShift: Int = 18) {
             /* Prepare header data for page file in the HARE format. */
-            val data: ByteBuffer = ByteBuffer.allocateDirect(1 shl pageShift)
+            val data: ByteBuffer = ByteBuffer.allocateDirect(FILE_HEADER_SIZE)
             data.putChar(FILE_HEADER_IDENTIFIER[0])             /* 0: Identifier H. */
             data.putChar(FILE_HEADER_IDENTIFIER[1])             /* 2: Identifier A. */
             data.putChar(FILE_HEADER_IDENTIFIER[2])             /* 4: Identifier R. */
@@ -185,8 +195,8 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
      * @return The offset into the file.
      */
     protected fun pageIdToPosition(pageId: PageId): Long {
-        require(pageId <= this.header.pages && pageId >= 1) { "The given page ID $pageId is out of bounds for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
-        return pageId shl this.header.pageShift
+        require(pageId <= this.header.pages && pageId >= 0) { "The given page ID $pageId is out of bounds for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
+        return FILE_HEADER_SIZE + (pageId shl this.header.pageShift)
     }
 
     /**
@@ -197,7 +207,7 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
      */
     protected inner class Header {
         /** A fixed [ByteBuffer] used to provide access to the header of this HARE file managed by this [DiskManager]. */
-        val buffer: ByteBuffer = ByteBuffer.allocate(1 shl ByteBuffer.allocate(4).also { this@DiskManager.fileChannel.read(it, 13) }.getInt(0))
+        val buffer: ByteBuffer = ByteBuffer.allocate(FILE_HEADER_SIZE)
 
         init {
             /* Read the file header. */
@@ -211,7 +221,7 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
             require(this.buffer.char == FILE_HEADER_IDENTIFIER[3]) { DataCorruptionException("HARE identifier missing in HARE page file (file: ${this@DiskManager.path.fileName}).") }
             require(this.buffer.int == FileType.DEFAULT.ordinal)
             require(this.buffer.get() == FILE_HEADER_VERSION) { DataCorruptionException("File version mismatch in HARE page file (file: ${this@DiskManager.path.fileName}).") }
-            require(this.buffer.int >= 12) { DataCorruptionException("Page shift mismatch in HARE page file (file: ${this@DiskManager.path.fileName}).") }
+            require(this.buffer.int >= 10) { DataCorruptionException("Page shift mismatch in HARE page file (file: ${this@DiskManager.path.fileName}).") }
             this.buffer.get()
             require(this.buffer.long >= 0) { DataCorruptionException("Negative number of allocated pages found in HARE page file (file: ${this@DiskManager.path.fileName}).") }
             require(this.buffer.long >= 0) { DataCorruptionException("Negative number of freed pages found in HARE page file (file: ${this@DiskManager.path.fileName}).") }

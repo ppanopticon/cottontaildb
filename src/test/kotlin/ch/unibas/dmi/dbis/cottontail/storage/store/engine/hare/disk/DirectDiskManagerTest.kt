@@ -1,19 +1,18 @@
 package ch.unibas.dmi.dbis.cottontail.storage.store.engine.hare.disk
 
 import ch.unibas.dmi.dbis.cottontail.storage.basics.Units
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.Page
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.*
-
-import org.junit.jupiter.api.Test
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DataPage
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DirectDiskManager
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DiskManager
 import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
-
-import java.nio.file.Paths
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import java.nio.ByteBuffer
 import java.nio.file.Files
+import java.nio.file.Paths
 import java.util.*
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
@@ -46,7 +45,7 @@ class DirectDiskManagerTest {
     fun testCreationAndLoading() {
         assertEquals(this.path, this.manager!!.path)
         assertEquals(0, this.manager!!.pages)
-        assertEquals(pageSize, this.manager!!.size.value.toInt())
+        assertEquals(DiskManager.FILE_HEADER_SIZE, this.manager!!.size.value.toInt())
         assertTrue(this.manager!!.validate())
     }
 

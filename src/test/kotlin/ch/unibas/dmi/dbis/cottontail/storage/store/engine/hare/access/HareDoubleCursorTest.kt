@@ -3,12 +3,10 @@ package ch.unibas.dmi.dbis.cottontail.storage.store.engine.hare.access
 import ch.unibas.dmi.dbis.cottontail.database.column.DoubleColumnType
 import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.model.values.DoubleValue
-import ch.unibas.dmi.dbis.cottontail.storage.basics.MemorySize
 import ch.unibas.dmi.dbis.cottontail.storage.basics.Units
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.column.FixedHareColumn
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.BufferPool
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DataPage
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DirectDiskManager
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.Page
 import ch.unibas.dmi.dbis.cottontail.utilities.name.Name
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -28,7 +26,6 @@ class HareDoubleCursorTest {
 
     var hare: FixedHareColumn<DoubleValue>? = null
 
-    val random = SplittableRandom(System.currentTimeMillis())
 
     @BeforeEach
     fun beforeEach() {
@@ -48,46 +45,51 @@ class HareDoubleCursorTest {
     @Test
     @ExperimentalTime
     fun test() {
-        val data = this.initWithData(10_000_000)
-        this.compareData(data)
+        val seed = System.currentTimeMillis()
+        this.initWithData(10_000_000, seed)
+        this.compareData(seed)
     }
 
     /**
     * Compares the data stored in this [DirectDiskManager] with the data provided as array of [ByteArray]s
     */
     @ExperimentalTime
-    private fun compareData(ref: Array<DoubleValue>) {
+    private fun compareData(seed: Long) {
         var readTime = Duration.ZERO
+        val random = SplittableRandom(seed)
         val cursor = this.hare!!.cursor(writeable = false)
-        for (r in ref) {
+        var size = 0
+        while (cursor.hasNext()) {
+            val d = DoubleValue(random.nextDouble())
             readTime += measureTime {
                 cursor.next()
-                assertEquals(r, cursor.get())
+                assertEquals(d.value, cursor.get()?.value)
             }
+            size++
         }
-        println("Reading ${ref.size} doubles took $readTime (${(MemorySize((this.hare!!.sizePerEntry * ref.size).toDouble(), Units.BYTE) `in` Units.MEGABYTE).value / readTime.inSeconds} MB/s). ")
+        val diskSize = this.hare!!.disk.size `in` Units.MEGABYTE
+        println("Reading $size doubles ($diskSize) took $readTime (${diskSize.value / readTime.inSeconds} MB/s).")
     }
 
     /**
      * Initializes this [DirectDiskManager] with random data.
      *
-     * @param size The number of [Page]s to write.
+     * @param size The number of [DataPage]s to write.
      */
     @ExperimentalTime
-    private fun initWithData(size: Int) : Array<DoubleValue> {
+    private fun initWithData(size: Int, seed: Long) {
         var writeTime = Duration.ZERO
-        val data = Array(size) {
-            DoubleValue(random.nextDouble())
-        }
-
+        val random = SplittableRandom(seed)
         val cursor = this.hare!!.cursor(writeable = true)
-        for (d in data) {
+        repeat(size) {
+            val d = DoubleValue(random.nextDouble())
             writeTime += measureTime {
                 cursor.append(d)
             }
         }
+
         cursor.close()
-        println("Writing ${data.size} doubles took $writeTime (${(MemorySize((this.hare!!.sizePerEntry * data.size).toDouble(), Units.BYTE) `in` Units.MEGABYTE).value / writeTime.inSeconds} MB/s).")
-        return data
+        val diskSize = this.hare!!.disk.size `in` Units.MEGABYTE
+        println("Writing $size doubles ($diskSize) took $writeTime (${diskSize.value / writeTime.inSeconds} MB/s).")
     }
 }

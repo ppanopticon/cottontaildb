@@ -4,18 +4,18 @@ import ch.unibas.dmi.dbis.cottontail.storage.basics.Units
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.PageRef
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.BufferPool
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.Priority
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DataPage
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DirectDiskManager
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DiskManager
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DataPage
-import org.junit.jupiter.api.*
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
-
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.util.*
-
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
 import kotlin.time.measureTime
@@ -92,9 +92,9 @@ class BufferPoolTest {
         var updateTime = Duration.ZERO
         for (i in newData.indices) {
             updateTime += measureTime {
-                val page = this.pool!!.get((i + 1L))
+                val page = this.pool!!.get(i.toLong())
                 page.putBytes(0, newData[i])
-                Assertions.assertEquals((i + 1L), page.id)
+                Assertions.assertEquals(i.toLong(), page.id)
                 page.release()
             }
         }
@@ -119,11 +119,11 @@ class BufferPoolTest {
         for (i in ref.indices) {
             var page: PageRef?
             readTime += measureTime {
-                page = this.pool!!.get((i + 1L))
+                page = this.pool!!.get(i.toLong())
             }
 
             Assertions.assertArrayEquals(ref[i], page!!.getBytes(0))
-            Assertions.assertEquals((i + 1L), page!!.id)
+            Assertions.assertEquals(i.toLong(), page!!.id)
             page!!.release()
         }
         val diskSize = this.pool!!.diskSize `in` Units.MEGABYTE

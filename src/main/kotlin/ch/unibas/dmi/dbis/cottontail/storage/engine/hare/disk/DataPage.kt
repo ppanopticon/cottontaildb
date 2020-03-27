@@ -42,7 +42,17 @@ class DataPage(internal val _data: ByteBuffer) : Page {
     override fun getInt(index: Int): Int = this.lock.shared { this._data.getInt(index) }
     override fun getLong(index: Int): Long = this.lock.shared { this._data.getLong(index) }
     override fun getFloat(index: Int): Float = this.lock.shared { this._data.getFloat(index) }
-    override fun getDouble(index: Int): Double =  this.lock.shared { this._data.getDouble(index) }
+    override fun getDouble(index: Int): Double = this.lock.shared { this._data.getDouble(index) }
+    override fun getSlice(start: Int, end: Int): ByteBuffer = this.lock.shared {
+        val ret = this._data.position(start).limit(end).slice().asReadOnlyBuffer()
+        this._data.clear()
+        return ret
+    }
+    override fun getSlice(): ByteBuffer = this.lock.shared {
+        val ret = this._data.asReadOnlyBuffer()
+        this._data.clear()
+        return ret
+    }
 
     /**
      * Writes a [Byte] to the given position.

@@ -20,6 +20,8 @@ interface Page {
     fun getLong(index: Int): Long
     fun getFloat(index: Int): Float
     fun getDouble(index: Int): Double
+    fun getSlice(start: Int, end: Int): ByteBuffer
+    fun getSlice(): ByteBuffer
 
     /**
      * Writes a [Byte] to the given position.

@@ -29,7 +29,7 @@ import java.util.concurrent.locks.StampedLock
  * @version 1.1
  * @author Ralph Gasser
  */
-class BufferPool(private val disk: DiskManager, private val size: Int = 100, private val evictionQueue: EvictionQueue = FIFOEvictionQueue(size)): Resource {
+class BufferPool(private val disk: DiskManager, private val size: Int = 25, private val evictionQueue: EvictionQueue = FIFOEvictionQueue(size)): Resource {
 
     /** Allocates direct memory as [ByteBuffer] that is used to buffer [DataPage]s. This is not counted towards the heap used by the JVM! */
     private val buffer = ByteBuffer.allocateDirect(this.size * this.disk.pageSize)
@@ -48,9 +48,12 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 100, pri
     /** A [ReentrantReadWriteLock] that mediates access to the closed state of this [BufferPool]. */
     private val closeLock = StampedLock()
 
+    /** Internal flag used to indicate whether this [BufferPool] has been closed. */
+    private var closed: Boolean = false
+
     /** Return true if this [DiskManager] and thus this [BufferPool] is still open. */
     override val isOpen: Boolean
-        get() = this.disk.isOpen
+        get() = this.disk.isOpen && !this.closed
 
     /** Physical size of the HARE page file underpinning this [BufferPool]. */
     val diskSize
@@ -112,7 +115,7 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 100, pri
      * @return [PageReference] for the requested [DataPage]
      */
     fun get(pageId: PageId, priority: Priority = Priority.DEFAULT): PageRef = this.closeLock.read {
-        check(this.disk.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
+        check(this.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
         var directoryStamp = this.directoryLock.readLock()  /* Acquire non-exclusive lock to close lock.  */
         try {
             val ref = this.pageDirectory.getOrElse(pageId) {
@@ -149,7 +152,7 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 100, pri
      * @return [PageRef] for the appended [DataPage]
      */
     fun append(data: PageRef): PageId = this.closeLock.read {
-        check(this.disk.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
+        check(this.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
         this.directoryLock.write {
             check (data.id == -1L && data is PageReference) { "Only pages detached from this BufferPool can be appended." }
             return this.disk.allocate(data._dataPage)
@@ -166,7 +169,7 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 100, pri
      * @return A detached [PageRef].
      */
     fun detach(): PageRef = this.closeLock.read {
-        check(this.disk.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
+        check(this.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
         this.directoryLock.write {
             return evictPage(-1L, Priority.LOW).retain()
         }
@@ -177,7 +180,7 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 100, pri
      * with care, since it will cause all [DataPage]s to be written to disk.
      */
     fun flush() = this.closeLock.read {
-        check(this.disk.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
+        check(this.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
         this.directoryLock.read {
             for (p in this.pageDirectory.values) {
                 if (p.dirty) {
@@ -192,7 +195,7 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 100, pri
      * This method should be used with care, since it will cause all [DataPage]s to be read from disk.
      */
     fun synchronize() = this.closeLock.read {
-        check(this.disk.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
+        check(this.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
         this.directoryLock.read {
             for (p in this.pageDirectory.values) {
                 if (p.dirty) {
@@ -204,8 +207,11 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 100, pri
 
     /** Closes this [BufferPool] and the underlying [DiskManager]. */
     override fun close() = this.closeLock.write {
-        if (this.isOpen) {
-            this.disk.close()
+        this.pageDirectory.forEach {
+            it.value.forceEvict()
+        }
+        if (!this.closed) {
+            this.closed = true
         }
     }
 
@@ -364,6 +370,17 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 100, pri
                 this@BufferPool.evictionQueue.enqueue(this)
             }
             return this
+        }
+
+        /**
+         * Force evicts this [PageRef]. This method should only be used by the [BufferPool].
+         */
+        internal fun forceEvict() {
+            this@BufferPool.pageDirectory.remove(this.id)
+            if (this.dirty && this.id != -1L) {
+                this@BufferPool.disk.update(this.id, this._dataPage)
+            }
+            this.pinCount = PIN_COUNT_DISPOSED
         }
 
         /**

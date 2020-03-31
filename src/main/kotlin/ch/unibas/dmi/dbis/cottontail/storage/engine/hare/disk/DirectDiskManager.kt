@@ -46,6 +46,7 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000, private val preAll
         this.closeLock.read {
             check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to read data (file: ${this.path})." }
             this.fileChannel.read(page._data, this.pageIdToPosition(id))
+            page._data.clear()
         }
     }
 
@@ -86,24 +87,31 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000, private val preAll
     }
 
     /**
-     * Allocates new [Page] in the HARE file managed by this [DirectDiskManager].
+     * Allocates new [DataPage]s in the HARE page file managed by this [DirectDiskManager].
      *
-     * @param page [DataPage] to append. If empty, the allocated [Page] will be filled with zeros.
+     * When invoking this method, the HARE page file will grow by the number of pages specified in
+     * [DirectDiskManager.preAllocatePages]. Optionally, a caller can provide a [DataPage] that
+     * will be written to the first newly allocated [DataPage].
+     *
+     * @param page Optional [DataPage] to fill the first new [Page] with.
+     * @return The [PageId] of the next first new [Page].
      */
     override fun allocate(page: DataPage?): PageId = this.closeLock.read {
         check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to write data (file: ${this.path})." }
-        val newPageId = this.header.pages++
+        val newPageId = this.header.pages
+
+        /* Adjust header and let file grow. */
+        this.header.pages += this.preAllocatePages
         this.header.flush()
+        this.fileChannel.write(ByteBuffer.allocate(1), ((this.header.pages + this.preAllocatePages) shl this.header.pageShift))
+
+        /* Write actual page data. */
         page?.lock?.exclusive {
             this.fileChannel.write(page._data, this.pageIdToPosition(newPageId))
             page._data.clear()
         }
 
-        /* Pre-allocate pages if file has reached limit. */
-        if (this.fileChannel.size() == ((this.header.pages+1) shl this.header.pageShift)) {
-            this.fileChannel.write(ByteBuffer.allocate(1), (this.header.pages + this.preAllocatePages) shl this.header.pageShift)
-        }
-
+        /* Return ID of next free page. */
         return newPageId
     }
 

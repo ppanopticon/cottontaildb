@@ -4,6 +4,7 @@ import ch.unibas.dmi.dbis.cottontail.model.values.types.Value
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.column.FixedHareColumn.Companion.MASK_NULL
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.cursor.EntryDeletedException
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.cursor.TupleId
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.BufferPool
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.Priority
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.serializer.Serializer
 import java.nio.channels.ClosedChannelException
@@ -21,7 +22,8 @@ import kotlin.concurrent.read
  */
 class BufferedHareCursor<T : Value>(column: FixedHareColumn<T>, writeable: Boolean = false, start: TupleId = BYTE_CURSOR_BOF, private val serializer: Serializer<T>) : AbstractCursor<T>(column, writeable, start) {
 
-
+    /** Internal (per-cursor) [BufferPool]. */
+    private val bufferPool = BufferPool(column.disk, 1)
 
     /**
      * Returns a boolean indicating whether the entry the the current [BufferedHareCursor] position is null.
@@ -32,7 +34,7 @@ class BufferedHareCursor<T : Value>(column: FixedHareColumn<T>, writeable: Boole
         if (!this.isOpen) { throw ClosedChannelException() }
         this.addressLock.read {
             if (this.tupleId == BYTE_CURSOR_BOF) { throw IndexOutOfBoundsException("Cannot read without moving cursor position beyond BOF.")}
-            val page = this.column.bufferPool.get(this.pageId, Priority.DEFAULT)
+            val page = this.bufferPool.get(this.pageId, Priority.DEFAULT)
             return (page.getLong(this.relativeOffset) and FixedHareColumn.MASK_NULL) > 0L
         }
     }
@@ -46,7 +48,7 @@ class BufferedHareCursor<T : Value>(column: FixedHareColumn<T>, writeable: Boole
         if (!this.isOpen) { throw ClosedChannelException() }
         this.addressLock.read {
             if (this.tupleId == BYTE_CURSOR_BOF) { throw IndexOutOfBoundsException("Cannot read without moving cursor position beyond BOF.")}
-            val page = this.column.bufferPool.get(this.pageId, Priority.DEFAULT)
+            val page = this.bufferPool.get(this.pageId, Priority.DEFAULT)
             return (page.getLong(this.relativeOffset) and FixedHareColumn.MASK_DELETED) > 0L
         }
     }
@@ -56,7 +58,7 @@ class BufferedHareCursor<T : Value>(column: FixedHareColumn<T>, writeable: Boole
         if (!this.isOpen) { throw ClosedChannelException() }
         this.addressLock.read {
             if (this.tupleId == BYTE_CURSOR_BOF) { throw IndexOutOfBoundsException("Cannot read without moving cursor position beyond BOF.")}
-            val page = this.column.bufferPool.get(this.pageId, Priority.DEFAULT)
+            val page = this.bufferPool.get(this.pageId, Priority.DEFAULT)
             if ((page.getLong(this.relativeOffset) and MASK_NULL) > 0L) return null
             if ((page.getLong(this.relativeOffset) and FixedHareColumn.MASK_DELETED) > 0L) throw EntryDeletedException(this.tupleId)
             val ret = this.serializer.deserialize(page, this.relativeOffset + FixedHareColumn.ENTRY_HEADER_SIZE)
@@ -70,7 +72,7 @@ class BufferedHareCursor<T : Value>(column: FixedHareColumn<T>, writeable: Boole
         if (!this.isOpen) { throw ClosedChannelException() }
         return this.addressLock.read {
             if (this.tupleId == BYTE_CURSOR_BOF) { throw IndexOutOfBoundsException("Cannot read without moving cursor position beyond BOF.")}
-            val page = this.column.bufferPool.get(this.pageId, Priority.DEFAULT)
+            val page = this.bufferPool.get(this.pageId, Priority.DEFAULT)
             if ((page.getLong(this.relativeOffset) and FixedHareColumn.MASK_DELETED) > 0L) throw EntryDeletedException(this.tupleId)
             if (value != null) {
                 page.putLong(this.relativeOffset , (page.getLong(this.relativeOffset) and MASK_NULL.inv()))
@@ -100,9 +102,9 @@ class BufferedHareCursor<T : Value>(column: FixedHareColumn<T>, writeable: Boole
             this.relativeOffset = this.entrySize * ((this.tupleId % this.fillFactor).toInt())
             this.header.count++
 
-            if (this.pageId >= this.column.bufferPool.totalPages) {
+            if (this.pageId >= this.bufferPool.totalPages) {
                 /* Case 1: Data goes on new pages. */
-                val page = this.column.bufferPool.detach()
+                val page = this.bufferPool.detach()
                 if (value != null) {
                     page.putLong(0, 1L)
                     this.serializer.serialize(page, FixedHareColumn.ENTRY_HEADER_SIZE, value)
@@ -112,11 +114,11 @@ class BufferedHareCursor<T : Value>(column: FixedHareColumn<T>, writeable: Boole
                         page.putByte(i, 0)
                     }
                 }
-                this.column.bufferPool.append(page)
+                this.bufferPool.append(page)
                 page.release()
             } else {
                 /* Case 2: Data goes on an existing page.*/
-                val page = this.column.bufferPool.get(this.pageId, Priority.DEFAULT)
+                val page = this.bufferPool.get(this.pageId, Priority.DEFAULT)
                 if (value != null) {
                     page.putLong(this.relativeOffset , 1L)
                     this.serializer.serialize(page, this.relativeOffset + FixedHareColumn.ENTRY_HEADER_SIZE, value)
@@ -135,6 +137,10 @@ class BufferedHareCursor<T : Value>(column: FixedHareColumn<T>, writeable: Boole
        TODO()
     }
 
+    /**
+     * Closes the [BufferedHareCursor] and the associated [BufferPool].
+     */
     override fun implCloseChannel() {
+        this.bufferPool.close()
     }
 }

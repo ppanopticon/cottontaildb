@@ -29,7 +29,7 @@ class HareDoubleArrayCursorTest {
      */
     @ExperimentalTime
     @ParameterizedTest
-    @ValueSource(ints = [1024])
+    @ValueSource(ints = [2048, 1024, 512])
     fun test(dimensions: Int) {
         val columnDef = ColumnDef(Name("test"), DoubleVectorColumnType, size = dimensions)
         FixedHareColumn.createDirect(this.path, columnDef)

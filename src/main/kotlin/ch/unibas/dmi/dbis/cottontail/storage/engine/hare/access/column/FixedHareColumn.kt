@@ -28,7 +28,7 @@ import kotlin.math.abs
  * @author Ralph Gasser
  * @param 1.0
  */
-class FixedHareColumn <T: Value>(val path: Path, wal: Boolean, poolSize: Int = 25) : AutoCloseable {
+class FixedHareColumn <T: Value>(val path: Path, wal: Boolean, corePoolSize: Int = 5) : AutoCloseable {
 
     /** Companion object with important constants. */
     companion object {
@@ -107,7 +107,7 @@ class FixedHareColumn <T: Value>(val path: Path, wal: Boolean, poolSize: Int = 2
     val disk = if (wal) { WALDiskManager(this.path) } else { DirectDiskManager(this.path) }
 
     /** Initializes the [BufferPool]. */
-    val bufferPool = BufferPool(disk = this.disk, size = poolSize)
+    val bufferPool = BufferPool(disk = this.disk, size = corePoolSize)
 
     /** Return true if this [DiskManager] and thus this [FixedHareColumn] is still open. */
     val isOpen

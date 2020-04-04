@@ -23,6 +23,12 @@ import java.nio.file.Path
  * @author Ralph Gasser
  */
 class DirectDiskManager(path: Path, lockTimeout: Long = 5000, private val preAllocatePages: Int = 32) : DiskManager(path, lockTimeout) {
+
+
+    companion object {
+        val EMPTY: ByteBuffer = ByteBuffer.allocateDirect(1)
+    }
+
     init {
         if (!this.header.isConsistent) {
             if (!this.validate()) {
@@ -103,10 +109,12 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000, private val preAll
         /* Adjust header and let file grow. */
         this.header.pages += this.preAllocatePages
         this.header.flush()
-        this.fileChannel.write(ByteBuffer.allocate(1), ((this.header.pages + this.preAllocatePages) shl this.header.pageShift))
 
-        /* Write actual page data. */
-        page?.lock?.exclusive {
+        /* Write a single byte to the EOF. */
+        this.fileChannel.write(EMPTY, this.pageIdToPosition(this.header.pages) + this.header.pageSize)
+
+        /* Write page. */
+        if (page != null) {
             this.fileChannel.write(page._data, this.pageIdToPosition(newPageId))
             page._data.clear()
         }

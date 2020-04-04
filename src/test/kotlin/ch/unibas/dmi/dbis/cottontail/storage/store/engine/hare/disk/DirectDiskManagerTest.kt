@@ -32,7 +32,7 @@ class DirectDiskManagerTest {
     @BeforeEach
     fun beforeEach() {
         DiskManager.create(this.path, pageShift)
-        this.manager = DirectDiskManager(path = this.path)
+        this.manager = DirectDiskManager(path = this.path, preAllocatePages = 1)
     }
 
     @AfterEach
@@ -103,7 +103,7 @@ class DirectDiskManagerTest {
         for (i in newData.indices) {
             updateTime += measureTime {
                 page.putBytes(0, newData[i])
-                this.manager!!.update((i + 1L), page)
+                this.manager!!.update(i.toLong(), page)
             }
             assertArrayEquals(newData[i], page.getBytes(0))
         }
@@ -126,7 +126,7 @@ class DirectDiskManagerTest {
         var readTime = Duration.ZERO
         for (i in ref.indices) {
             readTime += measureTime {
-                this.manager!!.read((i + 1L), page)
+                this.manager!!.read(i.toLong(), page)
             }
             assertArrayEquals(ref[i], page.getBytes(0))
         }
@@ -147,7 +147,7 @@ class DirectDiskManagerTest {
         var readTime = Duration.ZERO
         for (i in ref.indices step 4) {
             readTime += measureTime {
-                this.manager!!.read((i + 1L), arrayOf(page1, page2, page3, page4))
+                this.manager!!.read(i.toLong(), arrayOf(page1, page2, page3, page4))
             }
             assertArrayEquals(ref[i], page1.getBytes(0))
             assertArrayEquals(ref[i+1], page2.getBytes(0))

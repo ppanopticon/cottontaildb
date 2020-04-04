@@ -4,7 +4,7 @@ import ch.unibas.dmi.dbis.cottontail.database.column.ColumnType
 import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.model.values.types.Value
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.DataCorruptionException
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.column.AbstractCursor.Companion.BYTE_CURSOR_BOF
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.cursor.ReadableCursor.Companion.BYTE_CURSOR_BOF
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.cursor.TupleId
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.PageRef
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.BufferPool
@@ -170,33 +170,29 @@ class FixedHareColumn <T: Value>(val path: Path, wal: Boolean, corePoolSize: Int
 
         /** The [ColumnType] held by this [FixedHareColumn]. */
         @Suppress("UNCHECKED_CAST")
-        val type: ColumnType<T>
-            get() = ColumnType.forOrdinal(this.page.getInt(6)) as ColumnType<T>
+        val type: ColumnType<T> = ColumnType.forOrdinal(this.page.getInt(6)) as ColumnType<T>
 
         /** The logical size of the [ColumnDef] held by this [FixedHareColumn]. */
-        val size: Int
-            get() = this.page.getInt(10)
+        val size: Int = this.page.getInt(10)
 
         /** The size of an entry in bytes. */
-        val entrySize: Int
-            get() = this.page.getInt(14)
+        val entrySize: Int = this.page.getInt(14)
 
         /** Special flags set for this [FixedHareColumn], such as, nullability. */
-        val flags: Long
-            get() = this.page.getLong(18)
+        val flags: Long = this.page.getLong(18)
 
         /** The total number of entries in this [FixedHareColumn]. */
-        var count: Long
-            get() = this.page.getLong(26)
+        var count: Long = this.page.getLong(26)
             set(v) {
-                this.page.putLong(26, v)
+                field = v
+                this.page.putLong(26, field)
             }
 
         /** The number of deleted entries in this [FixedHareColumn]. */
-        var deleted: Long
-            get() = this.page.getLong(34)
+        var deleted: Long = this.page.getLong(34)
             set(v) {
-                this.page.putLong(34, v)
+                field = v
+                this.page.putLong(34, field)
             }
     }
 }

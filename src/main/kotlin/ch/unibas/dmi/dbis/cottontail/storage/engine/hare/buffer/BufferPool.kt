@@ -1,6 +1,5 @@
 package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer
 
-import ch.unibas.dmi.dbis.cottontail.storage.basics.MemorySize
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.Page
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.PageRef
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.Releasable.Companion.PIN_COUNT_DISPOSED
@@ -9,6 +8,7 @@ import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DataPage
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DirectDiskManager
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DiskManager
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.PageId
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.memory.MemoryManager
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.optimisticRead
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.read
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.write
@@ -29,14 +29,14 @@ import java.util.concurrent.locks.StampedLock
  * @version 1.1
  * @author Ralph Gasser
  */
-class BufferPool(private val disk: DiskManager, private val size: Int = 25, private val evictionQueue: EvictionQueue = FIFOEvictionQueue(size)): Resource {
+class BufferPool(private val disk: DiskManager, val size: Int = 25, private val evictionQueue: EvictionQueue = FIFOEvictionQueue(size)): Resource {
 
-    /** Allocates direct memory as [ByteBuffer] that is used to buffer [DataPage]s. This is not counted towards the heap used by the JVM! */
-    private val buffer = ByteBuffer.allocateDirect(this.size * this.disk.pageSize)
+    /** Creates a new [MemoryManager] for this [BufferPool]. */
+    private val manager = MemoryManager(this.disk.pageShift, this.size)
 
     /** Array of [DataPage]s that are kept in memory. */
     private val pages = Array(this.size) {
-       DataPage(this.buffer.position(it * this.disk.pageSize).limit((it+1) * this.disk.pageSize).slice())
+       DataPage(this.manager[it])
     }
 
     /** The internal directory that maps [PageId]s to [PageReference]s.*/
@@ -60,8 +60,7 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 25, priv
         get() = this.disk.size
 
     /** The amount of memory used by this [BufferPool] to buffer [PageReference]s. */
-    val memorySize
-        get() = MemorySize((this.size * this.disk.pageSize).toDouble())
+    val memorySize = this.manager.size
 
     /** Returns the total number of buffered [DataPage]s. */
     val bufferedPages
@@ -207,8 +206,11 @@ class BufferPool(private val disk: DiskManager, private val size: Int = 25, priv
 
     /** Closes this [BufferPool] and the underlying [DiskManager]. */
     override fun close() = this.closeLock.write {
-        this.pageDirectory.forEach {
-            it.value.forceEvict()
+        this.directoryLock.write {
+            val pages = this.pageDirectory.values.toList()
+            pages.forEach {
+                it.forceEvict()
+            }
         }
         if (!this.closed) {
             this.closed = true

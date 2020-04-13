@@ -30,15 +30,8 @@ class FixedDoubleVectorSerializer(override val logicalSize: Int): Serializer<Dou
     }
 
     override fun serialize(page: Page, offset: Int, value: DoubleVectorValue) {
-        for ((i,d) in value.data.withIndex()) {
-            page.putDouble(offset + (i shl 3), d)
-        }
+        page.putDoubles(offset, value.data)
     }
 
-    override fun deserialize(page: Page, offset: Int): DoubleVectorValue {
-        val slice = page.getSlice(offset, offset + this.physicalSize)
-        return DoubleVectorValue(DoubleArray(this.logicalSize) {
-            slice.double
-        })
-    }
+    override fun deserialize(page: Page, offset: Int): DoubleVectorValue = DoubleVectorValue(page.getDoubles(offset, DoubleArray(this.logicalSize)))
 }

@@ -27,15 +27,8 @@ class FixedFloatVectorSerializer(override val logicalSize: Int): Serializer<Floa
     }
 
     override fun serialize(page: Page, offset: Int, value: FloatVectorValue) {
-        for ((i,d) in value.data.withIndex()) {
-            page.putFloat(offset + (i shl 2), d)
-        }
+        page.putFloats(offset, value.data)
     }
 
-    override fun deserialize(page: Page, offset: Int): FloatVectorValue {
-        val slice = page.getSlice(offset, offset + this.physicalSize)
-        return FloatVectorValue(FloatArray(this.logicalSize) {
-            slice.float
-        })
-    }
+    override fun deserialize(page: Page, offset: Int): FloatVectorValue = FloatVectorValue(page.getFloats(offset, FloatArray(this.logicalSize)))
 }

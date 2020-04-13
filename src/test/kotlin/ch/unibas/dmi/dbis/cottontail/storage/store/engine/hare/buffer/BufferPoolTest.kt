@@ -34,7 +34,7 @@ class BufferPoolTest {
     @BeforeEach
     fun beforeEach() {
         DiskManager.create(this.path, this.pageShift)
-        this._manager = DirectDiskManager(this.path)
+        this._manager = DirectDiskManager(path = this.path, preAllocatePages = 1)
         this.pool = BufferPool(this._manager!!)
     }
 

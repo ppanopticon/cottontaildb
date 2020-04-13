@@ -1,29 +1,6 @@
 package ch.unibas.dmi.dbis.cottontail.database.data
 
-import ch.unibas.dmi.dbis.cottontail.TestConstants
-import ch.unibas.dmi.dbis.cottontail.database.catalogue.Catalogue
-import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
-import ch.unibas.dmi.dbis.cottontail.database.general.begin
-import ch.unibas.dmi.dbis.cottontail.database.schema.Schema
-import ch.unibas.dmi.dbis.cottontail.model.recordset.StandaloneRecord
-import ch.unibas.dmi.dbis.cottontail.model.values.*
-
-import ch.unibas.dmi.dbis.cottontail.utilities.VectorUtility
-import ch.unibas.dmi.dbis.cottontail.utilities.name.Name
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.RepeatedTest
-
-import java.util.*
-import kotlin.collections.HashMap
-import kotlin.math.absoluteValue
-
-
-import org.junit.jupiter.api.Assertions.*
-import java.nio.file.Files
-import java.util.stream.Collectors
-
-
+/**
 class VectorDataTest {
     private val schemaName = Name("data-test")
     private val entityName = Name("vector-test")
@@ -240,3 +217,4 @@ class VectorDataTest {
         }
     }
 }
+        **/

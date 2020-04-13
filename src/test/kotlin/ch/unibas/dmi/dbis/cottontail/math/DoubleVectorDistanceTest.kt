@@ -1,5 +1,5 @@
 package ch.unibas.dmi.dbis.cottontail.math
-
+/*
 import ch.unibas.dmi.dbis.cottontail.math.knn.metrics.*
 import ch.unibas.dmi.dbis.cottontail.utilities.VectorUtility
 import org.apache.commons.math3.ml.distance.EuclideanDistance
@@ -127,4 +127,4 @@ class DoubleVectorDistanceTest {
         assertTrue(sum2 / sum3 < 1.0 + DELTA, "Deviation for manual version detected. Expected: $sum3, Received: $sum2")
         assertTrue(sum2 / sum3 > 1.0 - DELTA, "Deviation for manual version detected. Expected: $sum3, Received: $sum2")
     }
-}
+}*/

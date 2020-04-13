@@ -13,6 +13,9 @@ import org.mapdb.DataOutput2
  * @version 1.0
  */
 class FixedFloatVectorSerializer(override val logicalSize: Int): Serializer<FloatVectorValue> {
+
+    override val physicalSize: Int = (this.logicalSize shl 2) /* Equals (this.logicalSize * Int.SIZE_BYTES) */
+
     override fun serialize(out: DataOutput2, value: FloatVectorValue) {
         for (i in 0 until this.logicalSize) {
             out.writeFloat(value[i].value)
@@ -23,13 +26,16 @@ class FixedFloatVectorSerializer(override val logicalSize: Int): Serializer<Floa
         return FloatVectorValue(vector)
     }
 
-    override val physicalSize: Int = this.logicalSize * Int.Companion.SIZE_BYTES
     override fun serialize(page: Page, offset: Int, value: FloatVectorValue) {
-        TODO("Not yet implemented")
+        for ((i,d) in value.data.withIndex()) {
+            page.putFloat(offset + (i shl 2), d)
+        }
     }
 
     override fun deserialize(page: Page, offset: Int): FloatVectorValue {
-        TODO("Not yet implemented")
+        val slice = page.getSlice(offset, offset + this.physicalSize)
+        return FloatVectorValue(FloatArray(this.logicalSize) {
+            slice.float
+        })
     }
-
 }

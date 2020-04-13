@@ -1,5 +1,5 @@
 package ch.unibas.dmi.dbis.cottontail.math
-
+/*
 import ch.unibas.dmi.dbis.cottontail.math.knn.metrics.EuclidianDistance
 import ch.unibas.dmi.dbis.cottontail.math.knn.metrics.ManhattanDistance
 import ch.unibas.dmi.dbis.cottontail.math.knn.metrics.SquaredEuclidianDistance
@@ -119,4 +119,4 @@ class IntVectorDistanceTest {
         Assertions.assertTrue(sum2 / sum3 < 1.0 + DELTA, "Deviation for manual version detected. Expected: $sum3, Received: $sum2")
         Assertions.assertTrue(sum2 / sum3 > 1.0 - DELTA, "Deviation for manual version detected. Expected: $sum3, Received: $sum2")
     }
-}
+}*/

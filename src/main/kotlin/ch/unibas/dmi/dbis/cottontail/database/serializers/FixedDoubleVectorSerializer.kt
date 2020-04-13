@@ -14,7 +14,7 @@ import org.mapdb.DataOutput2
  */
 class FixedDoubleVectorSerializer(override val logicalSize: Int): Serializer<DoubleVectorValue> {
 
-    override val physicalSize: Int = Long.SIZE_BYTES * this.logicalSize
+    override val physicalSize: Int = (this.logicalSize shl 3) /* Equals (this.logicalSize * Long.SIZE_BYTES) */
 
     override fun serialize(out: DataOutput2, value: DoubleVectorValue) {
         for (i in 0 until this.logicalSize) {
@@ -30,10 +30,15 @@ class FixedDoubleVectorSerializer(override val logicalSize: Int): Serializer<Dou
     }
 
     override fun serialize(page: Page, offset: Int, value: DoubleVectorValue) {
-        page.putBytes(offset, value.data)
+        for ((i,d) in value.data.withIndex()) {
+            page.putDouble(offset + (i shl 3), d)
+        }
     }
 
     override fun deserialize(page: Page, offset: Int): DoubleVectorValue {
-        return DoubleVectorValue(page.getSlice(offset, offset + this.physicalSize))
+        val slice = page.getSlice(offset, offset + this.physicalSize)
+        return DoubleVectorValue(DoubleArray(this.logicalSize) {
+            slice.double
+        })
     }
 }

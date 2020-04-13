@@ -1,5 +1,5 @@
 package ch.unibas.dmi.dbis.cottontail.database.index
-
+/*
 import ch.unibas.dmi.dbis.cottontail.TestConstants
 import ch.unibas.dmi.dbis.cottontail.database.catalogue.Catalogue
 import ch.unibas.dmi.dbis.cottontail.database.entity.Entity
@@ -144,4 +144,4 @@ class UniqueHashIndexTest {
         }
         this.entity?.updateAllIndexes()
     }
-}
+}*/

@@ -12,7 +12,7 @@ import java.util.concurrent.locks.StampedLock
  *
  * @see DiskManager
  *
- * @version 1.1
+ * @version 1.2
  * @author Ralph Gasser
  */
 class DataPage(internal val _data: ByteBuffer) : Page {
@@ -24,18 +24,66 @@ class DataPage(internal val _data: ByteBuffer) : Page {
     /** A [StampedLock] that mediates access to this [DataPage]'s [ByteBuffer].  */
     internal val lock: StampedLock = StampedLock()
 
-    override fun getBytes(index: Int, byteBuffer: ByteBuffer): ByteBuffer = this.lock.exclusive {
-        this._data.position(index).limit(index + byteBuffer.remaining())
-        byteBuffer.put(this._data.position(index))
-        this._data.clear()
+    override fun getBytes(index: Int, byteBuffer: ByteBuffer): ByteBuffer = this.lock.shared {
+        val buffer = this._data.duplicate().position(index).limit(index + byteBuffer.remaining())
+        byteBuffer.put(buffer)
         return byteBuffer
     }
-    override fun getBytes(index: Int, bytes: ByteArray) : ByteArray = this.lock.exclusive {
-        this._data.position(index).get(bytes).clear()
+    override fun getBytes(index: Int, bytes: ByteArray) : ByteArray = this.lock.shared {
+        val buffer = this._data.duplicate().position(index)
+        buffer.get(bytes)
         return bytes
     }
     override fun getBytes(index: Int, limit: Int) : ByteArray = getBytes(index, ByteArray(limit-index))
     override fun getBytes(index: Int) : ByteArray = getBytes(index, this._data.capacity())
+    override fun getShorts(index: Int, array: ShortArray): ShortArray {
+        val buffer = this._data.duplicate().position(index)
+        for (i in array.indices) {
+            array[i] = buffer.short
+        }
+        return array
+    }
+
+    override fun getChars(index: Int, array: CharArray): CharArray {
+        val buffer = this._data.duplicate().position(index)
+        for (i in array.indices) {
+            array[i] = buffer.char
+        }
+        return array
+    }
+
+    override fun getInts(index: Int, array: IntArray): IntArray {
+        val buffer = this._data.duplicate().position(index)
+        for (i in array.indices) {
+            array[i] = buffer.int
+        }
+        return array
+    }
+
+    override fun getLongs(index: Int, array: LongArray): LongArray {
+        val buffer = this._data.duplicate().position(index)
+        for (i in array.indices) {
+            array[i] = buffer.long
+        }
+        return array
+    }
+
+    override fun getDoubles(index: Int, array: DoubleArray): DoubleArray = this.lock.shared {
+        val buffer = this._data.duplicate().position(index)
+        for (i in array.indices) {
+            array[i] = buffer.double
+        }
+        return array
+    }
+
+    override fun getFloats(index: Int, array: FloatArray): FloatArray = this.lock.shared {
+        val buffer = this._data.duplicate().position(index)
+        for (i in array.indices) {
+            array[i] = buffer.float
+        }
+        return array
+    }
+
     override fun getByte(index: Int): Byte = this.lock.shared { this._data.get(index) }
     override fun getShort(index: Int): Short = this.lock.shared { this._data.getShort(index) }
     override fun getChar(index: Int): Char = this.lock.shared { this._data.getChar(index) }
@@ -43,15 +91,109 @@ class DataPage(internal val _data: ByteBuffer) : Page {
     override fun getLong(index: Int): Long = this.lock.shared { this._data.getLong(index) }
     override fun getFloat(index: Int): Float = this.lock.shared { this._data.getFloat(index) }
     override fun getDouble(index: Int): Double = this.lock.shared { this._data.getDouble(index) }
-    override fun getSlice(start: Int, end: Int): ByteBuffer = this.lock.shared {
-        val ret = this._data.position(start).limit(end).slice().asReadOnlyBuffer()
-        this._data.clear()
-        return ret
+
+    /**
+     * Writes a [ByteBuffer] to the given position.
+     *
+     * @param index Position to write byte to.
+     * @param value New [ByteArray] value to write.
+     * @return This [DataPage]
+     */
+    override fun putBytes(index: Int, value: ByteBuffer): DataPage = this.lock.exclusive {
+        this._data.position(index).put(value).rewind()
+        return this
     }
-    override fun getSlice(): ByteBuffer = this.lock.shared {
-        val ret = this._data.asReadOnlyBuffer()
-        this._data.clear()
-        return ret
+
+    /**
+     * Writes a [ByteArray] to the given position.
+     *
+     * @param index Position to write byte to.
+     * @param value [ByteArray] value to write.
+     * @return This [DataPage]
+     */
+    override fun putBytes(index: Int, value: ByteArray): DataPage = this.lock.exclusive {
+        this._data.position(index).put(value).rewind()
+        return this
+    }
+
+    /**
+     * Writes a [ShortArray] to the given position.
+     *
+     * @param index Position to write byte to.
+     * @param value [ShortArray] value to write.
+     * @return This [DataPage]
+     */
+    override fun putShorts(index: Int, value: ShortArray): Page = this.lock.exclusive {
+        this._data.position(index)
+        for (i in value.indices) {
+            this._data.putShort(value[i])
+        }
+        this._data.rewind()
+        this
+    }
+
+    /**
+     * Writes an [IntArray] to the given position.
+     *
+     * @param index Position to write byte to.
+     * @param value [IntArray] value to write.
+     * @return This [DataPage]
+     */
+    override fun putInts(index: Int, value: IntArray): Page = this.lock.exclusive {
+        this._data.position(index)
+        for (i in value.indices) {
+            this._data.putInt(value[i])
+        }
+        this._data.rewind()
+        this
+    }
+
+    /**
+     * Writes an [LongArray] to the given position.
+     *
+     * @param index Position to write byte to.
+     * @param value [LongArray] value to write.
+     * @return This [DataPage]
+     */
+    override fun putLongs(index: Int, value: LongArray): Page = this.lock.exclusive {
+        this._data.position(index)
+        for (i in value.indices) {
+            this._data.putLong(value[i])
+        }
+        this._data.rewind()
+        this
+    }
+
+    /**
+     * Writes an [FloatArray] to the given position.
+     *
+     * @param index Position to write byte to.
+     * @param value [FloatArray] value to write.
+     * @return This [DataPage]
+     */
+    override fun putFloats(index: Int, value: FloatArray): Page = this.lock.exclusive {
+        this._data.position(index)
+        for (i in value.indices) {
+            this._data.putFloat(value[i])
+        }
+        this._data.rewind()
+        this
+    }
+
+    /**
+     * Writes an [DoubleArray] to the given position.
+     *
+     * @param index Position to write byte to.
+     * @param value [DoubleArray] value to write.
+     * @return This [DataPage]
+     */
+    override fun putDoubles(index: Int, value: DoubleArray): Page = this.lock.exclusive {
+        this._data.position(index)
+        for (i in value.indices) {
+            this._data.putDouble(value[i])
+        }
+        this._data.rewind()
+        this
     }
 
     /**
@@ -63,30 +205,6 @@ class DataPage(internal val _data: ByteBuffer) : Page {
      */
     override fun putByte(index: Int, value: Byte): DataPage = this.lock.exclusive {
         this._data.put(index, value)
-        return this
-    }
-
-    /**
-     * Writes a [ByteArray] to the given position.
-     *
-     * @param index Position to write byte to.
-     * @param value New [ByteArray] value to write.
-     * @return This [DataPage]
-     */
-    override fun putBytes(index: Int, value: ByteArray): DataPage = this.lock.exclusive {
-        this._data.position(index).put(value).rewind()
-        return this
-    }
-
-    /**
-     * Writes a [ByteBuffer] to the given position.
-     *
-     * @param index Position to write byte to.
-     * @param value New [ByteArray] value to write.
-     * @return This [DataPage]
-     */
-    override fun putBytes(index: Int, value: ByteBuffer): DataPage = this.lock.exclusive {
-        this._data.position(index).put(value).rewind()
         return this
     }
 

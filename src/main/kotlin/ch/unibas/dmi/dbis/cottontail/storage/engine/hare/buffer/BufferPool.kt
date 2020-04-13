@@ -26,7 +26,7 @@ import java.util.concurrent.locks.StampedLock
  *
  * @see DirectDiskManager
  *
- * @version 1.1
+ * @version 1.2
  * @author Ralph Gasser
  */
 class BufferPool(private val disk: DiskManager, val size: Int = 25, private val evictionQueue: EvictionQueue = FIFOEvictionQueue(size)): Resource {
@@ -79,7 +79,7 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, private val 
 
     /** A background job that pre-fetches [Pages] based on entries in the [BufferPool.prefetchQueue]*/
     private val job = GlobalScope.launch {
-        while (true) {
+        while (!this@BufferPool.closed) {
             val range = this@BufferPool.prefetchQueue.poll()
             if (range != null) {
                 this@BufferPool.directoryLock.write {
@@ -88,7 +88,7 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, private val 
                             this@BufferPool.evictPage(it, Priority.DEFAULT)
                         }
                         val pages = Array(pageRefs.size) {
-                            pageRefs[it]._dataPage
+                            pageRefs[it].dataPage
                         }
                         this@BufferPool.disk.read(range.first, pages)
                         pageRefs.forEach {
@@ -123,7 +123,7 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, private val 
                 val newRef = evictPage(pageId, priority)
 
                 /* Now read page from disk. */
-                this.disk.read(pageId, newRef._dataPage)
+                this.disk.read(pageId, newRef.dataPage)
 
                 /* Update page directory and queue and return new PageRef. */
                 this.pageDirectory[pageId] = newRef
@@ -154,7 +154,7 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, private val 
         check(this.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
         this.directoryLock.write {
             check (data.id == -1L && data is PageReference) { "Only pages detached from this BufferPool can be appended." }
-            return this.disk.allocate(data._dataPage)
+            return this.disk.allocate(data.dataPage)
         }
     }
 
@@ -183,7 +183,7 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, private val 
         this.directoryLock.read {
             for (p in this.pageDirectory.values) {
                 if (p.dirty) {
-                    this.disk.update(p.id, p._dataPage)
+                    this.disk.update(p.id, p.dataPage)
                 }
             }
         }
@@ -198,7 +198,7 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, private val 
         this.directoryLock.read {
             for (p in this.pageDirectory.values) {
                 if (p.dirty) {
-                    this.disk.read(p.id, p._dataPage)
+                    this.disk.read(p.id, p.dataPage)
                 }
             }
         }
@@ -206,13 +206,13 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, private val 
 
     /** Closes this [BufferPool] and the underlying [DiskManager]. */
     override fun close() = this.closeLock.write {
-        this.directoryLock.write {
-            val pages = this.pageDirectory.values.toList()
-            pages.forEach {
-                it.forceEvict()
-            }
-        }
         if (!this.closed) {
+            this.directoryLock.write {
+                val pages = this.pageDirectory.values.toList()
+                pages.forEach {
+                    it.forceEvict()
+                }
+            }
             this.closed = true
         }
     }
@@ -237,7 +237,7 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, private val 
      */
     inner class PageReference(override val id: PageId, override val priority: Priority, internal val pointer: Int): PageRef {
         /** Internal reference to [DataPage] this [PageReference] is pointing to. */
-        internal val _dataPage: DataPage = this@BufferPool.pages[this.pointer]
+        internal val dataPage: DataPage = this@BufferPool.pages[this.pointer]
 
         /** Public reference to the [Page] this [PageReference] is pointing to. */
         override val page: Page
@@ -261,6 +261,7 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, private val 
         override var dirty = false
             private set
 
+
         /** The pin count of this [PageReference]. As soon as this number drops to zero, it can potentially be evicted by the [BufferPool]. */
         @Volatile
         override var pinCount = 0
@@ -275,6 +276,13 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, private val 
         override fun getBytes(index: Int, bytes: ByteArray): ByteArray = this.evictionLock.optimisticRead { this.page.getBytes(index, bytes) }
         override fun getBytes(index: Int, limit: Int): ByteArray = this.evictionLock.optimisticRead { this.page.getBytes(index, limit) }
         override fun getBytes(index: Int): ByteArray = this.evictionLock.optimisticRead { this.page.getBytes(index) }
+        override fun getShorts(index: Int, array: ShortArray): ShortArray = this.evictionLock.optimisticRead { this.page.getShorts(index, array) }
+        override fun getChars(index: Int, array: CharArray): CharArray = this.evictionLock.optimisticRead { this.page.getChars(index, array) }
+        override fun getInts(index: Int, array: IntArray): IntArray = this.evictionLock.optimisticRead { this.page.getInts(index, array) }
+        override fun getLongs(index: Int, array: LongArray): LongArray = this.evictionLock.optimisticRead { this.page.getLongs(index, array) }
+        override fun getDoubles(index: Int, array: DoubleArray): DoubleArray = this.evictionLock.optimisticRead { this.page.getDoubles(index, array) }
+        override fun getFloats(index: Int, array: FloatArray): FloatArray = this.evictionLock.optimisticRead { this.page.getFloats(index, array) }
+
         override fun getByte(index: Int): Byte = this.evictionLock.optimisticRead { this.page.getByte(index) }
         override fun getShort(index: Int): Short = this.evictionLock.optimisticRead { this.page.getShort(index) }
         override fun getChar(index: Int): Char = this.evictionLock.optimisticRead { this.page.getChar(index) }
@@ -282,11 +290,39 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, private val 
         override fun getLong(index: Int): Long = this.evictionLock.optimisticRead { this.page.getLong(index) }
         override fun getFloat(index: Int): Float =  this.evictionLock.optimisticRead { this.page.getFloat(index) }
         override fun getDouble(index: Int): Double = this.evictionLock.optimisticRead { this.page.getDouble(index) }
-        override fun getSlice(start: Int, end: Int): ByteBuffer = this.evictionLock.optimisticRead { this.page.getSlice(start, end) }
-        override fun getSlice(): ByteBuffer = this.evictionLock.optimisticRead { this.page.getSlice() }
         override fun putBytes(index: Int, value: ByteArray): PageReference = this.evictionLock.optimisticRead {
             this.dirty = true
             this.page.putBytes(index, value)
+            this
+        }
+
+        override fun putShorts(index: Int, value: ShortArray): Page = this.evictionLock.optimisticRead {
+            this.dirty = true
+            this.page.putShorts(index, value)
+            this
+        }
+
+        override fun putInts(index: Int, value: IntArray): Page = this.evictionLock.optimisticRead {
+            this.dirty = true
+            this.page.putInts(index, value)
+            this
+        }
+
+        override fun putLongs(index: Int, value: LongArray): Page = this.evictionLock.optimisticRead {
+            this.dirty = true
+            this.page.putLongs(index, value)
+            this
+        }
+
+        override fun putFloats(index: Int, value: FloatArray): Page = this.evictionLock.optimisticRead {
+            this.dirty = true
+            this.page.putFloats(index, value)
+            this
+        }
+
+        override fun putDoubles(index: Int, value: DoubleArray): Page = this.evictionLock.optimisticRead {
+            this.dirty = true
+            this.page.putDoubles(index, value)
             this
         }
 
@@ -380,7 +416,7 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, private val 
         internal fun forceEvict() {
             this@BufferPool.pageDirectory.remove(this.id)
             if (this.dirty && this.id != -1L) {
-                this@BufferPool.disk.update(this.id, this._dataPage)
+                this@BufferPool.disk.update(this.id, this.dataPage)
             }
             this.pinCount = PIN_COUNT_DISPOSED
         }
@@ -394,7 +430,7 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, private val 
             if (this.pinCount == 0) {
                 this@BufferPool.pageDirectory.remove(this.id)
                 if (this.dirty && this.id != -1L) {
-                    this@BufferPool.disk.update(this.id, this._dataPage)
+                    this@BufferPool.disk.update(this.id, this.dataPage)
                 }
                 this.pinCount = PIN_COUNT_DISPOSED
                 true

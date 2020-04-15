@@ -311,7 +311,7 @@ class FixedHareCursor<T : Value>(columnFile: FixedHareColumnFile<T>, override va
         var i = start
 
         /* Start iteration. */
-        for (pageId in minPageId until maxPageId) {
+        for (pageId in minPageId..maxPageId) {
             val page: PageRef = this.bufferPool.get(pageId)
             try {
                 for (relativeOffset in 0 until maxRelativeOffset step this.entrySize) {

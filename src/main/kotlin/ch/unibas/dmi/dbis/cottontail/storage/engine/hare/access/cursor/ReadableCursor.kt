@@ -1,91 +1,69 @@
 package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.cursor
 
 import ch.unibas.dmi.dbis.cottontail.model.values.types.Value
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.EntryDeletedException
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.TupleId
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.TupleIdOutOfBoundException
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.cursor.ReadableCursor.Companion.BYTE_CURSOR_BOF
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.column.FixedHareCursor
 
 /**
- * A [ReadableCursor] is a read-only data structure that allows for navigation in and inspection of
- * HARE data  structures such as columns through a cursor-like interface.
- *
- * Position of the [ReadableCursor]  starts at [BYTE_CURSOR_BOF] and can be changed through primitives
- * such as [ReadableCursor.next], [ReadableCursor.previous] and [ReadableCursor.tupleId]. Data at the
- * given position can then be accessed through [ReadableCursor.get], [ReadableCursor.isDeleted] and
- * [ReadableCursor.isNull]
- *
- * Due to their nature, [ReadableCursor]'s can also act as [Iterator]'s for the underlying [TupleId]s.
- * However, the [ReadableCursor] interface is much more powerful than that of a simple [Iterator].
+ * A [ReadableCursor] is a readable proxy that allows for navigation in and inspection of
+ * HARE data structures such as columns. Access to entries is facilitated by [TupleId]s, that
+ * uniquely identify each entry in the underlying file.
  *
  * @author Ralph Gasser
  * @version 1.0
  */
-interface ReadableCursor<T : Value> : AutoCloseable, Iterator<TupleId> {
+interface ReadableCursor<T : Value> : AutoCloseable {
 
-    companion object {
-        const val BYTE_CURSOR_BOF = -1L
-    }
-
-    /** Maximum [TupleId] that can be reached through this [ReadableCursor]. */
+    /** Maximum [TupleId] that can be accessed through this [ReadableCursor]. */
     val maximum: TupleId
 
     /**
-     * Returns the [TupleId] this [ReadableCursor] is currently pointing to.
+     * Returns a boolean indicating whether the entry identified by the provided [TupleId] is null.
      *
-     * @return Current value for [TupleId]
+     * @param tupleId The [TupleId] to check.
+     * @return true if the entry for the given [TupleId] is null and false otherwise.
+     *
+     * @throws TupleIdOutOfBoundException If the provided [TupleId] is out of bounds for the underlying data structure.
      */
-    fun tupleId(): TupleId
+    fun isNull(tupleId: TupleId) : Boolean
 
     /**
-     * Sets this [ReadableCursor]'s [TupleId] to the given [TupleId].
+     * Returns a boolean indicating whether the entry identified by the provided [TupleId] has been deleted.
      *
-     * @param new The new, desired [TupleId] position.
-     * @return New value for [TupleId]
-     * @throws [TupleIdOutOfBoundException] If [TupleId] is out of bounds (i.e. > [ReadableCursor.maximum] or < [BYTE_CURSOR_BOF]).
-     */
-    fun tupleId(new: TupleId): TupleId
-
-    /**
-     * Moves this [ReadableCursor]'s [TupleId] to the next position.
+     * @param tupleId The [TupleId] to check.
+     * @return true if the entry for the given [TupleId] has been deleted and false otherwise.
      *
-     * @return New [TupleId]
-     * @throws [TupleIdOutOfBoundException] If next [TupleId] is out of bounds (i.e. > [ReadableCursor.maximum]).
+     * @throws TupleIdOutOfBoundException If the provided [TupleId] is out of bounds for the underlying data structure.
      */
-    override fun next(): TupleId
-
-    /**
-     * Checks if this [ReadableCursor] has a valid [TupleId] beyond the current [TupleId]. If this method
-     * returns true, then the next call to [ReadableCursor.next] is guaranteed to be safe.
-     *
-     * @return True if there exists a valid [TupleId] beyond the current one, false otherwise.
-     */
-    override fun hasNext(): Boolean
-
-    /**
-     * Moves this [ReadableCursor]'s [TupleId] to the previous position.
-     *
-     * @return New [TupleId]
-     * @throws [TupleIdOutOfBoundException] If previous [TupleId] is out of bounds (i.e. < [BYTE_CURSOR_BOF]).
-     */
-    fun previous(): TupleId
-
-    /**
-     * Returns a boolean indicating whether the entry the the current [ReadableCursor]'s position is null.
-     *
-     * @return true if the entry at the current position of the [ReadableCursor] is null and false otherwise.
-     */
-    fun isNull() : Boolean
-
-    /**
-     * Returns a boolean indicating whether the entry the the current [ReadableCursor]'s position has been deleted.
-     *
-     * @return true if the entry at the current position of the [ReadableCursor] has been deleted and false otherwise.
-     */
-    fun isDeleted() : Boolean
+    fun isDeleted(tupleId: TupleId) : Boolean
 
     /**
      * Returns the entry at the current [ReadableCursor] position.
      *
      * @return Entry at the current [ReadableCursor] position.
+     *
+     * @throws EntryDeletedException If entry identified by [TupleId] has been deleted.
+     * @throws TupleIdOutOfBoundException If the provided [TupleId] is out of bounds for the underlying data structure.
      */
-    fun get() : T?
+    fun get(tupleId: TupleId) : T?
+
+    /**
+     * Iterates over the given range of [TupleId]s and executes the provided [action] for each entry.
+     *
+     * @param start The start [TupleId] for the iteration. Defaults to 0
+     * @param end The end [TupleId] for the iteration. Defaults to [FixedHareCursor.maximum]
+     * @param action The action that consumes the [TupleId] and the actual value
+     */
+    fun forEach(start: TupleId = 0L, end: TupleId = this.maximum, action: (TupleId, T?) -> Unit)
+
+    /**
+     * Iterates over the given range of [TupleId]s and executes the provided mapping [action] for each entry.
+     *
+     * @param start The start [TupleId] for the iteration. Defaults to 0
+     * @param end The end [TupleId] for the iteration. Defaults to [FixedHareCursor.maximum]
+     * @param action The action that consumes the [TupleId] and the actual value
+     */
+    fun <R> map(start: TupleId = 0L, end: TupleId = this.maximum, action: (TupleId, T?) -> R?)
 }

@@ -4,8 +4,7 @@ import ch.unibas.dmi.dbis.cottontail.database.column.ColumnType
 import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.model.values.types.Value
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.DataCorruptionException
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.cursor.ReadableCursor.Companion.BYTE_CURSOR_BOF
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.cursor.TupleId
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.TupleId
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.PageRef
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.BufferPool
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.Priority
@@ -28,7 +27,7 @@ import kotlin.math.abs
  * @author Ralph Gasser
  * @param 1.0
  */
-class FixedHareColumn <T: Value>(val path: Path, wal: Boolean, corePoolSize: Int = 5) : AutoCloseable {
+class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize: Int = 5) : AutoCloseable {
 
     /** Companion object with important constants. */
     companion object {
@@ -39,23 +38,23 @@ class FixedHareColumn <T: Value>(val path: Path, wal: Boolean, corePoolSize: Int
         /** [PageId] of the root [DataPage]. */
         const val ROOT_PAGE_ID = 0L
 
-        /** Mask for 'NULLABLE' bit in [FixedHareColumn.Header]. */
+        /** Mask for 'NULLABLE' bit in [FixedHareColumnFile.Header]. */
         const val MASK_NULLABLE = 1L shl 0
 
         /** Size of an entry's header in bytes. */
         const val ENTRY_HEADER_SIZE = 8
 
-        /** Mask for 'NULL' bit in each [FixedHareColumn] entry. */
+        /** Mask for 'NULL' bit in each [FixedHareColumnFile] entry. */
         const val MASK_NULL = 1L shl 1
 
-        /** Mask for 'DELETED' bit in each [FixedHareColumn] entry. */
+        /** Mask for 'DELETED' bit in each [FixedHareColumnFile] entry. */
         const val MASK_DELETED = 1L shl 2
 
         /**
-         * Creates a new [FixedHareColumn] under the given location.
+         * Creates a new [FixedHareColumnFile] under the given location.
          *
-         * @param path [Path] under which to create a new [FixedHareColumn].
-         * @param columnDef The [ColumnDef] that describes this [FixedHareColumn].
+         * @param path [Path] under which to create a new [FixedHareColumnFile].
+         * @param columnDef The [ColumnDef] that describes this [FixedHareColumnFile].
          * @param desiredFillFactor The desired number of entries per page (fill factor = (entrySize / pageSize)). Used to determine the size of a page.
          */
         fun createDirect(path: Path, columnDef: ColumnDef<*>, desiredFillFactor: Int = 8) {
@@ -109,33 +108,32 @@ class FixedHareColumn <T: Value>(val path: Path, wal: Boolean, corePoolSize: Int
     /** Initializes the [BufferPool]. */
     val bufferPool = BufferPool(disk = this.disk, size = corePoolSize)
 
-    /** Return true if this [DiskManager] and thus this [FixedHareColumn] is still open. */
+    /** Return true if this [DiskManager] and thus this [FixedHareColumnFile] is still open. */
     val isOpen
         get() = this.disk.isOpen
 
-    /** The [Name] of this [FixedHareColumn]. */
+    /** The [Name] of this [FixedHareColumnFile]. */
     val name = Name(this.path.fileName.toString().replace(".db", ""))
 
-    /** The private instance of the [FixedHareColumn] file header. */
+    /** The private instance of the [FixedHareColumnFile] file header. */
     private val header = Header()
 
-    /** The [ColumnDef] describing the column managed by this [FixedHareColumn]. */
+    /** The [ColumnDef] describing the column managed by this [FixedHareColumnFile]. */
     val columnDef = ColumnDef(this.name, this.header.type, this.header.size, (this.header.flags and MASK_NULLABLE) != 0L)
 
-    /** The physical size of an individual entry or tuple in this [FixedHareColumn]. */
+    /** The physical size of an individual entry or tuple in this [FixedHareColumnFile]. */
     val entrySize = this.header.entrySize
 
     /**
-     * Creates and returns a [BufferedHareCursor] for this [FixedHareColumn]. The [BufferedHareCursor] can be used to manipulate the entries in this [FixedHareColumn]
+     * Creates and returns a [FixedHareCursor] for this [FixedHareColumnFile]. The [FixedHareCursor] can be used to manipulate the entries in this [FixedHareColumnFile]
      *
-     * @param start The [TupleId] from where to start. Defaults to 1L.
-     * @return The [BufferedHareCursor] that can be used to alter the given [TupleId]
+     * @return The [FixedHareCursor] that can be used to alter the given [TupleId]
      */
-    fun cursor(start: TupleId = BYTE_CURSOR_BOF, writeable: Boolean = false): BufferedHareCursor<T> = BufferedHareCursor(this, writeable, start, this.columnDef.serializer)
+    fun cursor(writeable: Boolean = false): FixedHareCursor<T> = FixedHareCursor(this, writeable)
 
     /**
-     * Closes this [FixedHareColumn]. Closing a [FixedHareColumn] invalidates all resources such [BufferedHareCursor]
-     * and [FixedHareColumn.Header]. Using these structures after closing the paren [FixedHareColumn] is a programmer's error!
+     * Closes this [FixedHareColumnFile]. Closing a [FixedHareColumnFile] invalidates all resources such [FixedHareCursor]
+     * and [FixedHareColumnFile.Header]. Using these structures after closing the paren [FixedHareColumnFile] is a programmer's error!
      */
     override fun close() {
         if (!this.disk.isOpen) {
@@ -144,51 +142,55 @@ class FixedHareColumn <T: Value>(val path: Path, wal: Boolean, corePoolSize: Int
     }
 
     /**
-     * The [Header] of this [FixedHareColumn]. The [Header] is located on the first [DataPage] in the [FixedHareColumn] file.
+     * The [Header] of this [FixedHareColumnFile]. The [Header] is located on the first [DataPage] in the [FixedHareColumnFile] file.
      *
      * @author Ralph Gasser
      * @version 1.0
      */
     inner class Header {
         /** [BufferPool.PageReference] used by this [Header]. This [BufferPool.PageReference] remains locked until finalization. */
-        private val page: PageRef = this@FixedHareColumn.bufferPool.get(ROOT_PAGE_ID, Priority.HIGH)
+        private val page: PageRef = this@FixedHareColumnFile.bufferPool.get(ROOT_PAGE_ID, Priority.HIGH)
 
         /** Make necessary check on initialization. */
         init {
-            require(this.page.getChar(0) == FILE_HEADER_IDENTIFIER[0]) { DataCorruptionException("Identifier mismatch in HARE fixed column file (file: ${this@FixedHareColumn.path.fileName}).") }
-            require(this.page.getChar(2) == FILE_HEADER_IDENTIFIER[1]) { DataCorruptionException("Identifier mismatch in HARE fixed column file (file: ${this@FixedHareColumn.path.fileName}).") }
-            require(this.page.getChar(4) == FILE_HEADER_IDENTIFIER[2]) { DataCorruptionException("Identifier mismatch in HARE fixed column file (file: ${this@FixedHareColumn.path.fileName}).") }
+            require(this.page.getChar(0) == FILE_HEADER_IDENTIFIER[0]) { DataCorruptionException("Identifier mismatch in HARE fixed column file (file: ${this@FixedHareColumnFile.path.fileName}).") }
+            require(this.page.getChar(2) == FILE_HEADER_IDENTIFIER[1]) { DataCorruptionException("Identifier mismatch in HARE fixed column file (file: ${this@FixedHareColumnFile.path.fileName}).") }
+            require(this.page.getChar(4) == FILE_HEADER_IDENTIFIER[2]) { DataCorruptionException("Identifier mismatch in HARE fixed column file (file: ${this@FixedHareColumnFile.path.fileName}).") }
             try {
                 ColumnType.forOrdinal(this.page.getInt(6))
             } catch (e: IllegalArgumentException) {
-                throw DataCorruptionException("Column type ordinal mismatch in HARE fixed column file ${this@FixedHareColumn.path.fileName}.")
+                throw DataCorruptionException("Column type ordinal mismatch in HARE fixed column file ${this@FixedHareColumnFile.path.fileName}.")
             }
-            require(this.page.getInt(14) <= (1 shl this@FixedHareColumn.disk.pageShift)) { DataCorruptionException("Entry size mismatch in HARE fixed column file; entry size must be smaller or equal to page size ${this@FixedHareColumn.path.fileName}.") }
-            require(this.page.getLong(22) >= 0) { DataCorruptionException("Negative number of entries in HARE fixed column file ${this@FixedHareColumn.path.fileName}.") }
-            require(this.page.getLong(30) >= 0) { DataCorruptionException("Negative number of deleted entries in HARE fixed column file ${this@FixedHareColumn.path.fileName}.") }
+            require(this.page.getInt(14) <= (1 shl this@FixedHareColumnFile.disk.pageShift)) { DataCorruptionException("Entry size mismatch in HARE fixed column file; entry size must be smaller or equal to page size ${this@FixedHareColumnFile.path.fileName}.") }
+            require(this.page.getLong(22) >= 0) { DataCorruptionException("Negative number of entries in HARE fixed column file ${this@FixedHareColumnFile.path.fileName}.") }
+            require(this.page.getLong(30) >= 0) { DataCorruptionException("Negative number of deleted entries in HARE fixed column file ${this@FixedHareColumnFile.path.fileName}.") }
         }
 
-        /** The [ColumnType] held by this [FixedHareColumn]. */
+        /** The [ColumnType] held by this [FixedHareColumnFile]. */
         @Suppress("UNCHECKED_CAST")
         val type: ColumnType<T> = ColumnType.forOrdinal(this.page.getInt(6)) as ColumnType<T>
 
-        /** The logical size of the [ColumnDef] held by this [FixedHareColumn]. */
+        /** The logical size of the [ColumnDef] held by this [FixedHareColumnFile]. */
         val size: Int = this.page.getInt(10)
 
         /** The size of an entry in bytes. */
         val entrySize: Int = this.page.getInt(14)
 
-        /** Special flags set for this [FixedHareColumn], such as, nullability. */
+        /** Special flags set for this [FixedHareColumnFile], such as, nullability. */
         val flags: Long = this.page.getLong(18)
 
-        /** The total number of entries in this [FixedHareColumn]. */
+        /** True if this [FixedHareColumnFile] supports null values. */
+        val nullable: Boolean
+            get() = ((this.flags and MASK_NULLABLE) > 0L)
+
+        /** The total number of entries in this [FixedHareColumnFile]. */
         var count: Long = this.page.getLong(26)
             set(v) {
                 field = v
                 this.page.putLong(26, field)
             }
 
-        /** The number of deleted entries in this [FixedHareColumn]. */
+        /** The number of deleted entries in this [FixedHareColumnFile]. */
         var deleted: Long = this.page.getLong(34)
             set(v) {
                 field = v

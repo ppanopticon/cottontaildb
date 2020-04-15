@@ -1,9 +1,18 @@
 package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access
 
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.cursor.TupleId
-
 sealed class HareAccessException(message: String) : Throwable(message)
 
+/**
+ * Thrown when trying to access an [TupleId] that does not exist.
+ */
 class TupleIdOutOfBoundException(message: String): HareAccessException(message)
 
-class EntryDeletedException(tupleId: TupleId) : HareAccessException("The entry with the tuple ID $tupleId has been deleted and cannot be accessed.")
+/**
+ * Thrown when trying to access an entry that has been deleted.
+ */
+class EntryDeletedException(message: String) : HareAccessException(message)
+
+/**
+ * Thrown when a null value is written to a HARE data structure, that does not support null values.
+ */
+class NullValueNotAllowedException(message: String): HareAccessException(message)

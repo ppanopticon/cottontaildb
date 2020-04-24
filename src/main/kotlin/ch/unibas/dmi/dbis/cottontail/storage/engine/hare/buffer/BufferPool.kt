@@ -140,6 +140,7 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, private val 
      *
      * @param range [LongRange] that should be pre-fetched.
      */
+    @Suppress("UNCHECKED_CAST")
     fun prefetch(range: LongRange) {
         check(range.count() <= this.size) { "Number of elements to prefetch is larger than BufferPool's size."}
         GlobalScope.launch {
@@ -147,8 +148,7 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, private val 
                 val pageRefs = range.map {
                     this@BufferPool.evictPage(it, Priority.DEFAULT)
                 }
-                val pages = Array<DataPage>(pageRefs.size) { pageRefs[it] }
-                this@BufferPool.disk.read(range.first, pages)
+                this@BufferPool.disk.read(range.first, (pageRefs.toTypedArray() as Array<DataPage>))
                 pageRefs.forEach {
                     this@BufferPool.pageDirectory[it.id] = it
                 }
@@ -254,11 +254,6 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, private val 
 
         /** Internal lock used to protect access to the this [PageReference] during eviction. */
         private val evictionLock: StampedLock = StampedLock()
-
-        override fun <T> write(index: Int, action: (ByteBuffer) -> T): T {
-            this._dirty.set(true)
-            return super.write(index, action)
-        }
 
         override fun putBytes(index: Int, value: ByteArray): PageReference {
             this._dirty.set(true)

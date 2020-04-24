@@ -27,10 +27,6 @@ open class DataPage(internal var _data: ByteBuffer) : Page {
     override val size: Int
         get() = this._data.capacity()
 
-    override fun <T> read(index: Int, action: (ByteBuffer) -> T): T = this.lock.shared {
-        return action(this._data.asReadOnlyBuffer().position(index))
-    }
-
     override fun getBytes(index: Int, byteBuffer: ByteBuffer): ByteBuffer = this.lock.shared {
         val buffer = this._data.duplicate().position(index).limit(index + byteBuffer.remaining())
         byteBuffer.put(buffer)
@@ -98,13 +94,6 @@ open class DataPage(internal var _data: ByteBuffer) : Page {
     override fun getLong(index: Int): Long = this.lock.shared { this._data.getLong(index) }
     override fun getFloat(index: Int): Float = this.lock.shared { this._data.getFloat(index) }
     override fun getDouble(index: Int): Double = this.lock.shared { this._data.getDouble(index) }
-
-    /**
-     *
-     */
-    override fun <T> write(index: Int, action: (ByteBuffer) -> T): T = this.lock.exclusive {
-        return action(this._data.duplicate().position(index))
-    }
 
     /**
      * Writes a [ByteBuffer] to the given position.

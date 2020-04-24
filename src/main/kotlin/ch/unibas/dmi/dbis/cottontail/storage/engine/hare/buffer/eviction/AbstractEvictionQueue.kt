@@ -2,6 +2,8 @@ package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.eviction
 
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.BufferPool
 import java.util.*
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /**
  * An abstract [EvictionQueue] implementation
@@ -14,6 +16,10 @@ abstract class AbstractEvictionQueue : EvictionQueue {
     /** Internal [Queue] implementation used by this [AbstractEvictionQueue]. */
     protected abstract val queue: Queue<BufferPool.PageReference>
 
+    /** */
+    private val queueLock = ReentrantLock()
+
+
     /**
      * Polls this [EvictionQueue] for a [BufferPool.PageReference] that can be reused.
      *
@@ -21,14 +27,14 @@ abstract class AbstractEvictionQueue : EvictionQueue {
      */
     override fun poll(): BufferPool.PageReference {
         do {
-            synchronized(this) {
-                val ref = this.queue.poll()
-                if (ref != null) {
-                    if (ref.dispose()) {
-                        return ref
-                    } else {
-                        this.queue.offer(ref)
-                    }
+            val ref = this.queueLock.withLock {
+                this.queue.poll()
+            }
+            if (ref != null) {
+                if (ref.dispose()) {
+                    return ref
+                } else {
+                    this.queue.offer(ref)
                 }
             }
             Thread.onSpinWait()
@@ -42,7 +48,9 @@ abstract class AbstractEvictionQueue : EvictionQueue {
      */
     @Synchronized
     override fun enqueue(ref: BufferPool.PageReference) {
-        this.queue.offer(ref)
+        this.queueLock.withLock {
+            this.queue.offer(ref)
+        }
     }
 
     /**
@@ -54,6 +62,8 @@ abstract class AbstractEvictionQueue : EvictionQueue {
      */
     @Synchronized
     override fun remove(ref: BufferPool.PageReference) {
-        this.queue.remove(ref)
+        this.queueLock.withLock {
+            this.queue.remove(ref)
+        }
     }
 }

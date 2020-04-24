@@ -1,8 +1,5 @@
 package ch.unibas.dmi.dbis.cottontail.storage.engine.hare
 
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DiskManager
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.PageId
-
 
 open class DiskManagerException(message: String, cause: Throwable? = null) : Exception(message, cause)
 

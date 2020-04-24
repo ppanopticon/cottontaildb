@@ -4,6 +4,7 @@ import ch.unibas.dmi.dbis.cottontail.database.column.DoubleColumnType
 import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.model.values.DoubleValue
 import ch.unibas.dmi.dbis.cottontail.storage.basics.Units
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.TupleId
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.column.FixedHareColumnFile
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DataPage
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DirectDiskManager
@@ -12,7 +13,6 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import java.nio.file.Files
 import java.nio.file.Paths
 import java.util.*
 import kotlin.time.Duration
@@ -35,8 +35,8 @@ class HareDoubleCursorTest {
 
     @AfterEach
     fun afterEach() {
-        this.hareFile!!.close()
-        Files.delete(this.path)
+        //this.hareFile!!.close()
+        //Files.delete(this.path)
     }
 
     /**
@@ -57,15 +57,19 @@ class HareDoubleCursorTest {
     private fun compareData(seed: Long) {
         val random = SplittableRandom(seed)
         val cursor = this.hareFile!!.cursor(writeable = false)
-        var size = 0
+        var read = 0
+
+        val action: ((TupleId, DoubleValue?) -> Unit) = { _, doubleValue ->
+            assertEquals(DoubleValue(random.nextDouble()), doubleValue)
+            read++
+        }
+
         val readTime = measureTime {
-            cursor.forEach { _, doubleValue ->
-                assertEquals(DoubleValue(random.nextDouble()), doubleValue)
-                size++
-            }
+            cursor.forEach(action = action)
         }
         val diskSize = this.hareFile!!.disk.size `in` Units.MEGABYTE
-        println("Reading $size doubles ($diskSize) took $readTime (${diskSize.value / readTime.inSeconds} MB/s).")
+        println("Reading $read doubles ($diskSize) took $readTime (${diskSize.value / readTime.inSeconds} MB/s).")
+        cursor.close()
     }
 
     /**
@@ -78,15 +82,17 @@ class HareDoubleCursorTest {
         var writeTime = Duration.ZERO
         val random = SplittableRandom(seed)
         val cursor = this.hareFile!!.cursor(writeable = true)
+        var written = 0
         repeat(size) {
             val d = DoubleValue(random.nextDouble())
             writeTime += measureTime {
                 cursor.append(d)
+                written++
             }
         }
 
         cursor.close()
         val diskSize = this.hareFile!!.disk.size `in` Units.MEGABYTE
-        println("Writing $size doubles ($diskSize) took $writeTime (${diskSize.value / writeTime.inSeconds} MB/s).")
+        println("Writing $written doubles ($diskSize) took $writeTime (${diskSize.value / writeTime.inSeconds} MB/s).")
     }
 }

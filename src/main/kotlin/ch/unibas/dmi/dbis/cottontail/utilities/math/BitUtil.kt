@@ -42,4 +42,6 @@ object BitUtil {
         result = result or (result shr 1)
         return result + 1
     }
+
+    fun toShift(value: Int) = Integer.numberOfTrailingZeros(value)
 }

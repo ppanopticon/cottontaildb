@@ -9,6 +9,16 @@ import java.nio.ByteBuffer
  * @author Ralph Gasser
  */
 interface Page {
+
+    /** Size of this [Page] in bytes. */
+    val size: Int
+
+
+    /**
+     *
+     */
+    fun <T> read(index: Int, action: (ByteBuffer) -> T): T
+
     fun getBytes(index: Int, byteBuffer: ByteBuffer): ByteBuffer
     fun getBytes(index: Int, bytes: ByteArray) : ByteArray
     fun getBytes(index: Int, limit: Int) : ByteArray
@@ -26,6 +36,12 @@ interface Page {
     fun getLong(index: Int): Long
     fun getFloat(index: Int): Float
     fun getDouble(index: Int): Double
+
+
+    /**
+     *
+     */
+    fun <T> write(index: Int, action: (ByteBuffer) -> T) : T
 
     /**
      * Writes a [ByteBuffer] to the given position.
@@ -53,6 +69,15 @@ interface Page {
      * @return This [Page]
      */
     fun putShorts(index: Int, value: ShortArray): Page
+
+    /**
+     * Writes an [CharArray] to the given position.
+     *
+     * @param index Position to write [CharArray] to.
+     * @param value [CharArray] value to write.
+     * @return This [Page]
+     */
+    fun putChars(index: Int, value: CharArray): Page
 
     /**
      * Writes an [IntArray] to the given position.

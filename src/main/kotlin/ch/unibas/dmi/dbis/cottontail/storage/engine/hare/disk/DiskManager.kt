@@ -3,6 +3,7 @@ package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk
 import ch.unibas.dmi.dbis.cottontail.storage.basics.MemorySize
 import ch.unibas.dmi.dbis.cottontail.storage.basics.Units
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.DataCorruptionException
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.PageId
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.Page
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.Resource
 
@@ -196,7 +197,7 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
      */
     protected fun pageIdToPosition(pageId: PageId): Long {
         require(pageId <= this.header.pages && pageId >= 0) { "The given page ID $pageId is out of bounds for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
-        return FILE_HEADER_SIZE + (pageId shl this.header.pageShift)
+        return FILE_HEADER_SIZE + (pageId.toLong() shl this.header.pageShift)
     }
 
     /**

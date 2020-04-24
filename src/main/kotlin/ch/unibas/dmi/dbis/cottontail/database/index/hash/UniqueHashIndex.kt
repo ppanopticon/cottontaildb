@@ -6,22 +6,22 @@ import ch.unibas.dmi.dbis.cottontail.database.events.DataChangeEvent
 import ch.unibas.dmi.dbis.cottontail.database.events.DataChangeEventType
 import ch.unibas.dmi.dbis.cottontail.database.index.Index
 import ch.unibas.dmi.dbis.cottontail.database.index.IndexType
-import ch.unibas.dmi.dbis.cottontail.utilities.extensions.write
 import ch.unibas.dmi.dbis.cottontail.database.queries.AtomicBooleanPredicate
 import ch.unibas.dmi.dbis.cottontail.database.queries.ComparisonOperator
 import ch.unibas.dmi.dbis.cottontail.database.queries.Predicate
 import ch.unibas.dmi.dbis.cottontail.database.schema.Schema
 import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
-import ch.unibas.dmi.dbis.cottontail.model.recordset.Recordset
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.QueryException
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.ValidationException
+import ch.unibas.dmi.dbis.cottontail.model.recordset.Recordset
 import ch.unibas.dmi.dbis.cottontail.model.values.types.Value
+import ch.unibas.dmi.dbis.cottontail.utilities.extensions.write
 import ch.unibas.dmi.dbis.cottontail.utilities.name.Name
 import org.mapdb.DBMaker
 import org.mapdb.HTreeMap
-import java.nio.file.Path
 import org.mapdb.Serializer
 import org.slf4j.LoggerFactory
+import java.nio.file.Path
 
 /**
  * Represents an index in the Cottontail DB data model. An [Index] belongs to an [Entity] and can be used to index one to many
@@ -156,12 +156,14 @@ class UniqueHashIndex(override val name: Name, override val parent: Entity, over
 
         /* (Re-)create index entries. */
         val localMap = this.map as HTreeMap<Value,Long>
-        tx.forEach {
-            val value = it[this.columns[0]] ?: throw ValidationException.IndexUpdateException(this.fqn, "A values cannot be null for instances of unique hash-index but tid=${it.tupleId} is")
-            if (!localMap.containsKey(value)) {
-                localMap[value] = it.tupleId
-            } else {
-                throw ValidationException.IndexUpdateException(this.fqn, "LongValue must be unique for instances of unique hash-index but '$value' (tid=${it.tupleId}) is not !")
+        if (tx.count() > 0) {
+            tx.forEach {
+                val value = it[this.columns[0]] ?: throw ValidationException.IndexUpdateException(this.fqn, "A values cannot be null for instances of unique hash-index but tid=${it.tupleId} is")
+                if (!localMap.containsKey(value)) {
+                    localMap[value] = it.tupleId
+                } else {
+                    throw ValidationException.IndexUpdateException(this.fqn, "LongValue must be unique for instances of unique hash-index but '$value' (tid=${it.tupleId}) is not !")
+                }
             }
         }
         this.db.commit()

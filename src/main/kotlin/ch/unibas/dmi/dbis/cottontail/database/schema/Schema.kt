@@ -2,28 +2,26 @@ package ch.unibas.dmi.dbis.cottontail.database.schema
 
 import ch.unibas.dmi.dbis.cottontail.database.catalogue.Catalogue
 import ch.unibas.dmi.dbis.cottontail.database.column.mapdb.MapDBColumn
-import ch.unibas.dmi.dbis.cottontail.database.general.DBO
-import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.database.entity.Entity
 import ch.unibas.dmi.dbis.cottontail.database.entity.EntityHeader
 import ch.unibas.dmi.dbis.cottontail.database.entity.EntityHeaderSerializer
+import ch.unibas.dmi.dbis.cottontail.database.general.DBO
+import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.DatabaseException
-import ch.unibas.dmi.dbis.cottontail.utilities.name.*
-
-import org.mapdb.*
-import org.mapdb.volume.MappedFileVol
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.column.FixedHareColumnFile
+import ch.unibas.dmi.dbis.cottontail.utilities.name.Name
+import ch.unibas.dmi.dbis.cottontail.utilities.name.NameType
+import org.mapdb.DBException
+import org.mapdb.Serializer
+import org.mapdb.Store
+import org.mapdb.StoreWAL
 import java.io.IOException
-import java.lang.IllegalArgumentException
-
 import java.lang.ref.SoftReference
 import java.nio.file.Files
-
 import java.nio.file.Path
-
 import java.util.*
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import java.util.stream.Collectors
-
 import kotlin.concurrent.read
 import kotlin.concurrent.write
 
@@ -105,13 +103,14 @@ class Schema(override val name: Name, override val path: Path, override val pare
             val recId = this.store.put(name.name, Serializer.STRING)
 
             /* Generate the entity. */
-            val volumeFactory = this.parent.config.volumeFactory;
+
+            val volumeFactory = this.parent.config.volumeFactory
             val store = StoreWAL.make(file = data.resolve(Entity.FILE_CATALOGUE).toString(), volumeFactory = volumeFactory, fileLockWait = this.parent.config.lockTimeout)
             store.preallocate() /* Pre-allocates the header. */
 
             /* Initialize the entities header. */
             val columnIds = columns.map {
-                MapDBColumn.initialize(it, data, volumeFactory)
+                FixedHareColumnFile.createDirect(data, it)
                 store.put(it.name.name, Serializer.STRING)
             }.toLongArray()
             store.update(Entity.HEADER_RECORD_ID, EntityHeader(columns = columnIds), EntityHeaderSerializer)

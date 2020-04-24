@@ -7,18 +7,16 @@ import org.mapdb.DataInput2
 import org.mapdb.DataOutput2
 
 object FloatValueSerializer : Serializer<FloatValue> {
+    override val physicalSize: Int = Int.SIZE_BYTES
+    override val logicalSize: Int = -1
     override fun deserialize(input: DataInput2, available: Int): FloatValue = FloatValue(input.readFloat())
     override fun serialize(out: DataOutput2, value: FloatValue) {
         out.writeFloat(value.value)
     }
-    override val physicalSize: Int = Int.SIZE_BYTES
-    override val logicalSize: Int = -1
+
     override fun serialize(page: Page, offset: Int, value: FloatValue) {
-        TODO("Not yet implemented")
+        page.putFloat(offset, value.value)
     }
 
-    override fun deserialize(page: Page, offset: Int): FloatValue {
-        TODO("Not yet implemented")
-    }
-
+    override fun deserialize(page: Page, offset: Int): FloatValue = FloatValue(page.getFloat(offset))
 }

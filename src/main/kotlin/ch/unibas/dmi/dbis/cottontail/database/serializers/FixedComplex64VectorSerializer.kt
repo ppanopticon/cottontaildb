@@ -15,6 +15,7 @@ import org.mapdb.DataOutput2
  * @version 1.0
  */
 class FixedComplex64VectorSerializer(override val logicalSize: Int) : Serializer<Complex64VectorValue> {
+    override val physicalSize: Int = this.logicalSize * 2 * Long.Companion.SIZE_BYTES
     override fun serialize(out: DataOutput2, value: Complex64VectorValue) {
         for (i in 0 until this.logicalSize) {
             out.writeDouble(value.real(i).value)
@@ -29,7 +30,6 @@ class FixedComplex64VectorSerializer(override val logicalSize: Int) : Serializer
         return Complex64VectorValue(vector)
     }
 
-    override val physicalSize: Int = this.logicalSize * 2 * Long.Companion.SIZE_BYTES
     override fun serialize(page: Page, offset: Int, value: Complex64VectorValue) {
         TODO("Not yet implemented")
     }

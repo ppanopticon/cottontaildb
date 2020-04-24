@@ -4,6 +4,12 @@ import ch.unibas.dmi.dbis.cottontail.model.values.types.ScalarValue
 import ch.unibas.dmi.dbis.cottontail.model.values.types.Value
 
 inline class BooleanValue(override val value: Boolean): ScalarValue<Boolean> {
+
+    companion object {
+        const val TRUE = 1.toByte()
+        const val FALSE =  0.toByte()
+    }
+
     override val logicalSize: Int
         get() = -1
 

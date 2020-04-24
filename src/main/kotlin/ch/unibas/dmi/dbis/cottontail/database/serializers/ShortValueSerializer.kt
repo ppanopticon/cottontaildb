@@ -13,11 +13,10 @@ object ShortValueSerializer : Serializer<ShortValue> {
     }
     override val physicalSize: Int = Short.SIZE_BYTES
     override val logicalSize: Int = -1
+
     override fun serialize(page: Page, offset: Int, value: ShortValue) {
-        TODO("Not yet implemented")
+        page.putShort(offset, value.value)
     }
 
-    override fun deserialize(page: Page, offset: Int): ShortValue {
-        TODO("Not yet implemented")
-    }
+    override fun deserialize(page: Page, offset: Int): ShortValue = ShortValue(page.getShort(offset))
 }

@@ -7,16 +7,25 @@ import org.mapdb.DataInput2
 import org.mapdb.DataOutput2
 
 class FixedStringValueSerializer(override val logicalSize: Int) : Serializer<StringValue> {
+
+    companion object {
+        const val NUL = 0.toChar()
+    }
+    override val physicalSize: Int = (this.logicalSize shl 1)
+
     override fun deserialize(input: DataInput2, available: Int): StringValue = StringValue(input.readUTF())
     override fun serialize(out: DataOutput2, value: StringValue) {
         out.writeUTF(value.value)
     }
-    override val physicalSize: Int = this.logicalSize * Int.Companion.SIZE_BYTES
+
     override fun serialize(page: Page, offset: Int, value: StringValue) {
-        TODO("Not yet implemented")
+        for (i in offset until offset + value.logicalSize.coerceAtMost(this.logicalSize)) {
+            page.putChar(i, value.value[i])
+        }
+        for (i in offset + value.logicalSize until offset + this.logicalSize) {
+            page.putChar(i, NUL)
+        }
     }
 
-    override fun deserialize(page: Page, offset: Int): StringValue {
-        TODO("Not yet implemented")
-    }
+    override fun deserialize(page: Page, offset: Int): StringValue = StringValue(String(page.getChars(offset, CharArray(this.logicalSize))))
 }

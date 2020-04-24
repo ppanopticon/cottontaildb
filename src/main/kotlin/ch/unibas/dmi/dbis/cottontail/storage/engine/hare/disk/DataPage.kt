@@ -15,7 +15,7 @@ import java.util.concurrent.locks.StampedLock
  * @version 1.2
  * @author Ralph Gasser
  */
-class DataPage(internal val _data: ByteBuffer) : Page {
+open class DataPage(internal var _data: ByteBuffer) : Page {
 
     init {
         this._data.clear() /* Safety measure: ByteBuffer is reset. */
@@ -24,16 +24,25 @@ class DataPage(internal val _data: ByteBuffer) : Page {
     /** A [StampedLock] that mediates access to this [DataPage]'s [ByteBuffer].  */
     internal val lock: StampedLock = StampedLock()
 
+    override val size: Int
+        get() = this._data.capacity()
+
+    override fun <T> read(index: Int, action: (ByteBuffer) -> T): T = this.lock.shared {
+        return action(this._data.asReadOnlyBuffer().position(index))
+    }
+
     override fun getBytes(index: Int, byteBuffer: ByteBuffer): ByteBuffer = this.lock.shared {
         val buffer = this._data.duplicate().position(index).limit(index + byteBuffer.remaining())
         byteBuffer.put(buffer)
         return byteBuffer
     }
+
     override fun getBytes(index: Int, bytes: ByteArray) : ByteArray = this.lock.shared {
         val buffer = this._data.duplicate().position(index)
         buffer.get(bytes)
         return bytes
     }
+
     override fun getBytes(index: Int, limit: Int) : ByteArray = getBytes(index, ByteArray(limit-index))
     override fun getBytes(index: Int) : ByteArray = getBytes(index, this._data.capacity())
     override fun getShorts(index: Int, array: ShortArray): ShortArray {
@@ -44,7 +53,7 @@ class DataPage(internal val _data: ByteBuffer) : Page {
         return array
     }
 
-    override fun getChars(index: Int, array: CharArray): CharArray {
+    override fun getChars(index: Int, array: CharArray): CharArray = this.lock.shared {
         val buffer = this._data.duplicate().position(index)
         for (i in array.indices) {
             array[i] = buffer.char
@@ -52,7 +61,7 @@ class DataPage(internal val _data: ByteBuffer) : Page {
         return array
     }
 
-    override fun getInts(index: Int, array: IntArray): IntArray {
+    override fun getInts(index: Int, array: IntArray): IntArray = this.lock.shared {
         val buffer = this._data.duplicate().position(index)
         for (i in array.indices) {
             array[i] = buffer.int
@@ -60,7 +69,7 @@ class DataPage(internal val _data: ByteBuffer) : Page {
         return array
     }
 
-    override fun getLongs(index: Int, array: LongArray): LongArray {
+    override fun getLongs(index: Int, array: LongArray): LongArray = this.lock.shared {
         val buffer = this._data.duplicate().position(index)
         for (i in array.indices) {
             array[i] = buffer.long
@@ -69,17 +78,15 @@ class DataPage(internal val _data: ByteBuffer) : Page {
     }
 
     override fun getDoubles(index: Int, array: DoubleArray): DoubleArray = this.lock.shared {
-        val buffer = this._data.duplicate().position(index)
         for (i in array.indices) {
-            array[i] = buffer.double
+            array[i] = this._data.getDouble(index + (i shl 3))
         }
         return array
     }
 
     override fun getFloats(index: Int, array: FloatArray): FloatArray = this.lock.shared {
-        val buffer = this._data.duplicate().position(index)
         for (i in array.indices) {
-            array[i] = buffer.float
+            array[i] = this._data.getFloat(index + (i shl 2))
         }
         return array
     }
@@ -91,6 +98,13 @@ class DataPage(internal val _data: ByteBuffer) : Page {
     override fun getLong(index: Int): Long = this.lock.shared { this._data.getLong(index) }
     override fun getFloat(index: Int): Float = this.lock.shared { this._data.getFloat(index) }
     override fun getDouble(index: Int): Double = this.lock.shared { this._data.getDouble(index) }
+
+    /**
+     *
+     */
+    override fun <T> write(index: Int, action: (ByteBuffer) -> T): T = this.lock.exclusive {
+        return action(this._data.duplicate().position(index))
+    }
 
     /**
      * Writes a [ByteBuffer] to the given position.
@@ -127,6 +141,22 @@ class DataPage(internal val _data: ByteBuffer) : Page {
         this._data.position(index)
         for (i in value.indices) {
             this._data.putShort(value[i])
+        }
+        this._data.rewind()
+        this
+    }
+
+    /**
+     * Writes a [CharArray] to the given position.
+     *
+     * @param index Position to write byte to.
+     * @param value [CharArray] value to write.
+     * @return This [DataPage]
+     */
+    override fun putChars(index: Int, value: CharArray): Page = this.lock.exclusive {
+        this._data.position(index)
+        for (i in value.indices) {
+            this._data.putChar(value[i])
         }
         this._data.rewind()
         this
@@ -172,11 +202,9 @@ class DataPage(internal val _data: ByteBuffer) : Page {
      * @return This [DataPage]
      */
     override fun putFloats(index: Int, value: FloatArray): Page = this.lock.exclusive {
-        this._data.position(index)
         for (i in value.indices) {
-            this._data.putFloat(value[i])
+            this._data.putFloat(index + (i shl 2), value[i])
         }
-        this._data.rewind()
         this
     }
 
@@ -188,11 +216,9 @@ class DataPage(internal val _data: ByteBuffer) : Page {
      * @return This [DataPage]
      */
     override fun putDoubles(index: Int, value: DoubleArray): Page = this.lock.exclusive {
-        this._data.position(index)
         for (i in value.indices) {
-            this._data.putDouble(value[i])
+            this._data.putDouble(index + (i shl 3), value[i])
         }
-        this._data.rewind()
         this
     }
 

@@ -1,13 +1,16 @@
 package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.wal
 
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.DataCorruptionException
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.PageId
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.Page
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.*
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DataPage
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DiskManager
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DiskManager.Companion.FILE_CONSISTENCY_OK
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DiskManager.Companion.FILE_HEADER_IDENTIFIER
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DiskManager.Companion.FILE_HEADER_VERSION
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.FileType
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.FileUtilities
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.exclusive
-
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.file.Files
@@ -248,7 +251,7 @@ open class WriteAheadLog(val path: Path, val lockTimeout: Long = 5000L) : AutoCl
                 this.buffer.putLong(26, v)
             }
 
-        /** The last [PageId] that was allocated; used to keep track of [PageId] for newly allocated [DataPage]s. */
+        /** The last [Int] that was allocated; used to keep track of [PageId] for newly allocated [DataPage]s. */
         var maxPageId: Long
             get() = this.buffer.getLong(34)
             set(v) {

@@ -9,6 +9,8 @@ import java.util.*
 
 
 class FixedBooleanVectorSerializer(override val logicalSize: Int): Serializer<BooleanVectorValue> {
+    override val physicalSize: Int = ((this.logicalSize+63)/64) * Long.Companion.SIZE_BYTES
+
     override fun serialize(out: DataOutput2, value: BooleanVectorValue) {
         val words = value.value.toLongArray()
         for (element in words) {
@@ -24,7 +26,6 @@ class FixedBooleanVectorSerializer(override val logicalSize: Int): Serializer<Bo
         return BooleanVectorValue(BitSet.valueOf(words))
     }
 
-    override val physicalSize: Int = ((this.logicalSize+63)/64) * kotlin.Long.Companion.SIZE_BYTES
     override fun serialize(page: Page, offset: Int, value: BooleanVectorValue) {
         TODO("Not yet implemented")
     }

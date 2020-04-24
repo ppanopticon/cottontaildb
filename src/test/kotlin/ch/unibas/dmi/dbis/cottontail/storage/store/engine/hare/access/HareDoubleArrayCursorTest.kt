@@ -30,7 +30,7 @@ class HareDoubleArrayCursorTest {
      */
     @ExperimentalTime
     @ParameterizedTest
-    @ValueSource(ints = [256, 512, 1024])
+    @ValueSource(ints = [2048])
     fun test(dimensions: Int) {
         val columnDef = ColumnDef(Name("test"), DoubleVectorColumnType, size = dimensions)
         FixedHareColumnFile.createDirect(this.path, columnDef)
@@ -56,6 +56,7 @@ class HareDoubleArrayCursorTest {
                 Assertions.assertArrayEquals(DoubleVectorValue.random(dimensions, random).data, doubleVectorValue?.data)
             }
         }
+        cursor.close()
         val physSize = (hareFile.bufferPool.diskSize `in` Units.MEGABYTE)
         println("Reading $size doubles vectors (d=$dimensions) to a total of $physSize took $readTime (${physSize.value / readTime.inSeconds} MB/s).")
     }

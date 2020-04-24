@@ -1,6 +1,9 @@
 package ch.unibas.dmi.dbis.cottontail.model.values
 
-import ch.unibas.dmi.dbis.cottontail.model.values.types.*
+import ch.unibas.dmi.dbis.cottontail.model.values.types.NumericValue
+import ch.unibas.dmi.dbis.cottontail.model.values.types.RealVectorValue
+import ch.unibas.dmi.dbis.cottontail.model.values.types.Value
+import ch.unibas.dmi.dbis.cottontail.model.values.types.VectorValue
 import java.util.*
 import kotlin.math.absoluteValue
 import kotlin.math.pow
@@ -20,7 +23,9 @@ inline class FloatVectorValue(val data: FloatArray) : RealVectorValue<Float> {
          * @param size Size of the new [Complex32VectorValue]
          * @param rnd A [SplittableRandom] to generate the random numbers.
          */
-        fun random(size: Int, rnd: SplittableRandom = SplittableRandom(System.currentTimeMillis())) = FloatVectorValue(FloatArray(size) { Float.fromBits(rnd.nextInt()) })
+        fun random(size: Int, rnd: SplittableRandom = SplittableRandom(System.currentTimeMillis())) = FloatVectorValue(FloatArray(size) {
+            rnd.nextDouble().toFloat()
+        })
 
         /**
          * Generates a [Complex32VectorValue] of the given size initialized with ones.
@@ -149,8 +154,14 @@ inline class FloatVectorValue(val data: FloatArray) : RealVectorValue<Float> {
 
     override fun distanceL2(other: VectorValue<*>): NumericValue<*> {
         var sum = 0.0f
-        for (i in this.indices) {
-            sum += (this[i].value - other[i].value.toFloat()).pow(2)
+        if (other is FloatVectorValue) {
+            for (i in this.indices) {
+                sum += (this.data[i] - other.data[i]).pow(2)
+            }
+        } else {
+            for (i in this.indices) {
+                sum += (this.data[i] - other[i].value.toFloat()).pow(2)
+            }
         }
         return FloatValue(kotlin.math.sqrt(sum))
     }

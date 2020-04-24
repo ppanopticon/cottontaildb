@@ -165,7 +165,7 @@ object StringColumnType : ColumnType<StringValue>() {
     override val numeric = false
     override val type: KClass<StringValue> = StringValue::class
     override fun serializer(size: Int): Serializer<StringValue> {
-        require(size < 0) { "Size attribute for a $name type must be > 0 (is $size)." }
+        require(size > 0) { "Size attribute for a $name type must be > 0 (is $size)." }
         return FixedStringValueSerializer(size)
     }
 }

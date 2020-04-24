@@ -1,6 +1,6 @@
 package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.PageId
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.Priority
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.PageId
 
 /**
  * A [PageRef] is a wrapper for [Page] managed by the HARE storage engine. As opposed to normal
@@ -10,15 +10,9 @@ import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.PageId
  * @author Ralph Gasser
  * @version 1.0
  */
-interface PageRef : Page, Releasable {
+interface PageRef : Page, ReferenceCounted {
     /** [PageId] this [PageRef] is currently pointing to. */
     val id: PageId
-
-    /**
-     * The [Page] this [PageRef] is currently pointing to. An implementing class must make sure that
-     * access to this [Page] is only granted as long as this [PageRef] is valid (i.e. not disposed).
-     */
-    val page: Page
 
     /** [Priority] this [PageRef] currently has. Acts as a hint to the eviction policy. */
     val priority: Priority

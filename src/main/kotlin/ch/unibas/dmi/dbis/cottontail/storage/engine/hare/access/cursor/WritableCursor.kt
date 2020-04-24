@@ -1,9 +1,9 @@
 package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.cursor
 
 import ch.unibas.dmi.dbis.cottontail.model.values.types.Value
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.TupleId
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.EntryDeletedException
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.NullValueNotAllowedException
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.TupleId
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.TupleIdOutOfBoundException
 
 /**

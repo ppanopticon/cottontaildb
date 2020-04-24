@@ -1,5 +1,6 @@
-package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer
+package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.eviction
 
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.BufferPool
 import java.util.*
 
 /**

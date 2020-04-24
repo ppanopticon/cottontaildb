@@ -13,6 +13,8 @@ import org.mapdb.DataOutput2
  * @version 1.0
  */
 class FixedIntVectorSerializer(override val logicalSize: Int): Serializer<IntVectorValue> {
+    override val physicalSize: Int = (this.logicalSize shl 2)
+
     override fun serialize(out: DataOutput2, value: IntVectorValue) {
         for (i in 0 until this.logicalSize) {
             out.writeInt(value[i].value)
@@ -26,13 +28,9 @@ class FixedIntVectorSerializer(override val logicalSize: Int): Serializer<IntVec
         return IntVectorValue(vector)
     }
 
-    override val physicalSize: Int = this.logicalSize * Int.Companion.SIZE_BYTES
     override fun serialize(page: Page, offset: Int, value: IntVectorValue) {
-        TODO("Not yet implemented")
+        page.putInts(offset, value.data)
     }
 
-    override fun deserialize(page: Page, offset: Int): IntVectorValue {
-        TODO("Not yet implemented")
-    }
-
+    override fun deserialize(page: Page, offset: Int): IntVectorValue = IntVectorValue(page.getInts(offset, IntArray(this.logicalSize)))
 }

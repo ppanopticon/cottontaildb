@@ -1,10 +1,10 @@
 package ch.unibas.dmi.dbis.cottontail.database.entity
 
 import ch.unibas.dmi.dbis.cottontail.database.column.Column
+import ch.unibas.dmi.dbis.cottontail.database.column.ColumnTransaction
+import ch.unibas.dmi.dbis.cottontail.database.column.hare.HareColumn
 import ch.unibas.dmi.dbis.cottontail.database.general.DBO
 import ch.unibas.dmi.dbis.cottontail.database.general.TransactionStatus
-import ch.unibas.dmi.dbis.cottontail.database.column.ColumnTransaction
-import ch.unibas.dmi.dbis.cottontail.database.column.mapdb.MapDBColumn
 import ch.unibas.dmi.dbis.cottontail.database.general.begin
 import ch.unibas.dmi.dbis.cottontail.database.index.Index
 import ch.unibas.dmi.dbis.cottontail.database.index.IndexTransaction
@@ -14,25 +14,27 @@ import ch.unibas.dmi.dbis.cottontail.database.queries.BooleanPredicate
 import ch.unibas.dmi.dbis.cottontail.database.queries.ComparisonOperator
 import ch.unibas.dmi.dbis.cottontail.database.queries.Predicate
 import ch.unibas.dmi.dbis.cottontail.database.schema.Schema
-import ch.unibas.dmi.dbis.cottontail.model.basics.*
-import ch.unibas.dmi.dbis.cottontail.model.recordset.Recordset
-import ch.unibas.dmi.dbis.cottontail.model.recordset.StandaloneRecord
-
+import ch.unibas.dmi.dbis.cottontail.model.basics.ColumnDef
+import ch.unibas.dmi.dbis.cottontail.model.basics.Record
+import ch.unibas.dmi.dbis.cottontail.model.basics.Tuple
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.DatabaseException
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.QueryException
 import ch.unibas.dmi.dbis.cottontail.model.exceptions.TransactionException
+import ch.unibas.dmi.dbis.cottontail.model.recordset.Recordset
+import ch.unibas.dmi.dbis.cottontail.model.recordset.StandaloneRecord
 import ch.unibas.dmi.dbis.cottontail.model.values.types.Value
-import ch.unibas.dmi.dbis.cottontail.utilities.name.*
 import ch.unibas.dmi.dbis.cottontail.utilities.extensions.write
-
-import org.mapdb.*
-
-import java.lang.IllegalArgumentException
+import ch.unibas.dmi.dbis.cottontail.utilities.name.Match
+import ch.unibas.dmi.dbis.cottontail.utilities.name.Name
+import ch.unibas.dmi.dbis.cottontail.utilities.name.NameType
+import org.mapdb.CottontailStoreWAL
+import org.mapdb.DBException
+import org.mapdb.Serializer
+import org.mapdb.StoreWAL
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.*
 import java.util.concurrent.locks.ReentrantReadWriteLock
-
 import java.util.concurrent.locks.StampedLock
 import java.util.stream.Collectors
 import kotlin.concurrent.read
@@ -78,7 +80,7 @@ class Entity(override val name: Name, override val parent: Schema) : DBO {
 
     /** List of all the [Column]s associated with this [Entity]. */
     private val columns: Collection<Column<*>> = this.header.columns.map {
-        MapDBColumn<Value>(Name(this.store.get(it, Serializer.STRING)
+        HareColumn<Value>(Name(this.store.get(it, Serializer.STRING)
                 ?: throw DatabaseException.DataCorruptionException("Failed to open entity '$fqn': Could not read column definition at position $it!")), this)
     }
 
@@ -208,8 +210,6 @@ class Entity(override val name: Name, override val parent: Schema) : DBO {
             throw DatabaseException("Failed to create index '${this.fqn.append(name)}' due to a build failure: ${e.message}")
         }
     }
-
-
 
     /**
      * Drops the [Index] with the given name.
@@ -466,7 +466,7 @@ class Entity(override val name: Name, override val parent: Schema) : DBO {
          *
          * @param action The function to apply to each [Entity] entry.
          */
-        override fun forEach(action: (Record) -> Unit) = forEach(1L, this@Entity.statistics.maxTupleId, action)
+        override fun forEach(action: (Record) -> Unit) = forEach(0L, this@Entity.statistics.maxTupleId, action)
 
         /**
          * Applies the provided function to each entry found in the given range in this [Entity]. The provided function
@@ -496,7 +496,7 @@ class Entity(override val name: Name, override val parent: Schema) : DBO {
          *
          * @return A collection of Pairs mapping the tupleId to the generated value.
          */
-        override fun <R> map(action: (Record) -> R): Collection<R> = map(1L, this@Entity.statistics.maxTupleId, action)
+        override fun <R> map(action: (Record) -> R): Collection<R> = map(0L, this@Entity.statistics.maxTupleId, action)
 
         /**
          * Applies the provided mapping function on each [Record] found in this [Entity], returning a collection of the desired output values.

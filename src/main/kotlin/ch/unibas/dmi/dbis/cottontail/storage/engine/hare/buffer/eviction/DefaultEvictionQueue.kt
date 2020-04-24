@@ -1,5 +1,6 @@
-package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer
+package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.eviction
 
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.BufferPool
 import java.util.*
 import kotlin.Comparator
 
@@ -7,7 +8,7 @@ import kotlin.Comparator
 /**
  *
  */
-class DefaultEvictionQueue() : AbstractEvictionQueue() {
+class DefaultEvictionQueue : AbstractEvictionQueue() {
     override val queue = PriorityQueue(Comparator<BufferPool.PageReference> { o1, o2 ->
         if (o1.priority == o2.priority) {
             o1.lastAccess.compareTo(o2.lastAccess)

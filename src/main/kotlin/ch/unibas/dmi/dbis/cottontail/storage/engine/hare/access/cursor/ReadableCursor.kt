@@ -1,10 +1,9 @@
 package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.cursor
 
 import ch.unibas.dmi.dbis.cottontail.model.values.types.Value
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.TupleId
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.EntryDeletedException
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.TupleId
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.TupleIdOutOfBoundException
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.column.FixedHareCursor
 
 /**
  * A [ReadableCursor] is a readable proxy that allows for navigation in and inspection of
@@ -65,5 +64,5 @@ interface ReadableCursor<T : Value> : AutoCloseable {
      * @param end The end [TupleId] for the iteration. Defaults to [FixedHareCursor.maximum]
      * @param action The action that consumes the [TupleId] and the actual value
      */
-    fun <R> map(start: TupleId = 0L, end: TupleId = this.maximum, action: (TupleId, T?) -> R?)
+    fun <R> map(start: TupleId = 0L, end: TupleId = this.maximum, action: (TupleId, T?) -> R?): Collection<R?>
 }

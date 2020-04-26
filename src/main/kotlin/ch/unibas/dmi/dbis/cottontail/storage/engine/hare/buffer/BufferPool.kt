@@ -5,6 +5,7 @@ import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.PageRef
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.ReferenceCounted
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.Resource
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.eviction.EvictionQueue
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.eviction.EvictionQueueToken
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DataPage
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DirectDiskManager
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DiskManager
@@ -22,34 +23,31 @@ import kotlinx.coroutines.launch
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import java.util.concurrent.locks.StampedLock
 
 /**
- * A [BufferPool] mediates access to a HARE file through a [DirectDiskManager] and facilitates reading and
- * writing [DataPage]s from/to memory and swapping [DataPage]s into the in-memory buffer.
+ * A [BufferPool] mediates access to a HARE file through a [DirectDiskManager] and facilitates
+ * reading and writing [DataPage]s from/to memory and swapping [DataPage]s into the in-memory buffer.
  *
- * @see DirectDiskManager
+ * @see EvictionQueue
  *
  * @version 1.2
  * @author Ralph Gasser
  */
-class BufferPool(private val disk: DiskManager, val size: Int = 25, private val evictionQueue: EvictionQueue): Resource {
+class BufferPool(private val disk: DiskManager, val size: Int = 25, private val evictionQueue: EvictionQueue<*>): Resource {
 
     companion object {
         val METER_REGISTRY: MeterRegistry = JmxMeterRegistry(JmxConfig.DEFAULT, Clock.SYSTEM)
-        val PAGE_MISS_COUNTER = METER_REGISTRY.counter("Hare.BufferPool.PageMiss")
-        val PAGE_ACCESS_COUNTER = METER_REGISTRY.counter("Hare.BufferPool.PageAccess")
+        val PAGE_MISS_COUNTER = METER_REGISTRY.counter("Cottontail.Hare.BufferPool.PageMiss")
+        val PAGE_ACCESS_COUNTER = METER_REGISTRY.counter("Cottontail.Hare.BufferPool.PageAccess")
     }
 
-    /** Creates a new [MemoryManager] for this [BufferPool]. */
-    private val manager = MemoryManager(this.disk.pageShift, this.size)
+    /** Creates a new [MemoryManager.MemoryBlock] for this [BufferPool]. */
+    private val memory = MemoryManager.request(size shl this.disk.pageShift)
 
     /** Array of [DataPage]s that are kept in memory. */
-    private val pages = Array(this.size) {
-       this.manager[it]
-    }
+    private val pages = this.memory.paged(this.disk.pageShift, this.size)
 
     /** The internal directory that maps [PageId]s to [PageReference]s.*/
     private val pageDirectory = Long2ObjectOpenHashMap<PageReference>()
@@ -72,7 +70,7 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, private val 
         get() = this.disk.size
 
     /** The amount of memory used by this [BufferPool] to buffer [PageReference]s. */
-    val memorySize = this.manager.size
+    val memorySize = this.memory.size
 
     /** Returns the total number of buffered [DataPage]s. */
     val bufferedPages
@@ -83,7 +81,7 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, private val 
         get() = this.disk.pages
 
     init {
-        this.pages.forEach { this.evictionQueue.enqueue(PageReference(-1, Priority.LOW, it)) }
+        this.pages.forEach { this.evictionQueue.offerCandidate(PageReference(-1, Priority.LOW, it)) }
     }
 
     /**
@@ -130,6 +128,7 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, private val 
      */
     fun detach(): PageReference = this.closeLock.read {
         check(this.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
+        PAGE_ACCESS_COUNTER.increment()
         this.directoryLock.write {
             return evictPage(-1L, Priority.LOW).retain()
         }
@@ -209,6 +208,7 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, private val 
                     it.dispose()
                 }
             }
+            this.memory.release()
             this.closed = true
         }
     }
@@ -232,15 +232,6 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, private val 
      * @version 1.1
      */
     inner class PageReference(override val id: PageId, override val priority: Priority, data: ByteBuffer): DataPage(data), PageRef {
-        /** Counter that counts how often this [PageReference] was accessed. Acts as a hint to the the [BufferPool]'s [EvictionQueue]. */
-        private val _accessed = AtomicLong(0L)
-        override val accessed: Long
-            get() = this._accessed.get()
-
-        /** The last access to this [PageReference]. Acts as a hint for the [BufferPool]'s [EvictionQueue]. */
-        private val _lastAccess = AtomicLong(0L)
-        override val lastAccess: Long
-            get() = this._lastAccess.get()
 
         /** Flag indicating whether or not this [PageReference] is dirty. */
         private val _dirty = AtomicBoolean(false)
@@ -254,6 +245,9 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, private val 
 
         /** Internal lock used to protect access to the this [PageReference] during eviction. */
         private val evictionLock: StampedLock = StampedLock()
+
+        /** The [EvictionQueueToken] that is updated on access. */
+        override val token: EvictionQueueToken = this@BufferPool.evictionQueue.token()
 
         override fun putBytes(index: Int, value: ByteArray): PageReference {
             this._dirty.set(true)
@@ -360,10 +354,9 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, private val 
                 it+1
             }
             if (oldRefCount == 0) {
-                this@BufferPool.evictionQueue.remove(this)
+                this@BufferPool.evictionQueue.removeCandidate(this)
             }
-            this._accessed.getAndIncrement()
-            this._lastAccess.lazySet(System.currentTimeMillis())
+            this.token.touch()
             this
         }
 
@@ -377,7 +370,7 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, private val 
                 it-1
             }
             if (refCount == 0) {
-                this@BufferPool.evictionQueue.enqueue(this)
+                this@BufferPool.evictionQueue.offerCandidate(this)
             }
         }
 

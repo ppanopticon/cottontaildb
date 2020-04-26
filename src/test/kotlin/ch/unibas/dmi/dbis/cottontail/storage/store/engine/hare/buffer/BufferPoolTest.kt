@@ -4,7 +4,7 @@ import ch.unibas.dmi.dbis.cottontail.storage.basics.Units
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.PageRef
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.BufferPool
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.Priority
-import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.eviction.DefaultEvictionQueue
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.eviction.LRUEvictionQueue
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DataPage
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DirectDiskManager
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DiskManager
@@ -36,7 +36,7 @@ class BufferPoolTest {
     fun beforeEach() {
         DiskManager.create(this.path, this.pageShift)
         this._manager = DirectDiskManager(path = this.path, preAllocatePages = 1)
-        this.pool = BufferPool(this._manager!!, 10, DefaultEvictionQueue())
+        this.pool = BufferPool(this._manager!!, 10, LRUEvictionQueue())
     }
 
     @AfterEach

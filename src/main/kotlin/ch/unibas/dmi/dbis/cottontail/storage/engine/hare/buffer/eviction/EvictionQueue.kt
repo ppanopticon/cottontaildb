@@ -4,13 +4,17 @@ import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.BufferPool
 
 /**
  * An [EvictionQueue] is used by a [BufferPool] to determine, which [BufferPool.PageReference] should be
- * evicted and re-used next.  This data structure keeps track of the [BufferPool.PageReference]s that are
+ * evicted and re-used next. This data structure keeps track of the [BufferPool.PageReference]s that are
  * eligible for eviction and returns them to a caller (usually a [BufferPool]) upon request.
+ *
+ * The prioritisation is facilitated by the means of so called [EvictionQueueToken]'s. These are objects
+ * specific to the [EvictionQueue] implementation, that track certain aspects with regards to the
+ * usage of the [BufferPool.PageReference] it is associated to.
  *
  * @author Ralph Gasser
  * @version 1.1
  */
-interface EvictionQueue {
+interface EvictionQueue<T : EvictionQueueToken> {
     /**
      * Polls this [EvictionQueue] for a [BufferPool.PageReference] that can be reused.
      *
@@ -19,18 +23,25 @@ interface EvictionQueue {
     fun poll(): BufferPool.PageReference
 
     /**
-     * Enqueues a [BufferPool.PageReference] for later re-use by  the [BufferPool].
+     * Adds a [BufferPool.PageReference] as candidate for later eviction and re-use.
      *
-     * @param ref [BufferPool.PageReference] that should be re-used
+     * @param ref [BufferPool.PageReference] that should be prepared  for re-use.
      */
-    fun enqueue(ref: BufferPool.PageReference)
+    fun offerCandidate(ref: BufferPool.PageReference)
 
     /**
-     * Removes a [BufferPool.PageReference] from this [EvictionQueue]. This is to prevent the
-     * re-use of [BufferPool.PageReference]s that have been released but retained again at a
-     * later stage.
+     * Removes a [BufferPool.PageReference] from the list of candidates for later eviction. This is
+     * to prevent the re-use of [BufferPool.PageReference]s that have been released but retained
+     * again at a later stage.
      *
-     * @param ref [BufferPool.PageReference] that should be removed
+     * @param ref [BufferPool.PageReference] that should be removed from the list of candidates.
      */
-    fun remove(ref: BufferPool.PageReference)
+    fun removeCandidate(ref: BufferPool.PageReference)
+
+    /**
+     * Returns a new [EvictionQueueToken].
+     *
+     * @return New [EvictionQueueToken]
+     */
+    fun token(): T
 }

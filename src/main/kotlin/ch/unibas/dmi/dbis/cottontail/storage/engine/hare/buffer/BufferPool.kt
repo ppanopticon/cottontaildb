@@ -4,6 +4,7 @@ import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.PageId
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.PageRef
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.ReferenceCounted
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.Resource
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.eviction.EvictionPolicy
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.eviction.EvictionQueue
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.eviction.EvictionQueueToken
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DataPage
@@ -35,7 +36,7 @@ import java.util.concurrent.locks.StampedLock
  * @version 1.2
  * @author Ralph Gasser
  */
-class BufferPool(private val disk: DiskManager, val size: Int = 25, private val evictionQueue: EvictionQueue<*>): Resource {
+class BufferPool(private val disk: DiskManager, val size: Int = 25, val evictionPolicy: EvictionPolicy) : Resource {
 
     companion object {
         val METER_REGISTRY: MeterRegistry = JmxMeterRegistry(JmxConfig.DEFAULT, Clock.SYSTEM)
@@ -51,6 +52,9 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, private val 
 
     /** The internal directory that maps [PageId]s to [PageReference]s.*/
     private val pageDirectory = Long2ObjectOpenHashMap<PageReference>()
+
+    /** [EvictionQueue] that keeps track of [PageReference] that can be reused. */
+    private val evictionQueue = evictionPolicy.evictionQueue(this.size)
 
     /** An internal lock that mediates access to the [BufferPool.pageDirectory]. */
     private val directoryLock = StampedLock()

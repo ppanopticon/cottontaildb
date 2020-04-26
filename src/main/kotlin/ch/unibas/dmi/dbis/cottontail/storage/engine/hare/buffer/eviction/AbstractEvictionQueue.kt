@@ -1,24 +1,27 @@
 package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.eviction
 
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.BufferPool
-import java.util.*
+import it.unimi.dsi.fastutil.PriorityQueue
+import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
 /**
- * An abstract [EvictionQueue] implementation
+ * An abstract [EvictionQueue] implementation that acts as a foundation for concrete implementations.
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.1
  */
-abstract class AbstractEvictionQueue : EvictionQueue {
+abstract class AbstractEvictionQueue<T : EvictionQueueToken> : EvictionQueue<T> {
 
     /** Internal [Queue] implementation used by this [AbstractEvictionQueue]. */
-    protected abstract val queue: Queue<BufferPool.PageReference>
+    protected abstract val queue: PriorityQueue<BufferPool.PageReference>
 
-    /** */
+    /** Internal map of all candidates that are eligible for re-use. */
+    private val candidates = ObjectOpenHashSet<BufferPool.PageReference>()
+
+    /** The internal lock used to mediate access to the [queue]. */
     private val queueLock = ReentrantLock()
-
 
     /**
      * Polls this [EvictionQueue] for a [BufferPool.PageReference] that can be reused.
@@ -27,14 +30,15 @@ abstract class AbstractEvictionQueue : EvictionQueue {
      */
     override fun poll(): BufferPool.PageReference {
         do {
-            val ref = this.queueLock.withLock {
-                this.queue.poll()
-            }
-            if (ref != null) {
-                if (ref.dispose()) {
-                    return ref
-                } else {
-                    this.queue.offer(ref)
+            this.queueLock.withLock {
+                val ref = this.queue.dequeue()
+                if (ref != null) {
+                    if (ref.dispose()) {
+                        this.candidates.remove(ref)
+                        return ref
+                    } else {
+                        this.queue.enqueue(ref)
+                    }
                 }
             }
             Thread.onSpinWait()
@@ -47,9 +51,10 @@ abstract class AbstractEvictionQueue : EvictionQueue {
      * @param ref [BufferPool.PageReference] that should be re-used
      */
     @Synchronized
-    override fun enqueue(ref: BufferPool.PageReference) {
+    override fun offerCandidate(ref: BufferPool.PageReference) {
         this.queueLock.withLock {
-            this.queue.offer(ref)
+            this.candidates.add(ref)
+            this.queue.enqueue(ref)
         }
     }
 
@@ -61,9 +66,12 @@ abstract class AbstractEvictionQueue : EvictionQueue {
      * @param ref [BufferPool.PageReference] that should be removed
      */
     @Synchronized
-    override fun remove(ref: BufferPool.PageReference) {
+    override fun removeCandidate(ref: BufferPool.PageReference) {
         this.queueLock.withLock {
-            this.queue.remove(ref)
+            if (this.candidates.remove(ref)) {
+                this.queue.clear()
+                this.candidates.forEach { this.queue.enqueue(it) }
+            }
         }
     }
 }

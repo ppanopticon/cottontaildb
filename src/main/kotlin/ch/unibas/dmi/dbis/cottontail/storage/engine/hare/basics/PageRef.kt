@@ -1,6 +1,7 @@
 package ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.PageId
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.Priority
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.eviction.EvictionQueueToken
 
 /**
  * A [PageRef] is a wrapper for [Page] managed by the HARE storage engine. As opposed to normal
@@ -17,12 +18,9 @@ interface PageRef : Page, ReferenceCounted {
     /** [Priority] this [PageRef] currently has. Acts as a hint to the eviction policy. */
     val priority: Priority
 
-    /** Number of accesses to this [PageRef]. Acts as a hint to the eviction policy. */
-    val accessed: Long
-
-    /** The last access to this [PageRef]. Acts as a hint to the eviction policy. */
-    val lastAccess: Long
-
     /** Flag indicating whether or not this [PageRef] is dirty. */
     val dirty: Boolean
+
+    /** The [EvictionQueueToken] held by  this [PageRef]. */
+    val token: EvictionQueueToken
 }

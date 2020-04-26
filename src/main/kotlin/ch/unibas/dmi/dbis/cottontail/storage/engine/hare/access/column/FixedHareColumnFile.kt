@@ -11,6 +11,7 @@ import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.access.cursor.Cursor
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.basics.PageRef
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.BufferPool
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.Priority
+import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.buffer.eviction.EvictionPolicy
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DataPage
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DirectDiskManager
 import ch.unibas.dmi.dbis.cottontail.storage.engine.hare.disk.DiskManager
@@ -107,7 +108,7 @@ class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize:
     val disk = if (wal) { WALDiskManager(this.path) } else { DirectDiskManager(this.path) }
 
     /** Initializes the [BufferPool]. */
-    val bufferPool = BufferPool(disk = this.disk, size = corePoolSize)
+    val bufferPool = BufferPool(disk = this.disk, size = corePoolSize, evictionPolicy = EvictionPolicy.LRU)
 
     /** The [Name] of this [FixedHareColumnFile]. */
     val name = Name(this.path.fileName.toString().replace(".db", ""))
@@ -225,7 +226,7 @@ class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize:
      */
     inner class FixedHareCursor(override val writeable: Boolean, val bufferSize: Int) : Cursor<T> {
         /** Internal (per-cursor) [BufferPool]. */
-        private val bufferPool = BufferPool(this@FixedHareColumnFile.disk, this.bufferSize)
+        private val bufferPool = BufferPool(this@FixedHareColumnFile.disk, this.bufferSize, EvictionPolicy.FIFO)
 
         /** Local reference to the [Serializer] used for this [FixedHareCursor]. */
         private val serializer = this@FixedHareColumnFile.columnDef.serializer

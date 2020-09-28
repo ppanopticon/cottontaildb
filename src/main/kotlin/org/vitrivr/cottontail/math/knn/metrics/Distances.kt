@@ -8,5 +8,6 @@ enum class Distances (val kernel: DistanceKernel) {
     COSINE(CosineDistance),
     CHISQUARED(ChisquaredDistance),
     REALINNERPRODUCT(RealInnerProductDistance),
-    ABSOLUTEINNERPRODUCT(AbsoluteInnerProductDistance)
+    ABSOLUTEINNERPRODUCT(AbsoluteInnerProductDistance),
+    KEYPOINTS2D(Keypoints2DDistance)
 }

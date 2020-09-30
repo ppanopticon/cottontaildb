@@ -9,7 +9,7 @@
   </appender>
 
   <!-- Logger for Cottontail DB -->
-  <logger name="ch.unibas.dmi.dbis.cottontail">
+  <logger name="org.vitrivr.cottontail">
     <level value="TRACE"/>
   </logger>
 

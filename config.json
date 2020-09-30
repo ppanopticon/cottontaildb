@@ -1,4 +1,8 @@
 {
-  "root":"data",
-  "forceUnmapMappedFiles": false
+  "root": "./cottontaildb-data",
+  "memoryConfig": {
+    "forceUnmapMappedFiles": true,
+    "dataPageShift": 22,
+    "cataloguePageShift": 20
+  }
 }

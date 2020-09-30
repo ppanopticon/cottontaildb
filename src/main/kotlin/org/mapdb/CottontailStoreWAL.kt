@@ -3,19 +3,14 @@ package org.mapdb
 import org.eclipse.collections.impl.list.mutable.primitive.LongArrayList
 import org.eclipse.collections.impl.map.mutable.primitive.LongLongHashMap
 import org.eclipse.collections.impl.map.mutable.primitive.LongObjectHashMap
+import org.mapdb.DataIO.*
+import org.mapdb.StoreDirectJava.*
 import org.mapdb.volume.ReadOnlyVolume
 import org.mapdb.volume.SingleByteArrayVol
 import org.mapdb.volume.Volume
 import org.mapdb.volume.VolumeFactory
-import org.mapdb.DataIO.*
-import org.mapdb.StoreDirectJava.*
-import java.io.Closeable
 import java.io.File
-import java.lang.IllegalStateException
 import java.util.*
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicLong
-import java.util.function.Consumer
 
 /**
  * This is a re-implementation / copy of Map DB's [StoreWAL] class with minor modifications.
@@ -89,12 +84,12 @@ class CottontailStoreWAL(
         )
     }()
 
-    override protected val volume: Volume = if(CC.ASSERT) ReadOnlyVolume(realVolume) else realVolume
+    override val volume: Volume = if (CC.ASSERT) ReadOnlyVolume(realVolume) else realVolume
 
     /** header is stored in-memory, so it can be rolled back */
     protected val headBytes = ByteArray(StoreDirectJava.HEAD_END.toInt())
 
-    override protected val headVol = SingleByteArrayVol(headBytes)
+    override val headVol = SingleByteArrayVol(headBytes)
 
     /** stack pages, key is offset, value is content */
     protected val cacheStacks = LongObjectHashMap<ByteArray>()
@@ -114,9 +109,9 @@ class CottontailStoreWAL(
     )
 
     /** backup for `indexPages`, restored on rollback */
-    protected var indexPagesBackup = longArrayOf();
+    protected var indexPagesBackup = longArrayOf()
 
-    protected val allocatedPages = LongArrayList();
+    protected val allocatedPages = LongArrayList()
 
     override val isReadOnly = false
 
@@ -195,17 +190,17 @@ class CottontailStoreWAL(
             val old = get(recid, serializer)
 
             if (old === null && expectedOldRecord !== null)
-                return false;
+                return false
             if (old !== null && expectedOldRecord === null)
-                return false;
+                return false
 
             if (old !== expectedOldRecord && !serializer.equals(old!!, expectedOldRecord!!))
                 return false
 
-            val di = serialize(newRecord, serializer);
+            val di = serialize(newRecord, serializer)
 
             updateProtected(recid, di)
-            return true;
+            return true
         }
     }
 
@@ -215,23 +210,23 @@ class CottontailStoreWAL(
         val segment = recidToSegment(recid)
 
         CottontailUtils.lockWrite(locks[segment]) {
-            val oldIndexVal = getIndexVal(recid);
-            val oldSize = indexValToSize(oldIndexVal);
+            val oldIndexVal = getIndexVal(recid)
+            val oldSize = indexValToSize(oldIndexVal)
             if (oldSize == DELETED_RECORD_SIZE)
                 throw DBException.GetVoid(recid)
 
             if (oldSize != NULL_RECORD_SIZE) {
                 CottontailUtils.lock(structuralLock) {
                     if (indexValFlagLinked(oldIndexVal)) {
-                        linkedRecordDelete(oldIndexVal,recid)
-                    } else if(oldSize>5){
-                        val oldOffset = indexValToOffset(oldIndexVal);
+                        linkedRecordDelete(oldIndexVal, recid)
+                    } else if (oldSize > 5) {
+                        val oldOffset = indexValToOffset(oldIndexVal)
                         val sizeUp = roundUp(oldSize, 16)
                         //TODO clear into WAL
 //                        if(CC.ZEROS)
 //                            volume.clear(oldOffset,oldOffset+sizeUp)
                         releaseData(sizeUp, oldOffset, false)
-                        cacheRecords[segment].remove(indexValToOffset(oldIndexVal));
+                        cacheRecords[segment].remove(indexValToOffset(oldIndexVal))
                     }
                     releaseRecid(recid)
                 }
@@ -263,28 +258,28 @@ class CottontailStoreWAL(
         if(CC.ASSERT && !indexValFlagLinked(indexValue))
             throw AssertionError("not linked record")
 
-        val segment = recidToSegment(recid);
+        val segment = recidToSegment(recid)
         val cacheRec = cacheRecords[segment]
         var b = ByteArray(128*1024)
         var bpos = 0
         var pointer = indexValue
         chunks@ while(true) {
-            val isLinked = indexValFlagLinked(pointer);
-            val nextPointerSize = if(isLinked)8 else 0; //last (non linked) chunk does not have a pointer
+            val isLinked = indexValFlagLinked(pointer)
+            val nextPointerSize = if (isLinked) 8 else 0 //last (non linked) chunk does not have a pointer
             val size = indexValToSize(pointer).toInt() - nextPointerSize
             val offset = indexValToOffset(pointer)
 
             //grow b if needed
-            if(bpos+size>=b.size)
-                b = Arrays.copyOf(b,b.size*2)
+            if (bpos + size >= b.size)
+                b = Arrays.copyOf(b, b.size * 2)
 
             val walId = cacheRec.get(offset)
 
-            if(walId!=0L){
+            if (walId != 0L) {
                 //load from wal
                 val ba = wal.walGetRecord(walId,recid)
                 System.arraycopy(ba,nextPointerSize,b,bpos,size)
-                bpos += size;
+                bpos += size
 
                 if (!isLinked)
                     break@chunks
@@ -294,7 +289,7 @@ class CottontailStoreWAL(
             }else{
                 //load from volume
                 volume.getData(offset + nextPointerSize, b, bpos, size)
-                bpos += size;
+                bpos += size
 
                 if (!isLinked)
                     break@chunks
@@ -310,12 +305,12 @@ class CottontailStoreWAL(
         if(CC.ASSERT && !indexValFlagLinked(indexValue))
             throw AssertionError("not linked record")
 
-        val segment = recidToSegment(recid);
+        val segment = recidToSegment(recid)
         val cacheRec = cacheRecords[segment]
 
         var pointer = indexValue
         chunks@ while(pointer!=0L) {
-            val isLinked = indexValFlagLinked(pointer);
+            val isLinked = indexValFlagLinked(pointer)
             val size = indexValToSize(pointer)
             val offset = indexValToOffset(pointer)
 
@@ -330,24 +325,24 @@ class CottontailStoreWAL(
                 }
             }else
                 0L
-            val sizeUp = roundUp(size,16);
+            val sizeUp = roundUp(size, 16)
             //TODO data clear
 //            if(CC.ZEROS)
 //                volume.clear(offset,offset+sizeUp)
-            releaseData(sizeUp, offset, false);
+            releaseData(sizeUp, offset, false)
             cacheRec.remove(offset)
         }
     }
 
     protected fun linkedRecordPut(output:ByteArray, size:Int, recid:Long):Long{
-        val segment = recidToSegment(recid);
+        val segment = recidToSegment(recid)
         val cacheRec = cacheRecords[segment]
 
-        var remSize = size.toLong();
+        var remSize = size.toLong()
         //insert first non linked record
-        var chunkSize:Long = Math.min(MAX_RECORD_SIZE, remSize);
-        var chunkOffset = CottontailUtils.lock(structuralLock){
-            allocateData(roundUp(chunkSize.toInt(),16), false)
+        var chunkSize: Long = Math.min(MAX_RECORD_SIZE, remSize)
+        var chunkOffset = CottontailUtils.lock(structuralLock) {
+            allocateData(roundUp(chunkSize.toInt(), 16), false)
         }
         var walId = wal.walPutRecord(recid,output, (remSize-chunkSize).toInt(), chunkSize.toInt())
         cacheRec.put(chunkOffset,walId)
@@ -358,12 +353,12 @@ class CottontailStoreWAL(
         // iterate in reverse order (from tail and from end of record)
         while(remSize>0){
             val prevLink = parity3Set((chunkSize+isLinked).shl(48) + chunkOffset + isLinked)
-            isLinked = MLINKED;
+            isLinked = MLINKED
 
             //allocate stuff
-            chunkSize = Math.min(MAX_RECORD_SIZE - 8, remSize);
-            chunkOffset = CottontailUtils.lock(structuralLock){
-                allocateData(roundUp(chunkSize+8,16).toInt(), false)
+            chunkSize = Math.min(MAX_RECORD_SIZE - 8, remSize)
+            chunkOffset = CottontailUtils.lock(structuralLock) {
+                allocateData(roundUp(chunkSize + 8, 16).toInt(), false)
             }
 
             //write link
@@ -378,7 +373,7 @@ class CottontailStoreWAL(
 //            volume.putData(chunkOffset+8, output, remSize.toInt(), chunkSize.toInt())
         }
         if(CC.ASSERT && remSize!=0L)
-            throw AssertionError();
+            throw AssertionError()
         return (chunkSize+8).shl(48) + chunkOffset + isLinked + MARCHIVE
     }
 
@@ -427,40 +422,40 @@ class CottontailStoreWAL(
 
     override fun <R> update(recid: Long, record: R?, serializer: Serializer<R>) {
         assertNotClosed()
-        val di = serialize(record, serializer);
+        val di = serialize(record, serializer)
 
         CottontailUtils.lockWrite(locks[recidToSegment(recid)]) {
             updateProtected(recid, di)
         }
     }
 
-    private fun updateProtected(recid: Long, di: DataOutput2?){
-        if(CC.ASSERT)
+    private fun updateProtected(recid: Long, di: DataOutput2?) {
+        if (CC.ASSERT)
             CottontailUtils.assertWriteLock(locks[recidToSegment(recid)])
 
-        val oldIndexVal = getIndexVal(recid);
-        val oldLinked = indexValFlagLinked(oldIndexVal);
-        val oldSize = indexValToSize(oldIndexVal);
+        val oldIndexVal = getIndexVal(recid)
+        val oldLinked = indexValFlagLinked(oldIndexVal)
+        val oldSize = indexValToSize(oldIndexVal)
         if (oldSize == DELETED_RECORD_SIZE)
             throw DBException.GetVoid(recid)
-        fun roundSixDown(size:Long) = if(size<6) 0 else size
+        fun roundSixDown(size: Long) = if (size < 6) 0 else size
         val newUpSize: Long =
                 if (di == null) -16L
                 else roundUp(roundSixDown(di.pos.toLong()), 16)
         //try to reuse record if possible, if not possible, delete old record and allocate new
         if (oldLinked || (
                         (newUpSize != roundUp(roundSixDown(oldSize), 16)) &&
-                                oldSize != NULL_RECORD_SIZE && oldSize > 5L )) {
+                                oldSize != NULL_RECORD_SIZE && oldSize > 5L)) {
             CottontailUtils.lock(structuralLock) {
                 if (oldLinked) {
                     linkedRecordDelete(oldIndexVal,recid)
                 } else {
-                    val oldOffset = indexValToOffset(oldIndexVal);
+                    val oldOffset = indexValToOffset(oldIndexVal)
                     val sizeUp = roundUp(oldSize, 16)
                     if (CC.ZEROS)
                         volume.clear(oldOffset, oldOffset + sizeUp)
                     releaseData(sizeUp, oldOffset, false)
-                    cacheRecords[recidToSegment(recid)].remove(oldOffset);
+                    cacheRecords[recidToSegment(recid)].remove(oldOffset)
                 }
             }
         }
@@ -474,14 +469,14 @@ class CottontailStoreWAL(
         if (di.pos > MAX_RECORD_SIZE) {
             //linked record
             val newIndexVal = linkedRecordPut(di.buf, di.pos, recid)
-            setIndexVal(recid, newIndexVal);
+            setIndexVal(recid, newIndexVal)
             return
         }
-        val size = di.pos;
+        val size = di.pos
         val offset =
-                if(size!=0 && size<6 ){
-                    DataIO.getLong(di.buf,0).ushr((7-size)*8)
-                } else if (!oldLinked && newUpSize == roundUp(oldSize, 16) && oldSize>=6 ) {
+                if (size != 0 && size < 6) {
+                    DataIO.getLong(di.buf, 0).ushr((7 - size) * 8)
+                } else if (!oldLinked && newUpSize == roundUp(oldSize, 16) && oldSize >= 6) {
                     //reuse existing offset
                     indexValToOffset(oldIndexVal)
                 } else if (size == 0) {
@@ -519,7 +514,7 @@ class CottontailStoreWAL(
 
             if(size<6){
                 if(CC.ASSERT && size>5)
-                    throw DBException.DataCorruption("wrong size record header");
+                    throw DBException.DataCorruption("wrong size record header")
                 return serializer.deserializeFromLong(volOffset.ushr(8), size.toInt())
             }
 
@@ -653,8 +648,8 @@ class CottontailStoreWAL(
     }
 
 
-    override protected fun allocateNewPage():Long{
-        if(CC.ASSERT)
+    override fun allocateNewPage(): Long {
+        if (CC.ASSERT)
             CottontailUtils.assertLocked(structuralLock)
 
         val eof = fileTail
@@ -664,15 +659,15 @@ class CottontailStoreWAL(
         return eof
     }
 
-    override protected fun allocateNewIndexPage():Long{
-        if(CC.ASSERT)
+    override fun allocateNewIndexPage(): Long {
+        if (CC.ASSERT)
             CottontailUtils.assertLocked(structuralLock)
 
-        val indexPage = allocateNewPage();
+        val indexPage = allocateNewPage()
 
         //update pointer to previous page
         val pagePointerOffset =
-                if(indexPages.isEmpty)
+                if (indexPages.isEmpty)
                     ZERO_PAGE_LINK
                 else
                     indexPages[indexPages.size()-1] + 8
@@ -691,7 +686,7 @@ class CottontailStoreWAL(
         wal.walPutLong(indexPage+8, parity16Set(0))
         cacheIndexLinks.put(indexPage+8, parity16Set(0))
         //volume.putLong(indexPage+8, parity16Set(0))
-        return indexPage;
+        return indexPage
     }
 
     override fun freeSizeIncrement(increment: Long) {
@@ -699,15 +694,14 @@ class CottontailStoreWAL(
     }
 
 
-
-    override protected fun longStackPut(masterLinkOffset:Long, value:Long, recursive:Boolean){
-        if(CC.ASSERT)
+    override fun longStackPut(masterLinkOffset: Long, value: Long, recursive: Boolean) {
+        if (CC.ASSERT)
             CottontailUtils.assertLocked(structuralLock)
         if (CC.ASSERT && (masterLinkOffset <= 0 || masterLinkOffset > CC.PAGE_SIZE || masterLinkOffset % 8 != 0L))
             throw DBException.DataCorruption("wrong master link")
-        if(CC.ASSERT && value.shr(48)!=0L)
+        if (CC.ASSERT && value.shr(48) != 0L)
             throw AssertionError()
-        if(CC.ASSERT)
+        if (CC.ASSERT)
             parity1Get(value)
 
         /** size of value after it was packed */
@@ -819,13 +813,13 @@ class CottontailStoreWAL(
         //volume.putPackedLong(newChunkOffset+8, value)
         packLong(ba, 8, value)
         //update master link
-        val newSize:Long = 8+valueSize;
+        val newSize: Long = 8 + valueSize
         val newMasterLinkValue = newSize.shl(48) + newChunkOffset
         headVol.putLong(masterLinkOffset, parity4Set(newMasterLinkValue))
     }
 
-    override protected fun longStackTake(masterLinkOffset:Long, recursive:Boolean):Long {
-        if(CC.ASSERT)
+    override fun longStackTake(masterLinkOffset: Long, recursive: Boolean): Long {
+        if (CC.ASSERT)
             CottontailUtils.assertLocked(structuralLock)
 
         if (CC.ASSERT && (masterLinkOffset <= 0 || masterLinkOffset > CC.PAGE_SIZE || masterLinkOffset % 8 != 0L))
@@ -834,7 +828,7 @@ class CottontailStoreWAL(
         val masterLinkVal = parity4Get(headVol.getLong(masterLinkOffset))
         if (masterLinkVal == 0L) {
             //empty stack
-            return 0;
+            return 0
         }
 
         val offset = masterLinkVal and MOFFSET
@@ -851,7 +845,7 @@ class CottontailStoreWAL(
             throw DBException.DataCorruption("position too small")
 
         if(CC.ASSERT && getLong(ba, 0).ushr(48)<=pos)
-            throw DBException.DataCorruption("position beyond chunk "+masterLinkOffset);
+            throw DBException.DataCorruption("position beyond chunk " + masterLinkOffset)
 
         //get value and zero it out
         val ret = unpackLong(ba,pos)
@@ -869,7 +863,7 @@ class CottontailStoreWAL(
             if(CC.ASSERT && ret!=0L)
                 parity1Get(ret)
 
-            return ret;
+            return ret
         }
 
         //current chunk become empty, so delete it
@@ -897,13 +891,13 @@ class CottontailStoreWAL(
 //        if(CC.ZEROS)
 //            volume.clear(offset,offset+currentSize) //TODO incremental clear
 
-        releaseData(currentSize, offset, true);
+        releaseData(currentSize, offset, true)
 
         if(CC.ASSERT && ret.shr(48)!=0L)
             throw AssertionError()
         if(CC.ASSERT && ret != 0L)
             parity1Get(ret)
-        return ret;
+        return ret
     }
 
     protected fun longStackFindEnd(pageOffset:Long, pos:Long):Long{
@@ -922,7 +916,7 @@ class CottontailStoreWAL(
             return Arrays.asList<String>()
 
         val ret = arrayListOf(file)
-        ret.addAll(wal.getAllFiles())
+        ret.addAll(wal.allFiles)
         return ret.toList() //immutable copy
     }
 
@@ -932,22 +926,17 @@ class CottontailStoreWAL(
      * @author Ralph Gasser
      * @version 1.0
      */
-    inner class RecordIdIterator(from: Long = 0L, to: Long = this@CottontailStoreWAL.maxRecid): LongIterator(), Closeable {
+    inner class RecordIdIterator(range: LongRange = 2L..this@CottontailStoreWAL.maxRecid) : LongIterator() {
         /** Creates a local snapshot of the maximum record ID. */
-        private val maximumRecordId = to.coerceIn(0L, this@CottontailStoreWAL.maxRecid)
+        private val maximumRecordId = range.last.coerceAtMost(this@CottontailStoreWAL.maxRecid)
 
         /** Current record ID. */
-        private val currentRecordId = AtomicLong(from.coerceIn(0L, this.maximumRecordId))
+        @Volatile
+        private var currentRecordId = range.first.coerceAtLeast(2L)
 
         /** Flag indicating that this [RecordIdIterator] has been closed. */
-        private val closed = AtomicBoolean(false)
-
-        /**
-         * Creates a lock for this [LongIterator]
-         */
-        init {
-            CottontailUtils.lockReadAll(locks)
-        }
+        @Volatile
+        private var closed = false
 
         /**
          * Returns the next record ID currently in use. Due to the way, hasNext() is evaluated, this method may reach the
@@ -955,47 +944,32 @@ class CottontailStoreWAL(
          *
          * @return The next record ID.
          */
+        @Synchronized
         override fun nextLong(): Long {
-            if (!this.closed.get()) {
-                var localIndex = this.currentRecordId.incrementAndGet()
-                do {
-                    val indexVal = getIndexVal(localIndex)
-                    if (indexValFlagUnused(indexVal).not()) {
-                        break
-                    }
-                    if (localIndex >= this.maximumRecordId) {
-                        break
-                    }
-                    localIndex = this.currentRecordId.incrementAndGet()
-                } while (true)
-
-                return if (localIndex <= this.maximumRecordId) {
-                    localIndex
-                } else {
-                    EOF_ENTRY
-                }
-            } else {
-                throw IllegalStateException("This RecordIdIterator ($this) has been closed.")
-            }
+            check(!this.closed) { "Illegal invocation of nextLong(): This RecordIdIterator has been closed." }
+            return (this.currentRecordId++)
         }
 
         /**
          * Returns true as long as the current record ID is smaller than the maximum record ID.
          */
-        override fun hasNext(): Boolean = this.currentRecordId.get() < this.maximumRecordId && !this.closed.get()
+        @Synchronized
+        override fun hasNext(): Boolean {
+            check(!this.closed) { "Illegal invocation of hasNext(): This RecordIdIterator has been closed." }
+            do {
+                if (this.currentRecordId > this.maximumRecordId) {
+                    return false
+                }
+                val segment = recidToSegment(this.currentRecordId)
+                CottontailUtils.lockRead(locks[segment]) {
+                    val indexVal = getIndexVal(this.currentRecordId)
+                    if (!indexValFlagUnused(indexVal) && indexValToSize(indexVal) != DELETED_RECORD_SIZE) {
+                        return true
+                    }
+                    this.currentRecordId += 1
+                }
 
-        /**
-         * Relinquishes the lock held by this [LongIterator]
-         */
-        override fun close() {
-            if (this.closed.compareAndSet(false, true)) {
-                CottontailUtils.unlockReadAll(locks)
-            }
+            } while (true)
         }
-
-        /**
-         * Closes this [RecordIdIterator] upon finalization.
-         */
-        protected fun finalize() = this.close()
     }
 }

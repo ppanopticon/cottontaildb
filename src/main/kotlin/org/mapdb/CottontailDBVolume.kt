@@ -1,9 +1,8 @@
 package org.mapdb
 
-import ch.unibas.dmi.dbis.cottontail.storage.store.CleanerUtility
 import org.mapdb.volume.Volume
 import org.mapdb.volume.VolumeFactory
-
+import org.vitrivr.cottontail.storage.store.CleanerUtility
 import java.io.File
 import java.io.IOException
 import java.nio.ByteBuffer
@@ -12,14 +11,13 @@ import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.channels.FileLock
 import java.nio.file.Path
+import java.nio.file.Paths
 import java.nio.file.StandardOpenOption
-
+import java.util.*
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
-import kotlin.math.min
-import java.nio.file.Paths
-import java.util.*
 import kotlin.math.max
+import kotlin.math.min
 
 
 /**
@@ -41,7 +39,7 @@ class CottontailDBVolume (val path: Path, val sliceShift: Int, val readonly: Boo
     class CottontailDBVolumeFactory(val forceUnmap: Boolean) : VolumeFactory() {
 
         override fun makeVolume(file: String, readOnly: Boolean, fileLockWait: Long, sliceShift: Int, initSize: Long, fixedSize: Boolean): Volume {
-            return factory(file, readOnly, fileLockWait, sliceShift, forceUnmap, initSize)
+            return factory(file, readOnly, fileLockWait, sliceShift, this.forceUnmap, initSize)
         }
 
         override fun exists(file: String?): Boolean {

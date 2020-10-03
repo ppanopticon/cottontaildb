@@ -8,7 +8,6 @@ import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
  * [BufferPool.PageReference]'s use. What metric that is, is up to the concrete implementation.
  *
  * The decision to evict is based on that metric, usually by comparing it to other available [EvictionQueueToken]s
- * The decision to evict is based on that metric, usually by comparing it to other available [EvictionQueueToken]s
  *
  * @see EvictionQueue
  *

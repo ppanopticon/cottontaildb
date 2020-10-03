@@ -77,9 +77,13 @@ class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize:
             headerPage.putChar(4, FILE_HEADER_IDENTIFIER[2])                                        /* 4: Identifier F. */
 
             headerPage.putInt(6, columnDef.type.ordinal)                                            /* 6: Type of column. See ColumnDef.forOrdinal() */
-            headerPage.putInt(10, columnDef.logicalSize)                                                   /* 10: Logical size of column (for structured data types). */
+            headerPage.putInt(10, columnDef.logicalSize)                                            /* 10: Logical size of column (for structured data types). */
             headerPage.putInt(14, columnDef.serializer.physicalSize)                                /* 14: Physical size of a column entry in bytes. */
-            headerPage.putLong(18, if (columnDef.nullable) { (0L or MASK_NULLABLE) } else { 0L })   /* 18: Column flags; 64 bits, one bit reserved. */
+            headerPage.putLong(18, if (columnDef.nullable) {
+                (0L or MASK_NULLABLE)
+            } else {
+                0L
+            })   /* 18: Column flags; 64 bits, one bit reserved. */
             headerPage.putLong(26, 0L)                                                        /* 26: Number of entries (count) in column. */
 
             manager.allocate(headerPage)
@@ -259,7 +263,7 @@ class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize:
             check(!this.closed) { "HareCursor has been closed and cannot be used anymore." }
 
             val address = this.tupleIdToAddress(tupleId)
-            val page = this.bufferPool.get(address.page())
+            val page = this.bufferPool.get(address.pageId())
 
             try {
                 return (page.getInt(slotIdToEntryOffset(address.slot())) and MASK_NULL) > 0L
@@ -277,7 +281,7 @@ class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize:
             check(!this.closed) { "HareCursor has been closed and cannot be used anymore." }
 
             val address = this.tupleIdToAddress(tupleId)
-            val page = this.bufferPool.get(address.page())
+            val page = this.bufferPool.get(address.pageId())
 
             try {
                 return (page.getInt(slotIdToEntryOffset(address.slot())) and MASK_DELETED) > 0L
@@ -296,10 +300,10 @@ class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize:
             check(!this.closed) { "HareCursor has been closed and cannot be used anymore." }
 
             val address = this.tupleIdToAddress(tupleId)
-            val page = this.bufferPool.get(address.page())
+            val page = this.bufferPool.get(address.pageId())
 
             try {
-                val flags = page.getInt(slotIdToHeaderOffset(address.slot()))
+                val flags = page.getInt(address.slot().toHeaderOffset())
                 if ((flags and MASK_DELETED) > 0L) throw EntryDeletedException("Entry with tuple ID $tupleId has been deleted and cannot be accessed.")
                 if ((flags and MASK_NULL) > 0L) {
                     null
@@ -327,9 +331,9 @@ class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize:
             }
 
             val address = this.tupleIdToAddress(tupleId)
-            val page = this.bufferPool.get(address.page())
+            val page = this.bufferPool.get(address.pageId())
             try {
-                val headerOffset = slotIdToHeaderOffset(address.slot())
+                val headerOffset = address.slot().toHeaderOffset()
                 val entryOffset = slotIdToEntryOffset(address.slot())
                 val flags = page.getInt(headerOffset)
                 if ((flags and MASK_DELETED) > 0) throw EntryDeletedException("Entry with tuple ID $tupleId has been deleted and cannot be updated.")
@@ -364,9 +368,9 @@ class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize:
             }
 
             val address = this.tupleIdToAddress(tupleId)
-            val page = this.bufferPool.get(address.page())
+            val page = this.bufferPool.get(address.pageId())
             try {
-                val headerOffset = slotIdToHeaderOffset(address.slot())
+                val headerOffset = address.slot().toHeaderOffset()
                 val entryOffset = slotIdToEntryOffset(address.slot())
                 val flags = page.getInt(headerOffset)
                 if ((flags and MASK_DELETED) > 0) throw throw EntryDeletedException("Entry with tuple ID $tupleId has been deleted and cannot be updated.")
@@ -409,12 +413,12 @@ class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize:
             val tupleId = this.header.count++
             val address = this.tupleIdToAddress(tupleId)
 
-            if (address.page() >= this.bufferPool.totalPages) {
+            if (address.pageId() >= this.bufferPool.totalPages) {
                 /* Case 1: Data goes on new pages. */
                 val page = this.bufferPool.detach()
                 try {
                     if (value != null) {
-                        page.putLong(slotIdToHeaderOffset(address.slot()), 0L)
+                        page.putLong(address.slot().toHeaderOffset(), 0L)
                         this.serializer.serialize(page, slotIdToEntryOffset(address.slot()), value)
                     }
                     this.bufferPool.append(page)
@@ -423,14 +427,14 @@ class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize:
                 }
             } else {
                 /* Case 2: Data goes on an existing page.*/
-                val page = this.bufferPool.get(address.page(), Priority.DEFAULT)
+                val page = this.bufferPool.get(address.pageId(), Priority.DEFAULT)
                 try {
                     if (value != null) {
-                        page.putLong(slotIdToHeaderOffset(address.slot()), 0L)
+                        page.putLong(address.slot().toHeaderOffset(), 0L)
                         this.serializer.serialize(page, slotIdToEntryOffset(address.slot()), value)
                     } else {
                         val entryOffset = slotIdToEntryOffset(address.slot())
-                        page.putInt(slotIdToHeaderOffset(address.slot()), MASK_NULL)
+                        page.putInt(address.slot().toHeaderOffset(), MASK_NULL)
                         for (i in 0 until this.header.entrySize) {
                             page.putByte(entryOffset + i, 0)
                         }
@@ -447,10 +451,10 @@ class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize:
             check(!this.closed) { "HareCursor has been closed and cannot be used anymore." }
 
             val address = this.tupleIdToAddress(tupleId)
-            val page = this.bufferPool.get(address.page())
+            val page = this.bufferPool.get(address.pageId())
 
             try {
-                val headerOffset = slotIdToHeaderOffset(address.slot())
+                val headerOffset = address.slot().toHeaderOffset()
                 val entryOffset = slotIdToEntryOffset(address.slot())
                 val flags = page.getInt(headerOffset)
                 if ((flags and MASK_DELETED) > 0L) throw throw EntryDeletedException("Entry with tuple ID $tupleId has been deleted and cannot be deleted.")
@@ -476,10 +480,7 @@ class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize:
         }
 
         /** Converts a [SlotId] to an offset into the [Page]. */
-        private fun slotIdToHeaderOffset(slotId: Int) = (slotId shl 2)
-
-        /** Converts a [SlotId] to an offset into the [Page]. */
-        private fun slotIdToEntryOffset(slotId: Int) = this@FixedHareColumnFile.disk.pageSize - ((slotId + 1) * this.header.entrySize)
+        private fun slotIdToEntryOffset(slotId: SlotId) = this@FixedHareColumnFile.disk.pageSize - ((slotId + 1) * this.header.entrySize)
 
         /**
          * Closes this [FixedHareCursor] and releases all resources associated with hit.
@@ -522,7 +523,7 @@ class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize:
          * @param tupleId The [TupleId] to convert.
          * @return [Address] for the tuple identified by the [TupleId] and the [SlotId].
          */
-        private fun tupleIdToAddress(tupleId: TupleId): Address = longArrayOf((tupleId / this.header.slots) + 1, (tupleId % this.header.slots))
+        private fun tupleIdToAddress(tupleId: TupleId): Address = tupleId.toAddress(this.header.slots)
 
         /**
          * Internal function that facilitates iteration over entries.
@@ -551,8 +552,8 @@ class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize:
             for (pageId in minPageId until maxPageId) {
                 /* Tell buffer pool to prefetch pages. */
                 if (prefetchCounter == 0) {
-                    this.bufferPool.prefetch(pageId + prefetch until (pageId + 2 * prefetch))
-                    prefetchCounter = prefetch
+                    //this.bufferPool.prefetch(pageId + prefetch until (pageId + 2 * prefetch))
+                    //prefetchCounter = prefetch
                 }
 
                 /* Access current page id. */
@@ -560,12 +561,13 @@ class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize:
                 try {
                     val slot = (entrySize * (tupleId % this.header.slots)).toInt()
                     for (i in slot until this.header.slots) {
-                        val flags = page.getInt(slotIdToHeaderOffset(i))
+                        val slotId = i.toShort()
+                        val flags = page.getInt(slotId.toHeaderOffset())
                         if ((flags and MASK_DELETED) == 0) {
                             if ((flags and MASK_NULL) > 0) {
                                 action(tupleId, null)
                             } else {
-                                action(tupleId, this.serializer.deserialize(page, slotIdToEntryOffset(i)))
+                                action(tupleId, this.serializer.deserialize(page, slotIdToEntryOffset(slotId)))
                             }
                         }
                         (tupleId++)

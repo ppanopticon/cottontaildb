@@ -56,7 +56,7 @@ class BufferPoolTest {
         val page = this.pool!!.get(1L, Priority.HIGH)
         for (i in 1L until data.size) {
             assertTrue(page === this.pool!!.get(1L))
-            this.pool!!.get(i, Priority.DEFAULT)
+            this.pool!!.get(i, Priority.DEFAULT).release()
         }
     }
 
@@ -95,6 +95,7 @@ class BufferPoolTest {
                 val page = this.pool!!.get(i.toLong())
                 page.putBytes(0, newData[i])
                 Assertions.assertEquals(i.toLong(), page.id)
+                page.release()
             }
         }
 
@@ -123,6 +124,7 @@ class BufferPoolTest {
 
             Assertions.assertArrayEquals(ref[i], page!!.getBytes(0))
             Assertions.assertEquals(i.toLong(), page!!.id)
+            page?.release()
         }
         val diskSize = this.pool!!.diskSize `in` Units.MEGABYTE
         println("Reading $diskSize took $readTime (${diskSize.value / readTime.inSeconds} MB/s).")
@@ -147,6 +149,7 @@ class BufferPoolTest {
                 page.putBytes(0, data[i])
                 this.pool!!.append(data = page)
             }
+            page.release()
         }
 
         /** Flush data to disk. */

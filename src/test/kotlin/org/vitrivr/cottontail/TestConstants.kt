@@ -10,12 +10,20 @@ import java.nio.file.Paths
  * @version 1.0
  */
 object TestConstants {
+    /** Path to folder that contains all test data. */
+    val testPath = Paths.get("./cottontaildb-test")
+
+    /** Path to folder that contains all test data. */
+    val testDatabasePath = this.testPath.resolve("db")
+
+    /** Path to folder that contains all test data. */
+    val testDataPath = this.testPath.resolve("data")
 
     /** Location of the Cottontail DB data folder used for testing. */
-    val config = Config(root = Paths.get("./cottontaildb-test"), cli = false)
+    val config = Config(root = testDatabasePath, cli = false)
 
     /** General size of collections used for testing. */
-    const val collectionSize: Int = 100_000
+    const val collectionSize: Int = 100_000_0
 
     /** Maximum dimension used for vector generation. */
     const val smallVectorMaxDimension: Int = 128

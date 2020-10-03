@@ -1,8 +1,10 @@
 package org.vitrivr.cottontail.storage.store.engine.hare.access
 
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.params.ParameterizedTest
-import org.junit.jupiter.params.provider.ValueSource
+import org.junit.jupiter.params.provider.MethodSource
+import org.vitrivr.cottontail.TestConstants
 import org.vitrivr.cottontail.database.column.DoubleVectorColumnType
 import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
@@ -12,36 +14,39 @@ import org.vitrivr.cottontail.storage.engine.hare.access.column.FixedHareColumnF
 import org.vitrivr.cottontail.storage.engine.hare.disk.DataPage
 import org.vitrivr.cottontail.storage.engine.hare.disk.DirectDiskManager
 import java.nio.file.Files
-import java.nio.file.Paths
 import java.util.*
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
 import kotlin.time.measureTime
 
-class HareDoubleArrayCursorTest {
+class HareDoubleArrayCursorTest : AbstractCursorTest() {
     /** Path to column file. */
-    val path = Paths.get("./test-double-vector-cursor-db.hare")
+    val path = TestConstants.testDataPath.resolve("test-double-vector-cursor-db.hare")
 
     /** Seed for random number generator. */
     val seed = System.currentTimeMillis()
+
+    @AfterEach
+    fun teardown() {
+        Files.delete(this.path)
+    }
 
     /**
      *
      */
     @ExperimentalTime
     @ParameterizedTest
-    @ValueSource(ints = [2048])
+    @MethodSource("dimensions")
     fun test(dimensions: Int) {
         val columnDef = ColumnDef(Name.ColumnName("test"), DoubleVectorColumnType, logicalSize = dimensions)
         FixedHareColumnFile.createDirect(this.path, columnDef)
         val hareFile: FixedHareColumnFile<DoubleVectorValue> = FixedHareColumnFile(this.path, false)
 
-        this.initWithData(hareFile, dimensions, 1_000_000)
-        this.compareData(hareFile, dimensions, 1_000_000)
+        this.initWithData(hareFile, dimensions, TestConstants.collectionSize)
+        this.compareData(hareFile, dimensions, TestConstants.collectionSize)
 
         /** Cleanup. */
         hareFile.close()
-        Files.delete(this.path)
     }
 
     /**

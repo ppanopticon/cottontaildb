@@ -4,6 +4,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.vitrivr.cottontail.TestConstants
 import org.vitrivr.cottontail.database.column.DoubleColumnType
 import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
@@ -13,14 +14,13 @@ import org.vitrivr.cottontail.storage.basics.Units
 import org.vitrivr.cottontail.storage.engine.hare.access.column.FixedHareColumnFile
 import org.vitrivr.cottontail.storage.engine.hare.disk.DataPage
 import org.vitrivr.cottontail.storage.engine.hare.disk.DirectDiskManager
-import java.nio.file.Paths
 import java.util.*
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
 import kotlin.time.measureTime
 
 class HareDoubleCursorTest {
-    val path = Paths.get("./test-cursor-db.hare")
+    val path = TestConstants.testDataPath.resolve("test-double-cursor-db.hare")
 
     var columnDef = ColumnDef(Name.ColumnName("test"), DoubleColumnType)
 
@@ -46,7 +46,7 @@ class HareDoubleCursorTest {
     @ExperimentalTime
     fun test() {
         val seed = System.currentTimeMillis()
-        this.initWithData(10_000_000, seed)
+        this.initWithData(TestConstants.collectionSize, seed)
         this.compareData(seed)
     }
 

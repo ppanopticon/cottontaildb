@@ -70,7 +70,12 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
             data.putInt(0)                                /* 26: Page counter; number of freed pages. */
             data.putLong(0L)                              /* 30: CRC32 checksum for HARE file. */
 
-            /** Write data to file and close. */
+            /* Create parent directories. */
+            if (Files.notExists(path.parent)) {
+                Files.createDirectories(path.parent)
+            }
+
+            /* Write data to file and close. */
             val channel = FileChannel.open(path, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW, StandardOpenOption.SYNC, StandardOpenOption.SPARSE)
             channel.write(data.rewind())
             channel.close()
@@ -78,7 +83,7 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
     }
 
     /** The [FileChannel] used to access the file managed by this [DiskManager]. */
-    protected val fileChannel: FileChannel = FileChannel.open(this.path, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.DSYNC, StandardOpenOption.SPARSE)
+    protected val fileChannel: FileChannel = FileChannel.open(this.path, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.DSYNC, StandardOpenOption.SPARSE)
 
     /** Acquires an exclusive [FileLock] for file underlying this [FileChannel]. Makes sure, that no other process uses the same HARE file. */
     protected val fileLock = FileUtilities.acquireFileLock(this.fileChannel, this.lockTimeout)

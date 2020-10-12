@@ -3,8 +3,6 @@ package org.vitrivr.cottontail.storage.engine.hare.views
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.storage.engine.hare.Address
 import org.vitrivr.cottontail.storage.engine.hare.PageId
-import org.vitrivr.cottontail.storage.engine.hare.access.column.variable.Flags
-import org.vitrivr.cottontail.storage.engine.hare.access.column.variable.VariableHareColumnFile
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
 
 /**
@@ -45,7 +43,6 @@ open class DirectoryPageView : AbstractPageView() {
         const val DIRECTORY_ENTRY_SIZE = DIRECTORY_ENTRY_ADDRESS_SIZE + DIRECTORY_ENTRY_FLAGS_SIZE
     }
 
-
     /** The [pageTypeIdentifier] for the [SlottedPageView]. */
     override val pageTypeIdentifier: Int
         get() = ViewConstants.PAGE_TYPE_DIRECTORY
@@ -54,7 +51,7 @@ open class DirectoryPageView : AbstractPageView() {
     var previousPageId: PageId
         get() = this.page?.getLong(HEADER_OFFSET_PREVPTR)
                 ?: throw IllegalStateException("This DirectoryPageView is not wrapping any page and can therefore not be used for interaction.")
-        set(pageId) {
+        private set(pageId) {
             check(this.page != null) { "This DirectoryPageView is not wrapping any page and can therefore not be used for interaction." }
             this.page!!.putLong(HEADER_OFFSET_PREVPTR, pageId)
         }
@@ -73,7 +70,7 @@ open class DirectoryPageView : AbstractPageView() {
     var firstTupleId: TupleId
         get() = this.page?.getLong(HEADER_OFFSET_TIDSTART)
                 ?: throw IllegalStateException("This DirectoryPageView is not wrapping any page and can therefore not be used for interaction.")
-        set(tupleId) {
+        private set(tupleId) {
             check(this.page != null) { "This DirectoryPageView is not wrapping any page and can therefore not be used for interaction." }
             this.page!!.putLong(HEADER_OFFSET_TIDSTART, tupleId)
         }
@@ -82,14 +79,15 @@ open class DirectoryPageView : AbstractPageView() {
     var lastTupleId: TupleId
         get() = this.page?.getLong(HEADER_OFFSET_TIDEND)
                 ?: throw IllegalStateException("This DirectoryPageView is not wrapping any page and can therefore not be used for interaction.")
-        set(tupleId) {
+        private set(tupleId) {
             check(this.page != null) { "This DirectoryPageView is not wrapping any page and can therefore not be used for interaction." }
             this.page!!.putLong(HEADER_OFFSET_TIDEND, tupleId)
         }
 
     /** True, if this [DirectoryPageView] page is full. */
-    val full: Boolean = DIRECTORY_HEADER_SIZE + (this.firstTupleId - this.lastTupleId + 1) * DIRECTORY_ENTRY_SIZE >= (this.page?.size
-            ?: throw IllegalStateException("This DirectoryPageView is not wrapping any page and can therefore not be used for interaction."))
+    val full: Boolean
+        get() = DIRECTORY_HEADER_SIZE + (this.lastTupleId - this.firstTupleId + 2) * DIRECTORY_ENTRY_SIZE >= (this.page?.size
+                ?: throw IllegalStateException("This DirectoryPageView is not wrapping any page and can therefore not be used for interaction."))
 
     /**
      * Returns the [Flags] for the given [TupleId].
@@ -161,7 +159,11 @@ open class DirectoryPageView : AbstractPageView() {
         check(!this.full) { "This DirectoryPageView is full and can therefore not be used to allocate a new TupleId." }
 
         /* Determine new tuple ID. */
-        val tupleId = this.lastTupleId + 1
+        val tupleId = if (this.lastTupleId == -1L) {
+            this.firstTupleId
+        } else {
+            (++this.lastTupleId)
+        }
         val flags_offset = DIRECTORY_HEADER_SIZE + ((tupleId - this.firstTupleId).toInt()) * DIRECTORY_ENTRY_SIZE
         val address_offset = flags_offset + DIRECTORY_ENTRY_FLAGS_SIZE
 
@@ -186,12 +188,27 @@ open class DirectoryPageView : AbstractPageView() {
     }
 
     /**
+     * Initializes and wraps the given [Page] for usage as [DirectoryPageView].
+     *
+     * @param page [Page] that should be wrapped.
+     * @param previous The previous [PageId] to initialize the [Page] with.
+     * @param start The start [TupleId] to initialize the [Page] with.
+     */
+    fun initializeAndWrap(page: Page, previous: PageId, start: TupleId): DirectoryPageView {
+        super.initializeAndWrap(page)
+        this.previousPageId = previous
+        this.firstTupleId = start
+        this.lastTupleId = -1L
+        return this
+    }
+
+    /**
      * Using this method is prohibited; throws a [UnsupportedOperationException]
      *
      * @param page [Page] that should be wrapped.
      */
+    @Deprecated("Usage of initializeAndWrap() without specifying a previous PageId and start TupleId is prohibited.")
     override fun initializeAndWrap(page: Page): DirectoryPageView {
-        super.initializeAndWrap(page)
-        return this
+        throw UnsupportedOperationException("Usage of initializeAndWrap() without specifying a previous PageId and start TupleId is prohibited.")
     }
 }

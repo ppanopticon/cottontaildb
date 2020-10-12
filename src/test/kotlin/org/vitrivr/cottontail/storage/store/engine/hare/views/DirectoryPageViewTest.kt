@@ -5,9 +5,9 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.storage.engine.hare.Address
-import org.vitrivr.cottontail.storage.engine.hare.access.column.variable.Flags
 import org.vitrivr.cottontail.storage.engine.hare.disk.DataPage
 import org.vitrivr.cottontail.storage.engine.hare.views.DirectoryPageView
+import org.vitrivr.cottontail.storage.engine.hare.views.Flags
 import java.nio.ByteBuffer
 import kotlin.random.Random
 
@@ -42,13 +42,9 @@ class DirectoryPageViewTest {
     fun test(pageSize: Int) {
         val buffer = ByteBuffer.allocate(pageSize)
         val page = DataPage(buffer)
-        val view = DirectoryPageView().initializeAndWrap(page)
-        view.firstTupleId = 0L
-        view.lastTupleId = -1L
-
-
+        val view = DirectoryPageView().initializeAndWrap(page, -1L, 0L)
         val list = mutableListOf<Triple<TupleId, Flags, Address>>()
-        var last = 0L
+        var last = -1L
         while (!view.full) {
             val flag = this.random.nextInt()
             val address = this.random.nextLong()

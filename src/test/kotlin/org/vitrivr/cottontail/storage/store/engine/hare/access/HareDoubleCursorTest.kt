@@ -8,12 +8,12 @@ import org.vitrivr.cottontail.TestConstants
 import org.vitrivr.cottontail.database.column.DoubleColumnType
 import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
-import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.DoubleValue
 import org.vitrivr.cottontail.storage.basics.Units
 import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnFile
 import org.vitrivr.cottontail.storage.engine.hare.disk.DataPage
 import org.vitrivr.cottontail.storage.engine.hare.disk.DirectDiskManager
+import java.nio.file.Files
 import java.util.*
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
@@ -35,8 +35,8 @@ class HareDoubleCursorTest {
 
     @AfterEach
     fun afterEach() {
-        //this.hareFile!!.close()
-        //Files.delete(this.path)
+        this.hareFile!!.close()
+        Files.delete(this.path)
     }
 
     /**
@@ -58,10 +58,6 @@ class HareDoubleCursorTest {
         val random = SplittableRandom(seed)
         val cursor = this.hareFile!!.cursor()
         var read = 0
-
-        val action: ((TupleId, DoubleValue?) -> Unit) = { _, doubleValue ->
-
-        }
 
         val readTime = measureTime {
             while (cursor.next()) {

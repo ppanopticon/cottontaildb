@@ -41,6 +41,11 @@ open class DirectoryPageView : AbstractPageView() {
 
         /** Size of a [VariableHareColumnFile.Directory] entry. */
         const val DIRECTORY_ENTRY_SIZE = DIRECTORY_ENTRY_ADDRESS_SIZE + DIRECTORY_ENTRY_FLAGS_SIZE
+
+        /** <strong>Constants</strong>  */
+
+        /** Constant value for a NO_REF value. */
+        const val NO_REF = -1L
     }
 
     /** The [pageTypeIdentifier] for the [SlottedPageView]. */
@@ -198,7 +203,7 @@ open class DirectoryPageView : AbstractPageView() {
         super.initializeAndWrap(page)
         this.previousPageId = previous
         this.firstTupleId = start
-        this.lastTupleId = -1L
+        this.lastTupleId = NO_REF
         return this
     }
 

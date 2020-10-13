@@ -43,6 +43,9 @@ class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize:
         /** [PageId] of the root [DataPage]. */
         const val ROOT_PAGE_ID: PageId = 0
 
+        /** */
+        const val CURSOR_BOF = -1L
+
         /** Size of an entry's header in bytes. */
         const val ENTRY_HEADER_SIZE = 4
 
@@ -192,28 +195,24 @@ class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize:
         private var closed: Boolean = false
 
         /** The [TupleId] this [FixedHareCursor] is currently pointing to. */
-        override var tupleId: TupleId = 0L
+        override var tupleId: TupleId = CURSOR_BOF
             private set
 
         /** The [Address] this [FixedHareCursor] is currently pointing to. */
-        val address: Address by lazy {
-            this.tupleId.toAddress()
-        }
+        val address: Address
+            get() = this.tupleId.toAddress()
 
         /** The [PageId] this [FixedHareCursor] is currently pointing to. */
-        val pageId: PageId by lazy {
-            this.address.toPageId()
-        }
+        val pageId: PageId
+            get() = this.address.toPageId()
 
         /** The [SlotId] this [FixedHareCursor] is currently pointing to. */
-        val slotId: SlotId by lazy {
-            this.address.toSlotId()
-        }
+        val slotId: SlotId
+            get() = this.address.toSlotId()
 
         /** The offset into the [Page] to access the entry this [FixedHareCursor] is currently pointing to. */
-        private val entryOffset: Int by lazy {
-            this.slotId * this.header.entrySize
-        }
+        private val entryOffset: Int
+            get() = this.slotId * this.header.entrySize
 
         /**
          * Moves this [FixedHareCursor] to the next [TupleId].
@@ -235,7 +234,7 @@ class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize:
          * @return True, if [FixedHareCursor] has been moved, false otherwise.
          */
         override fun seek(tupleId: TupleId): Boolean {
-            return if (tupleId in 0L until this.header.maxTupleId) {
+            return if (tupleId in 0L..this.header.maxTupleId) {
                 this.tupleId = tupleId
                 true
             } else {
@@ -421,6 +420,12 @@ class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize:
                     page.release()
                 }
             }
+
+            /* Update header. */
+            this.header.maxTupleId = tupleId
+            this.header.count += 1
+
+            /* Return TupleId. */
             return tupleId
         }
 

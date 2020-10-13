@@ -143,7 +143,7 @@ class HeaderPageView : AbstractPageView() {
         })
         page.putLong(HEADER_OFFSET_COUNT, 0L)                                                        /* 24: Number of entries (count) in column. */
         page.putLong(HEADER_OFFSET_DELETED, 0L)                                                      /* 32: Number of deleted entries (count) in column. */
-        page.putLong(HEADER_OFFSET_MAXTID, 0L)                                                       /* 40: Number of deleted entries (count) in column. */
+        page.putLong(HEADER_OFFSET_MAXTID, -1L)                                                       /* 40: Number of deleted entries (count) in column. */
         return this
     }
 }

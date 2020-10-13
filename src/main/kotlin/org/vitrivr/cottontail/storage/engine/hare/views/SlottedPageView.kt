@@ -46,6 +46,19 @@ class SlottedPageView : AbstractPageView() {
     override val pageTypeIdentifier: Int
         get() = ViewConstants.PAGE_TYPE_SLOTTED
 
+
+    /**
+     * Tries to wrap the given [Page] in this [SlottedPageView].
+     *
+     * @param page The [Page] that should be wrapped.
+     * @return This [SlottedPageView]
+     * @throws IllegalArgumentException If the provided [Page] is incompatible with this [SlottedPageView]
+     */
+    override fun wrap(page: Page): SlottedPageView {
+        super.wrap(page)
+        return this
+    }
+
     /**
      * Initializes the given [Page] as [SlottedPageView]. Makes necessary type checks.
      *

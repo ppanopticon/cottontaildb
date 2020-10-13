@@ -5,8 +5,6 @@ import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.jmx.JmxConfig
 import io.micrometer.jmx.JmxMeterRegistry
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
 import org.vitrivr.cottontail.storage.engine.hare.PageId
 import org.vitrivr.cottontail.storage.engine.hare.basics.PageRef
 import org.vitrivr.cottontail.storage.engine.hare.basics.ReferenceCounted
@@ -45,7 +43,7 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, val eviction
     }
 
     /** Creates a new [MemoryManager.MemoryBlock] for this [BufferPool]. */
-    private val memory = MemoryManager.request(size shl this.disk.pageShift)
+    private val memory = MemoryManager.request(this.size shl this.disk.pageShift)
 
     /** Array of [DataPage]s that are kept in memory. */
     private val pages = this.memory.paged(this.disk.pageShift, this.size)
@@ -145,16 +143,14 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, val eviction
      */
     @Suppress("UNCHECKED_CAST")
     fun prefetch(range: LongRange) {
-        check(range.count() <= this.size) { "Number of elements to prefetch is larger than BufferPool's size."}
-        GlobalScope.launch {
-            this@BufferPool.directoryLock.write {
-                val pageRefs = range.map {
-                    this@BufferPool.evictPage(it, Priority.DEFAULT)
-                }
-                this@BufferPool.disk.read(range.first, (pageRefs.toTypedArray() as Array<DataPage>))
-                pageRefs.forEach {
-                    this@BufferPool.pageDirectory[it.id] = it
-                }
+        check(range.count() <= this.size) { "Number of elements to prefetch is larger than BufferPool's size." }
+        this@BufferPool.directoryLock.write {
+            val pageRefs = range.map {
+                this@BufferPool.evictPage(it, Priority.DEFAULT)
+            }
+            this@BufferPool.disk.read(range.first, (pageRefs.toTypedArray() as Array<DataPage>))
+            pageRefs.forEach {
+                this@BufferPool.pageDirectory[it.id] = it
             }
         }
     }

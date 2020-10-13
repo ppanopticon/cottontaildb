@@ -11,7 +11,7 @@ import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.DoubleValue
 import org.vitrivr.cottontail.storage.basics.Units
-import org.vitrivr.cottontail.storage.engine.hare.access.column.FixedHareColumnFile
+import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnFile
 import org.vitrivr.cottontail.storage.engine.hare.disk.DataPage
 import org.vitrivr.cottontail.storage.engine.hare.disk.DirectDiskManager
 import java.util.*
@@ -56,16 +56,19 @@ class HareDoubleCursorTest {
     @ExperimentalTime
     private fun compareData(seed: Long) {
         val random = SplittableRandom(seed)
-        val cursor = this.hareFile!!.cursor(writeable = false)
+        val cursor = this.hareFile!!.cursor()
         var read = 0
 
         val action: ((TupleId, DoubleValue?) -> Unit) = { _, doubleValue ->
-            assertEquals(DoubleValue(random.nextDouble()), doubleValue)
-            read++
+
         }
 
         val readTime = measureTime {
-            cursor.forEach(action = action)
+            while (cursor.next()) {
+                val doubleValue = cursor.get()
+                assertEquals(DoubleValue(random.nextDouble()), doubleValue)
+                read++
+            }
         }
         val diskSize = this.hareFile!!.disk.size `in` Units.MEGABYTE
         println("Reading $read doubles ($diskSize) took $readTime (${diskSize.value / readTime.inSeconds} MB/s).")
@@ -81,7 +84,7 @@ class HareDoubleCursorTest {
     private fun initWithData(size: Int, seed: Long) {
         var writeTime = Duration.ZERO
         val random = SplittableRandom(seed)
-        val cursor = this.hareFile!!.cursor(writeable = true)
+        val cursor = this.hareFile!!.writableCursor()
         var written = 0
         repeat(size) {
             val d = DoubleValue(random.nextDouble())

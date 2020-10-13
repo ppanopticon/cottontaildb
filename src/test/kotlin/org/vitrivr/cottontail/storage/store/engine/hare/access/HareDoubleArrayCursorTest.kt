@@ -10,7 +10,7 @@ import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.values.DoubleVectorValue
 import org.vitrivr.cottontail.storage.basics.Units
-import org.vitrivr.cottontail.storage.engine.hare.access.column.FixedHareColumnFile
+import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnFile
 import org.vitrivr.cottontail.storage.engine.hare.disk.DataPage
 import org.vitrivr.cottontail.storage.engine.hare.disk.DirectDiskManager
 import java.nio.file.Files
@@ -54,11 +54,13 @@ class HareDoubleArrayCursorTest : AbstractCursorTest() {
      */
     @ExperimentalTime
     private fun compareData(hareFile: FixedHareColumnFile<DoubleVectorValue>, dimensions: Int, size: Int) {
-        val cursor = hareFile.cursor(writeable = false)
+        val cursor = hareFile.cursor()
         val random = SplittableRandom(this.seed)
         val readTime = measureTime {
-            cursor.forEach { _, doubleVectorValue ->
+            while (cursor.next()) {
+                val doubleVectorValue = cursor.get()
                 Assertions.assertArrayEquals(DoubleVectorValue.random(dimensions, random).data, doubleVectorValue?.data)
+
             }
         }
         cursor.close()
@@ -75,7 +77,7 @@ class HareDoubleArrayCursorTest : AbstractCursorTest() {
     private fun initWithData(hareFile: FixedHareColumnFile<DoubleVectorValue>, dimensions: Int, size: Int) {
         var writeTime = Duration.ZERO
         val random = SplittableRandom(this.seed)
-        val cursor = hareFile.cursor(writeable = true)
+        val cursor = hareFile.writableCursor()
         for (d in 0 until size) {
             writeTime += measureTime {
                 cursor.append(DoubleVectorValue.random(dimensions, random))

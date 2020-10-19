@@ -184,7 +184,7 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSi
         private val headerView = HeaderPageView().wrap(this.bufferPool.get(ROOT_PAGE_ID, Priority.HIGH))
 
         /** The [DirectoryCursor] object used by this [VariableHareCursor]. */
-        private val slottedPageView = SlottedPageView().wrap(this.bufferPool.get(this.headerView.allocationPageId, Priority.LOW))
+        private val slottedPageView = SlottedPageView()
 
         /** Acquires a latch on the outer [VariableHareColumnFile]. This latch remains active until [VariableHareCursor] is released. */
         private val outerCloseStamp = this@VariableHareColumnFile.closeLock.readLock()
@@ -204,7 +204,7 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSi
         private val closeLock = StampedLock()
 
         /** */
-        override var tupleId: TupleId = 0L
+        override var tupleId: TupleId = -1L
             private set
 
         /**
@@ -215,10 +215,10 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSi
         override fun next(): Boolean = this.closeLock.shared {
             check(!this.closed) { "Cursor has been closed and cannot be used anymore." }
             val newTupleId = this.tupleId + 1
-            if (this.directory.has(this.tupleId)) {
+            if (this.directory.has(newTupleId)) {
                 this.tupleId = newTupleId
                 return true
-            } else if (this.directory.next() && this.directory.has(this.tupleId)) {
+            } else if (this.directory.next() && this.directory.has(newTupleId)) {
                 this.tupleId = newTupleId
                 return true
             }
@@ -233,10 +233,10 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSi
         override fun previous(): Boolean = this.closeLock.shared {
             check(!this.closed) { "Cursor has been closed and cannot be used anymore." }
             val newTupleId = this.tupleId - 1
-            if (this.directory.has(this.tupleId)) {
+            if (this.directory.has(newTupleId)) {
                 this.tupleId = newTupleId
                 return true
-            } else if (this.directory.previous() && this.directory.has(this.tupleId)) {
+            } else if (this.directory.previous() && this.directory.has(newTupleId)) {
                 this.tupleId = newTupleId
                 return true
             }
@@ -293,7 +293,9 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSi
             val page = this.bufferPool.get(address.toPageId())
             val view = this.slottedPageView.wrap(page)
             val offset = view.offset(address.toSlotId())
-            return this.serializer.deserialize(page, offset)
+            val value = this.serializer.deserialize(page, offset)
+            page.release()
+            return value
         }
 
         override fun update(value: T?) {
@@ -330,14 +332,11 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSi
                 allocationPageId = max(this.headerView.allocationPageId, this.headerView.lastDirectoryPageId) + 1L
                 if (allocationPageId >= this.bufferPool.totalPages) {
                     allocationPage = this.bufferPool.detach()
-                    slotId = view.initializeAndWrap(allocationPage).allocate(allocationSize)
-                            ?: TODO("Data that does not fit a single page.")
-                    this.bufferPool.append(allocationPage)
-                } else {
-                    allocationPage = this.bufferPool.get(allocationPageId)
-                    slotId = view.initializeAndWrap(allocationPage).allocate(allocationSize)
-                            ?: TODO("Data that does not fit a single page.")
+                    allocationPageId = this.bufferPool.append(allocationPage)
+                    allocationPage.release()
                 }
+                allocationPage = this.bufferPool.get(allocationPageId)
+                slotId = view.initializeAndWrap(allocationPage).allocate(allocationSize) ?: TODO("Data that does not fit a single page.")
                 this.headerView.allocationPageId = allocationPageId
             }
 

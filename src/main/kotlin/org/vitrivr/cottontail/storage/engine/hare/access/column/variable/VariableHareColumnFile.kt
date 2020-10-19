@@ -56,7 +56,7 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSi
          * @param columnDef The [ColumnDef] that describes this [VariableHareColumnFile].
          */
         fun create(path: Path, columnDef: ColumnDef<*>) {
-            val entrySize = columnDef.serializer.physicalSize
+            val entrySize = columnDef.serializer.physicalSize + SlottedPageView.SIZE_ENTRY /* Each entry has a offset entry on the slotted page. */
             val pageShift = determinePageSize(entrySize)
             DiskManager.create(path, pageShift)
 
@@ -86,9 +86,9 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSi
          */
         private fun determinePageSize(entrySize: Int): Int {
             var pageShift = StrictMath.max(BitUtil.toShift(BitUtil.nextPowerOfTwo(entrySize)), DiskManager.MIN_PAGE_SHIFT)
-            var waste = (1 shl pageShift) - entrySize * StrictMath.floorDiv((1 shl pageShift), entrySize)
+            var waste = (1 shl pageShift) - SlottedPageView.SIZE_HEADER - entrySize * StrictMath.floorDiv((1 shl pageShift), entrySize)
             for (i in (pageShift + 1)..DiskManager.MAX_PAGE_SHIFT) {
-                val newWaste = (1 shl i) - entrySize * StrictMath.floorDiv((1 shl i), entrySize)
+                val newWaste = (1 shl i) - SlottedPageView.SIZE_HEADER - entrySize * StrictMath.floorDiv((1 shl i), entrySize)
                 if (newWaste < waste) {
                     waste = newWaste
                     pageShift = i

@@ -7,7 +7,6 @@ import org.vitrivr.cottontail.model.values.types.Value
 import org.vitrivr.cottontail.storage.engine.hare.*
 import org.vitrivr.cottontail.storage.engine.hare.access.EntryDeletedException
 import org.vitrivr.cottontail.storage.engine.hare.access.NullValueNotAllowedException
-import org.vitrivr.cottontail.storage.engine.hare.access.column.variable.VariableHareColumnFile
 import org.vitrivr.cottontail.storage.engine.hare.access.cursor.Cursor
 import org.vitrivr.cottontail.storage.engine.hare.access.cursor.ReadableCursor
 import org.vitrivr.cottontail.storage.engine.hare.access.cursor.WritableCursor
@@ -126,7 +125,7 @@ class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize:
 
     /* Initialize important fields. */
     init {
-        val page = this.bufferPool.get(VariableHareColumnFile.ROOT_PAGE_ID, Priority.HIGH)
+        val page = this.bufferPool.get(ROOT_PAGE_ID, Priority.HIGH)
         val header = HeaderPageView().wrap(page)
         this.columnDef = ColumnDef(this.name, header.type, header.size, header.nullable) as ColumnDef<T>
         this.slotsPerPage = floorDiv(1 shl this@FixedHareColumnFile.disk.pageShift, (header.entrySize + ENTRY_HEADER_SIZE))

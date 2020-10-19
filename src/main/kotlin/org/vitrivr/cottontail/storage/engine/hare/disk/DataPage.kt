@@ -300,7 +300,7 @@ open class DataPage(internal var _data: ByteBuffer) : Page {
      */
     override fun clear(): DataPage = this.lock.exclusive {
         for (i in 0 until this._data.capacity()) {
-            this._data.put(0, 0)
+            this._data.put(i, 0)
         }
         return this
     }

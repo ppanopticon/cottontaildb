@@ -20,14 +20,14 @@ abstract class AbstractCursorTest {
         @JvmStatic
         fun dimensions(): Stream<Arguments> = Stream.of(
                 Arguments.of(TestConstants.smallVectorMaxDimension),
-                Arguments.of(this.random.nextInt(TestConstants.smallVectorMaxDimension)),
+                Arguments.of(random.nextInt(TestConstants.smallVectorMaxDimension)),
                 Arguments.of(TestConstants.mediumVectorMaxDimension),
-                Arguments.of(this.random.nextInt(TestConstants.mediumVectorMaxDimension)),
-                Arguments.of(this.random.nextInt(TestConstants.mediumVectorMaxDimension)),
+                Arguments.of(random.nextInt(TestConstants.mediumVectorMaxDimension)),
+                Arguments.of(random.nextInt(TestConstants.mediumVectorMaxDimension)),
                 Arguments.of(TestConstants.largeVectorMaxDimension),
-                Arguments.of(this.random.nextInt(TestConstants.largeVectorMaxDimension)),
-                Arguments.of(this.random.nextInt(TestConstants.largeVectorMaxDimension)),
-                Arguments.of(this.random.nextInt(TestConstants.largeVectorMaxDimension))
+                Arguments.of(random.nextInt(TestConstants.largeVectorMaxDimension)),
+                Arguments.of(random.nextInt(TestConstants.largeVectorMaxDimension)),
+                Arguments.of(random.nextInt(TestConstants.largeVectorMaxDimension))
         )
     }
 }

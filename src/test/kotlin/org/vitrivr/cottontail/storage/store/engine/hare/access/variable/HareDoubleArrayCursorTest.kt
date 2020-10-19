@@ -1,65 +1,72 @@
-package org.vitrivr.cottontail.storage.store.engine.hare.access
+package org.vitrivr.cottontail.storage.store.engine.hare.access.variable
 
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.params.ParameterizedTest
-import org.junit.jupiter.params.provider.ValueSource
+import org.junit.jupiter.params.provider.MethodSource
 import org.vitrivr.cottontail.TestConstants
-import org.vitrivr.cottontail.database.column.FloatVectorColumnType
-import org.vitrivr.cottontail.math.knn.selection.ComparablePair
-import org.vitrivr.cottontail.math.knn.selection.MinHeapSelection
+import org.vitrivr.cottontail.database.column.DoubleVectorColumnType
 import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
-import org.vitrivr.cottontail.model.basics.TupleId
-import org.vitrivr.cottontail.model.values.FloatVectorValue
+import org.vitrivr.cottontail.model.values.DoubleVectorValue
 import org.vitrivr.cottontail.storage.basics.Units
-import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnFile
+import org.vitrivr.cottontail.storage.engine.hare.access.column.variable.VariableHareColumnFile
 import org.vitrivr.cottontail.storage.engine.hare.disk.DataPage
 import org.vitrivr.cottontail.storage.engine.hare.disk.DirectDiskManager
+import org.vitrivr.cottontail.storage.store.engine.hare.access.AbstractCursorTest
 import java.nio.file.Files
 import java.util.*
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
 import kotlin.time.measureTime
 
-class HareFloatArrayCursorTest : AbstractCursorTest() {
+/**
+ *
+ * @author Ralph Gasser
+ * @version 1.0
+ */
+class HareDoubleArrayCursorTest : AbstractCursorTest() {
     /** Path to column file. */
-    val path = TestConstants.testDataPath.resolve("test-float-vector-cursor-db.hare")
+    val path = TestConstants.testDataPath.resolve("test-double-vector-cursor-db.hare")
 
     /** Seed for random number generator. */
     val seed = System.currentTimeMillis()
+
+    @AfterEach
+    fun teardown() {
+        Files.delete(this.path)
+    }
 
     /**
      *
      */
     @ExperimentalTime
     @ParameterizedTest
-    @ValueSource(ints = [2048])
+    @MethodSource("dimensions")
     fun test(dimensions: Int) {
-        val columnDef = ColumnDef(Name.ColumnName("test"), FloatVectorColumnType, logicalSize = dimensions)
-        FixedHareColumnFile.createDirect(this.path, columnDef)
-        val hareFile: FixedHareColumnFile<FloatVectorValue> = FixedHareColumnFile(this.path, false)
+        val columnDef = ColumnDef(Name.ColumnName("test"), DoubleVectorColumnType, logicalSize = dimensions)
+        VariableHareColumnFile.create(this.path, columnDef)
+        val hareFile: VariableHareColumnFile<DoubleVectorValue> = VariableHareColumnFile(this.path, false)
 
         this.initWithData(hareFile, dimensions, TestConstants.collectionSize)
         this.compareData(hareFile, dimensions, TestConstants.collectionSize)
 
         /** Cleanup. */
         hareFile.close()
-        Files.delete(this.path)
     }
 
     /**
      * Compares the data stored in this [DirectDiskManager] with the data provided as array of [ByteArray]s
      */
     @ExperimentalTime
-    private fun compareData(hareFile: FixedHareColumnFile<FloatVectorValue>, dimensions: Int, size: Int) {
+    private fun compareData(hareFile: VariableHareColumnFile<DoubleVectorValue>, dimensions: Int, size: Int) {
         val cursor = hareFile.cursor()
-        val query = FloatVectorValue.random(dimensions)
-        val knn = MinHeapSelection<ComparablePair<TupleId, Double>>(500)
         val random = SplittableRandom(this.seed)
         val readTime = measureTime {
             while (cursor.next()) {
-                val floatVectorValue = cursor.get()
-                Assertions.assertArrayEquals(FloatVectorValue.random(dimensions, random).data, floatVectorValue?.data)
+                val doubleVectorValue = cursor.get()
+                Assertions.assertArrayEquals(DoubleVectorValue.random(dimensions, random).data, doubleVectorValue?.data)
+
             }
         }
         cursor.close()
@@ -73,13 +80,13 @@ class HareFloatArrayCursorTest : AbstractCursorTest() {
      * @param size The number of [DataPage]s to write.
      */
     @ExperimentalTime
-    private fun initWithData(hareFile: FixedHareColumnFile<FloatVectorValue>, dimensions: Int, size: Int) {
+    private fun initWithData(hareFile: VariableHareColumnFile<DoubleVectorValue>, dimensions: Int, size: Int) {
         var writeTime = Duration.ZERO
-        val cursor = hareFile.writableCursor()
         val random = SplittableRandom(this.seed)
+        val cursor = hareFile.writableCursor()
         for (d in 0 until size) {
             writeTime += measureTime {
-                cursor.append(FloatVectorValue.random(dimensions, random))
+                cursor.append(DoubleVectorValue.random(dimensions, random))
             }
         }
         cursor.close()

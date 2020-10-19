@@ -1,4 +1,4 @@
-package org.vitrivr.cottontail.storage.store.engine.hare.access
+package org.vitrivr.cottontail.storage.store.engine.hare.access.fixed
 
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals

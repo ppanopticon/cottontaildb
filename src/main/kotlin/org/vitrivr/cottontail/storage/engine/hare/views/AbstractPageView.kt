@@ -34,7 +34,7 @@ abstract class AbstractPageView {
      */
     open fun wrap(page: Page): AbstractPageView {
         val type = page.getInt(0)
-        require(type == this.pageTypeIdentifier) { "Cannot wrap page of type ${this.pageTypeIdentifier} as SlottedPage." }
+        require(type == this.pageTypeIdentifier) { "Cannot wrap page of type $type as ${this.javaClass.simpleName} (type = ${this.pageTypeIdentifier})." }
         this.page = page
         return this
     }
@@ -53,7 +53,7 @@ abstract class AbstractPageView {
      */
     open fun initializeAndWrap(page: Page): AbstractPageView {
         val type = page.getInt(0)
-        require(type == ViewConstants.PAGE_TYPE_UNINITIALIZED) { "Cannot initialize page of type ${this.pageTypeIdentifier} as ${this.javaClass.simpleName}." }
+        require(type == ViewConstants.PAGE_TYPE_UNINITIALIZED) { "Cannot initialize page of type $type as ${this.javaClass.simpleName} (type = ${this.pageTypeIdentifier})." }
         page.putInt(0, this.pageTypeIdentifier)
         this.page = page
         return this

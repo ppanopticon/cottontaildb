@@ -112,12 +112,12 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000, private val preAll
         this.header.flush()
 
         /* Write a single byte to the EOF. */
-        this.fileChannel.write(EMPTY, this.pageIdToPosition(this.header.pages) + this.header.pageSize)
+        this.fileChannel.write(EMPTY.clear(), this.pageIdToPosition(this.header.pages - 1) + this.header.pageSize)
 
         /* Write page. */
         if (page != null) {
             this.fileChannel.write(page._data, this.pageIdToPosition(newPageId))
-            page._data.clear()
+            page._data.clear() /* Reset pointer. */
         }
 
         /* Return ID of next free page. */

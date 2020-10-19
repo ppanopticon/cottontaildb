@@ -179,7 +179,7 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
     fun calculateChecksum(): Long {
         val page = ByteBuffer.allocateDirect(this.header.pageSize)
         val crc32 = CRC32C()
-        for (i in 1..this.pages) {
+        for (i in 0L until this.pages) {
             this.fileChannel.read(page, this.pageIdToPosition(i))
             crc32.update(page.flip())
         }
@@ -201,8 +201,8 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
      * @return The offset into the file.
      */
     protected fun pageIdToPosition(pageId: PageId): Long {
-        require(pageId <= this.header.pages && pageId >= 0) { "The given page ID $pageId is out of bounds for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
-        return FILE_HEADER_SIZE + (pageId.toLong() shl this.header.pageShift)
+        require(pageId >= 0 && pageId < this.header.pages) { "The given page ID $pageId is out of bounds for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
+        return FILE_HEADER_SIZE + (pageId shl this.header.pageShift)
     }
 
     /**

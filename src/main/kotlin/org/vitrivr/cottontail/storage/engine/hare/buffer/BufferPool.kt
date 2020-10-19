@@ -124,15 +124,13 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, val eviction
      * [BufferPool.pageDirectory] but are still retained (i.e. have a pin count > 0). Otherwise they behave
      * as an ordinary [PageReference]. Detached [PageReference]s also count towards [BufferPool.size].
      *
-     * A caller can detach a [PageReference] to use it as a buffer e.g. in combination with [BufferPool.append].
-     *
      * @return A detached [PageReference].
      */
     fun detach(): PageReference = this.closeLock.read {
         check(this.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
         PAGE_ACCESS_COUNTER.increment()
         this.directoryLock.write {
-            return evictPage(-1L, Priority.LOW).retain()
+            return evictPage(-1L, Priority.LOW).retain().clear()
         }
     }
 

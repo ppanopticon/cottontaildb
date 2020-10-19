@@ -202,6 +202,7 @@ open class DirectoryPageView : AbstractPageView() {
     fun initializeAndWrap(page: Page, previous: PageId, start: TupleId): DirectoryPageView {
         super.initializeAndWrap(page)
         this.previousPageId = previous
+        this.nextPageId = NO_REF
         this.firstTupleId = start
         this.lastTupleId = NO_REF
         return this

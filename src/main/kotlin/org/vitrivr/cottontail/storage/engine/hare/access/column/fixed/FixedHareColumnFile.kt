@@ -15,14 +15,13 @@ import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
 import org.vitrivr.cottontail.storage.engine.hare.buffer.Priority
 import org.vitrivr.cottontail.storage.engine.hare.buffer.eviction.EvictionPolicy
 import org.vitrivr.cottontail.storage.engine.hare.disk.DataPage
-import org.vitrivr.cottontail.storage.engine.hare.disk.DirectDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.wal.WALDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.serializer.Serializer
 import org.vitrivr.cottontail.utilities.extensions.exclusive
 import org.vitrivr.cottontail.utilities.extensions.shared
 import org.vitrivr.cottontail.utilities.math.BitUtil
-
 import java.lang.StrictMath.floorDiv
 import java.lang.StrictMath.max
 import java.nio.ByteBuffer

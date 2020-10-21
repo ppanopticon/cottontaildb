@@ -14,7 +14,7 @@ import org.vitrivr.cottontail.model.values.FloatVectorValue
 import org.vitrivr.cottontail.storage.basics.Units
 import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnFile
 import org.vitrivr.cottontail.storage.engine.hare.disk.DataPage
-import org.vitrivr.cottontail.storage.engine.hare.disk.DirectDiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectDiskManager
 import org.vitrivr.cottontail.storage.store.engine.hare.access.AbstractCursorTest
 import java.nio.file.Files
 import java.util.*

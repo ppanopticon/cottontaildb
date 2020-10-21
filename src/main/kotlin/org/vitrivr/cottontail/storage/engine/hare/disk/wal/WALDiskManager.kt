@@ -26,7 +26,7 @@ import java.util.concurrent.locks.StampedLock
  *
  * @see DiskManager
  *
- * @version 1.2
+ * @version 1.3.0
  * @author Ralph Gasser
  */
 class WALDiskManager(path: Path, lockTimeout: Long = 5000, private val preAllocatePages: Int = 32) : DiskManager(path, lockTimeout) {
@@ -49,22 +49,22 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000, private val preAlloca
         }
     }
 
-    override fun read(id: PageId, page: DataPage) {
+    override fun read(pageId: PageId, page: DataPage) {
         this.closeLock.read {
             check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to access data (file: ${this.path})." }
             page.lock.exclusive {
-                this.fileChannel.read(page._data, this.pageIdToPosition(id))
+                this.fileChannel.read(page._data, this.pageIdToOffset(pageId))
                 page._data.clear()
             }
         }
     }
 
-    override fun read(startId: PageId, pages: Array<DataPage>) {
+    override fun read(pageId: PageId, pages: Array<DataPage>) {
         this.closeLock.read {
             check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to access data (file: ${this.path})." }
             val locks = Array(pages.size) { pages[it].lock.writeLock() }
             val buffers = Array(pages.size) { pages[it]._data }
-            this.fileChannel.position(this.pageIdToPosition(startId))
+            this.fileChannel.position(this.pageIdToOffset(pageId))
             this.fileChannel.read(buffers)
             locks.indices.forEach { i ->
                 buffers[i].clear()
@@ -73,20 +73,20 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000, private val preAlloca
         }
     }
 
-    override fun update(id: PageId, page: DataPage) = createOrUseSharedWAL {
-        require(id <= it.maxPageId && id >= 1) { "The given page ID $id is out of bounds for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
-        it.append(action = WALAction.UPDATE, id = id, page = page)
+    override fun update(pageId: PageId, page: DataPage) = createOrUseSharedWAL {
+        require(pageId <= it.maxPageId && pageId >= 1) { "The given page ID $pageId is out of bounds for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
+        it.append(action = WALAction.UPDATE, id = pageId, page = page)
     }
 
 
-    override fun allocate(page: DataPage?): PageId = createOrUseSharedWAL {
-        it.append(action = WALAction.APPEND, page = page)
+    override fun allocate(): PageId = createOrUseSharedWAL {
+        it.append(action = WALAction.APPEND)
         it.maxPageId
     }
 
-    override fun free(id: PageId) = createOrUseSharedWAL {
-        require(id <= it.maxPageId && id >= 1) { "The given page ID $id is out of bounds for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
-        it.append(action = WALAction.FREE, id = id)
+    override fun free(pageId: PageId) = createOrUseSharedWAL {
+        require(pageId <= it.maxPageId && pageId >= 1) { "The given page ID $pageId is out of bounds for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
+        it.append(action = WALAction.FREE, id = pageId)
     }
 
     /**
@@ -96,17 +96,17 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000, private val preAlloca
         val pageSizeLong = this.pageSize.toLong()
         it.replay { action, id, b ->
             when (action) {
-                WALAction.UPDATE ->{
-                    this.fileChannel.transferFrom(b, this.pageIdToPosition(id), pageSizeLong)
+                WALAction.UPDATE -> {
+                    this.fileChannel.transferFrom(b, this.pageIdToOffset(id), pageSizeLong)
                 }
                 WALAction.APPEND -> {
                     /* Default case; page has not been allocated yet */
-                    if (id-1 == this.header.pages) {
-                        this.header.pages += this.preAllocatePages
+                    if (id - 1 == this.header.allocatedPages) {
+                        this.header.allocatedPages += this.preAllocatePages
                         this.header.flush()
-                        this.fileChannel.write(ByteBuffer.allocate(1), (this.header.pages + this.preAllocatePages) shl this.header.pageShift)
+                        this.fileChannel.write(ByteBuffer.allocate(1), (this.header.allocatedPages + this.preAllocatePages) shl this.header.pageShift)
                     }
-                    this.fileChannel.transferFrom(b, this.pageIdToPosition(id), pageSizeLong)
+                    this.fileChannel.transferFrom(b, this.pageIdToOffset(id), pageSizeLong)
                 }
                 WALAction.FREE -> TODO()
             }

@@ -8,8 +8,8 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import org.vitrivr.cottontail.storage.basics.Units
 import org.vitrivr.cottontail.storage.engine.hare.disk.DataPage
-import org.vitrivr.cottontail.storage.engine.hare.disk.DirectDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.wal.WALDiskManager
 import java.nio.ByteBuffer
 import java.nio.file.Paths

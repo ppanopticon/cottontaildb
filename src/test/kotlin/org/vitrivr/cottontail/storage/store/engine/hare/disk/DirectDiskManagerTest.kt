@@ -8,8 +8,8 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import org.vitrivr.cottontail.storage.basics.Units
 import org.vitrivr.cottontail.storage.engine.hare.disk.DataPage
-import org.vitrivr.cottontail.storage.engine.hare.disk.DirectDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectDiskManager
 import java.nio.ByteBuffer
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -45,7 +45,7 @@ class DirectDiskManagerTest {
     fun testCreationAndLoading() {
         assertEquals(this.path, this.manager!!.path)
         assertEquals(0, this.manager!!.pages)
-        assertEquals(DiskManager.FILE_HEADER_SIZE, this.manager!!.size.value.toInt())
+        assertEquals(DiskManager.SIZE_HEADER, this.manager!!.size.value.toInt())
         assertTrue(this.manager!!.validate())
     }
 

@@ -1,14 +1,16 @@
 package org.vitrivr.cottontail.storage.engine.hare.disk
 
 import org.vitrivr.cottontail.storage.engine.hare.DataCorruptionException
+import org.vitrivr.cottontail.storage.engine.hare.PageId
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
+import java.util.*
 
 /**
  * A view on a stack of [Long]s. A data structure used in HARE [DiskManager]s.
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.0.0
  */
 class LongStack(val buffer: ByteBuffer) {
 
@@ -24,7 +26,7 @@ class LongStack(val buffer: ByteBuffer) {
      */
     fun offer(pageId: Long): Boolean {
         val position = this.size
-        val offset = position * Long.SIZE_BYTES
+        val offset = Int.SIZE_BYTES + position * Long.SIZE_BYTES
         if (offset + Long.SIZE_BYTES > this.buffer.capacity()) {
             return false /* Stack of freed pages if full. */
         }
@@ -41,12 +43,19 @@ class LongStack(val buffer: ByteBuffer) {
     fun pop(): Long {
         val position = this.size - 1
         require(position >= 0) { "LongStack is empty." }
-        val offset = position * 8
+        val offset = Int.SIZE_BYTES + position * Long.SIZE_BYTES
         val pageId = this.buffer.getLong(offset)
         this.buffer.putInt(0, position)
         this.buffer.putLong(offset, 0L)
         return pageId
     }
+
+    /**
+     * Converts the current snapshot of this [LongStack] into [List] of [Long].
+     *
+     * @return [List] of [Long]s
+     */
+    fun toList(): List<Long> = (0 until this.size).map { this.buffer.getLong(Int.SIZE_BYTES + it * Long.SIZE_BYTES) }
 
     /**
      * Initializes this [LongStack].

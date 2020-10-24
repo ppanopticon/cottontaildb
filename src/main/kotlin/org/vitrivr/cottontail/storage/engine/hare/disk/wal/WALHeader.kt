@@ -1,6 +1,7 @@
 package org.vitrivr.cottontail.storage.engine.hare.disk.wal
 
 import org.vitrivr.cottontail.storage.engine.hare.DataCorruptionException
+import org.vitrivr.cottontail.storage.engine.hare.basics.View
 import org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.FileType
 import org.vitrivr.cottontail.storage.engine.hare.disk.Header
@@ -11,17 +12,19 @@ import java.nio.channels.FileChannel
  * A view on the header section of a [WriteAheadLog] file.
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.0.0
  */
-class WALHeader(val buffer: ByteBuffer) {
-
+class WALHeader : View {
 
     companion object {
+        /** Size of this HARE WAL file header. */
+        const val SIZE = 1
+
         /** Version of the HARE WAL file. */
-        private const val WAL_VERSION = 1
+        const val WAL_VERSION = 1
 
         /** Identifier of every HARE file. */
-        private val FILE_HEADER_IDENTIFIER = charArrayOf('H', 'A', 'R', 'E')
+        val FILE_HEADER_IDENTIFIER = charArrayOf('H', 'A', 'R', 'E')
 
         /** Offsets. */
 
@@ -48,6 +51,9 @@ class WALHeader(val buffer: ByteBuffer) {
         /** Mask for consistency flag in in this [DiskManager.Header]. */
         const val HEADER_MASK_CONSISTENCY_OK = 1L shl 0
     }
+
+    /** The [ByteBuffer] backing this [WALHeader]. */
+    override val buffer: ByteBuffer = ByteBuffer.allocateDirect(SIZE)
 
     /** Type of the file containing this [WALHeader] (must be [FileType.WAL]). */
     val type: FileType
@@ -107,7 +113,7 @@ class WALHeader(val buffer: ByteBuffer) {
      * @param channel The [FileChannel] to read from.
      * @param position The position in the [FileChannel] to write to.
      */
-    fun read(channel: FileChannel, position: Long): WALHeader {
+    override fun read(channel: FileChannel, position: Long): WALHeader {
         channel.read(this.buffer.rewind(), position)
 
         /** Make necessary check on reading. */
@@ -142,12 +148,12 @@ class WALHeader(val buffer: ByteBuffer) {
     }
 
     /**
-     * Writes the content of this [Header] to disk.
+     * Writes the content of this [WALHeader] to disk.
      *
      * @param channel The [FileChannel] to write to.
      * @param position The position in the [FileChannel] to write to.
      */
-    fun write(channel: FileChannel, position: Long): WALHeader {
+    override fun write(channel: FileChannel, position: Long): WALHeader {
         channel.write(this.buffer.rewind(), position)
         return this
     }

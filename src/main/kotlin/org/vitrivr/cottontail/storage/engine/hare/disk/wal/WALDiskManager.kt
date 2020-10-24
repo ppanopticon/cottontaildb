@@ -5,8 +5,11 @@ import org.vitrivr.cottontail.storage.engine.hare.PageId
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
 import org.vitrivr.cottontail.storage.engine.hare.disk.DataPage
 import org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.LongStack
+import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectDiskManager
 import org.vitrivr.cottontail.utilities.extensions.exclusive
 import org.vitrivr.cottontail.utilities.extensions.read
+import org.vitrivr.cottontail.utilities.extensions.shared
 import org.vitrivr.cottontail.utilities.extensions.write
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
@@ -42,28 +45,49 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000, private val preAlloca
         if (!this.header.isConsistent) {
             val walFile = this.path.parent.resolve("${this.path.fileName}.wal")
             if (Files.exists(walFile)) {
-                this.wal = WriteAheadLog(walFile, this.lockTimeout)
+                this.wal = WriteAheadLog(this, this.lockTimeout)
             } else {
+                /*
+                 * This can happen if system crashes between flushing the flag and creating the WAL file. This should
+                 * have no implication on data consistency, hence, we can perform a CRC32 checksum check and set the
+                 * flag to true.
+                 */
                 throw DataCorruptionException("Ongoing transaction was detected but no WAL file found for HARE file ${this.path.fileName}.")
             }
         }
     }
 
+    /**
+     * Fetches the data identified by the given [PageId] into the given [DataPage] object thereby replacing the content
+     * of that [DataPage]. [WALDiskManager]s always read directly from the underlying file. Thus, uncommitted changes to
+     * the file are invisible.
+     *
+     * @param pageId [PageId] to fetch data for.
+     * @param page [Page] to fetch data into. Its content will be updated.
+     */
     override fun read(pageId: PageId, page: DataPage) {
-        this.closeLock.read {
+        this.closeLock.shared {
             check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to access data (file: ${this.path})." }
             page.lock.exclusive {
-                this.fileChannel.read(page._data, this.pageIdToOffset(pageId))
-                page._data.clear()
+                this.fileChannel.read(page.buffer, this.pageIdToOffset(pageId))
+                page.buffer.clear()
             }
         }
     }
 
+    /**
+     * Fetches the data starting from the given [PageId] into the given [DataPage] objects thereby replacing the content
+     * of those [DataPage]s. [WALDiskManager]s always read directly from the underlying file. Thus, uncommitted changes to
+     * the file are invisible.
+     *
+     * @param pageId [PageId] to start fetching
+     * @param pages [DataPage]s to fetch data into. Their content will be updated.
+     */
     override fun read(pageId: PageId, pages: Array<DataPage>) {
-        this.closeLock.read {
+        this.closeLock.shared {
             check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to access data (file: ${this.path})." }
             val locks = Array(pages.size) { pages[it].lock.writeLock() }
-            val buffers = Array(pages.size) { pages[it]._data }
+            val buffers = Array(pages.size) { pages[it].buffer }
             this.fileChannel.position(this.pageIdToOffset(pageId))
             this.fileChannel.read(buffers)
             locks.indices.forEach { i ->
@@ -73,20 +97,41 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000, private val preAlloca
         }
     }
 
+    /**
+     * Updates the page  with the given [PageId] with the content in the [DataPage].
+     *
+     * This change will be written to the [WriteAheadLog].
+     *
+     * @param pageId [PageId] of the [Page] that should be updated
+     * @param page [DataPage] the data the [Page] should be updated with.
+     */
     override fun update(pageId: PageId, page: DataPage) = createOrUseSharedWAL {
-        require(pageId <= it.maxPageId && pageId >= 1) { "The given page ID $pageId is out of bounds for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
-        it.append(action = WALAction.UPDATE, id = pageId, page = page)
+        it.update(pageId, page)
     }
 
-
+    /**
+     * Allocates new [DataPage]s in the HARE page file managed by this [DirectDiskManager].
+     *
+     * The method will first try to return a [PageId] from the [LongStack] for free [PageId]s,
+     * if that [LongStack] has run empty, then new pages are physically allocated and the file
+     * will grow by the number of pages specified in [DirectDiskManager.preAllocatePages].
+     *
+     * This change will be written to the [WriteAheadLog].
+     *
+     * @return The [PageId] of the allocated [Page].
+     */
     override fun allocate(): PageId = createOrUseSharedWAL {
-        it.append(action = WALAction.APPEND)
-        it.maxPageId
+        it.allocate()
     }
 
+    /**
+     * Frees the page with the given [PageId] making space for new entries
+     *
+     * @param pageId The [PageId] of the page that should be freed.
+     */
     override fun free(pageId: PageId) = createOrUseSharedWAL {
-        require(pageId <= it.maxPageId && pageId >= 1) { "The given page ID $pageId is out of bounds for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
-        it.append(action = WALAction.FREE, id = pageId)
+        require(pageId in 1L..this.header.allocatedPages) { "The given page ID $pageId is out of bounds for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
+        it.free(pageId)
     }
 
     /**
@@ -94,12 +139,14 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000, private val preAlloca
      */
     override fun commit(): Unit = useExclusiveWAL {
         val pageSizeLong = this.pageSize.toLong()
-        it.replay { action, id, b ->
-            when (action) {
-                WALAction.UPDATE -> {
-                    this.fileChannel.transferFrom(b, this.pageIdToOffset(id), pageSizeLong)
+        it.replay { entry, channel, position ->
+            when (entry.action) {
+                WALAction.UPDATE -> this.fileChannel.transferFrom(channel, this.pageIdToOffset(entry.pageId), pageSizeLong)
+                WALAction.ALLOCATE_REUSE -> {
+                    val reusePageId = this.freePageStack.pop()
+                    require(reusePageId == entry.pageId) { "Failed to commit. The reused page ID $reusePageId does not match the expected page ID ${entry.pageId} (file: ${this.path}, pages: ${this.pages})."  }
                 }
-                WALAction.APPEND -> {
+                WALAction.ALLOCATE_APPEND -> {
                     /* Default case; page has not been allocated yet */
                     if (id - 1 == this.header.allocatedPages) {
                         this.header.allocatedPages += this.preAllocatePages
@@ -171,16 +218,19 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000, private val preAlloca
      * @param action The action that should be executed with the local [WriteAheadLog].
      */
     private inline fun <R> createOrUseSharedWAL(action: (WriteAheadLog) -> R) : R {
-        this.closeLock.read {
+        this.closeLock.shared {
             check(this.fileChannel.isOpen) { "FileChannel for this HARE page file {${this.path}} was closed and cannot be used to write data (file: ${this.path})." }
             this.writeAheadLock.read {
                 synchronized(this) {
                     if (this.wal == null) {
+                        /* Update the file header to reflect start of logging. */
+                        this.header.isConsistent = false
+                        this.header.write(this.fileChannel, OFFSET_HEADER)
+
+                        /* Generate WriteAheadLogFile. */
                         val walPath = this.path.parent.resolve("${this.path.fileName}.wal")
                         WriteAheadLog.create(walPath, this.pages, this.pageShift)
                         this.wal = WriteAheadLog(walPath, this.lockTimeout)
-                        this.header.isConsistent = false
-                        this.header.flush()
                     }
                 }
                 return action(this.wal!!)
@@ -195,7 +245,7 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000, private val preAlloca
      * @param action The action that should be executed with the local [WriteAheadLog].
      */
     private inline fun useExclusiveWAL(action: (WriteAheadLog) -> Unit) {
-        this.closeLock.read {
+        this.closeLock.shared {
             check(this.fileChannel.isOpen) { "FileChannel for this HARE page file {${this.path}} was closed and cannot be used to write data (file: ${this.path})." }
             this.writeAheadLock.write {
                 if (this.wal != null) {

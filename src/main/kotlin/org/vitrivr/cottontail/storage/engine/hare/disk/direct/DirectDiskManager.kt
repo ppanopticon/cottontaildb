@@ -5,6 +5,7 @@ import org.vitrivr.cottontail.storage.engine.hare.PageId
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
 import org.vitrivr.cottontail.storage.engine.hare.disk.DataPage
 import org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.LongStack
 import org.vitrivr.cottontail.utilities.extensions.exclusive
 import org.vitrivr.cottontail.utilities.extensions.read
 import org.vitrivr.cottontail.utilities.extensions.write
@@ -48,8 +49,8 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000, private val preAll
     override fun read(pageId: PageId, page: DataPage) {
         this.closeLock.read {
             check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to read data (file: ${this.path})." }
-            this.fileChannel.read(page._data, this.pageIdToOffset(pageId))
-            page._data.clear()
+            this.fileChannel.read(page.buffer, this.pageIdToOffset(pageId))
+            page.buffer.clear()
         }
     }
 
@@ -63,7 +64,7 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000, private val preAll
         this.closeLock.read {
             check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to read data (file: ${this.path})." }
             val locks = Array(pages.size) { pages[it].lock.writeLock() }
-            val buffers = Array(pages.size) { pages[it]._data }
+            val buffers = Array(pages.size) { pages[it].buffer }
             this.fileChannel.position(this.pageIdToOffset(pageId))
             this.fileChannel.read(buffers)
             locks.indices.forEach { i ->
@@ -83,8 +84,8 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000, private val preAll
         this.closeLock.read {
             check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to write data (file: ${this.path})." }
             page.lock.exclusive {
-                this.fileChannel.write(page._data, this.pageIdToOffset(pageId))
-                page._data.clear()
+                this.fileChannel.write(page.buffer, this.pageIdToOffset(pageId))
+                page.buffer.clear()
             }
         }
     }
@@ -92,54 +93,54 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000, private val preAll
     /**
      * Allocates new [DataPage]s in the HARE page file managed by this [DirectDiskManager].
      *
-     * When invoking this method, the HARE page file will grow by the number of pages specified in
-     * [DirectDiskManager.preAllocatePages]. Optionally, a caller can provide a [DataPage] that
-     * will be written to the first newly allocated [DataPage].
+     * The method will first try to return a [PageId] from the [LongStack] for free [PageId]s,
+     * if that [LongStack] has run empty, then new pages are physically allocated and the file
+     * will grow by the number of pages specified in [DirectDiskManager.preAllocatePages].
      *
-     * @return The [PageId] of the next first new [Page].
+     * @return The [PageId] of the allocated [Page].
      */
     override fun allocate(): PageId = this.closeLock.read {
         check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to write data (file: ${this.path})." }
 
         /* Pre-allocate pages if LongStack is empty. */
-        if (this.free.size == 0) {
+        if (this.freePageStack.size == 0) {
             val maxPageId = (++this.header.allocatedPages)
             val preAllocatePageId = maxPageId + this.preAllocatePages
             this.fileChannel.write(EMPTY.clear(), (preAllocatePageId + 1) shl this.header.pageShift)
             for (pageId in preAllocatePageId..maxPageId) {
-                this.free.offer(pageId)
+                this.freePageStack.offer(pageId)
             }
         }
-        val newPageId = this.free.pop()
+        val newPageId = this.freePageStack.pop()
 
         /* Flush Header and LongStack. */
         this.header.write(this.fileChannel, OFFSET_HEADER)
-        this.free.write(this.fileChannel, OFFSET_FREE_PAGE_STACK)
+        this.freePageStack.write(this.fileChannel, OFFSET_FREE_PAGE_STACK)
 
         /* Return ID of next free page. */
         return newPageId
     }
 
     /**
-     * Frees the given [Page] making space for new entries
+     * Frees the page with the given [PageId] making space for new entries
      *
-     * @param pageId The [PageId] that should be freed.
+     * @param pageId The [PageId] of the page that should be freed.
      */
     override fun free(pageId: PageId) = this.closeLock.read {
         check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to write data (file: ${this.path})." }
-        require(pageId > 0 && pageId < this.header.allocatedPages) { "The given page ID $pageId is out of bounds for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
+        require(pageId in 1L..this.header.allocatedPages) { "The given page ID $pageId is out of bounds for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
 
         /* Free page by truncating (last page only) or by adding page to free page stack. */
         if (pageId == this.header.allocatedPages) {
             this.header.allocatedPages -= 1
             this.fileChannel.truncate(this.fileChannel.size() - this.pageSize)
-        } else if (!this.free.offer(pageId)) {
+        } else if (!this.freePageStack.offer(pageId)) {
             TODO("Free page stack is full; file needs compaction!")
         }
 
         /* Flush Header and LongStack. */
         this.header.write(this.fileChannel, OFFSET_HEADER)
-        this.free.write(this.fileChannel, OFFSET_FREE_PAGE_STACK)
+        this.freePageStack.write(this.fileChannel, OFFSET_FREE_PAGE_STACK)
         Unit
     }
 

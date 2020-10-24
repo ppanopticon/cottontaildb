@@ -84,7 +84,7 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
     protected val header = Header(ByteBuffer.allocateDirect(SIZE_HEADER)).read(this.fileChannel, OFFSET_HEADER)
 
     /** Reference to the [LongStack] of the HARE file managed by this [DiskManager]. */
-    protected val free: LongStack = LongStack(ByteBuffer.allocateDirect(pageSize - SIZE_HEADER)).read(this.fileChannel, OFFSET_FREE_PAGE_STACK)
+    protected val freePageStack: LongStack = LongStack(ByteBuffer.allocateDirect(pageSize - SIZE_HEADER)).read(this.fileChannel, OFFSET_FREE_PAGE_STACK)
 
     /** A [ReentrantReadWriteLock] that mediates access to the closed state of this [DiskManager]. */
     protected val closeLock = StampedLock()
@@ -98,12 +98,16 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
         get() = this.header.pageSize
 
     /** Number of [Page]s held by the HARE page file managed by this [DiskManager]. */
-    val pages
+    val pages: Long
         get() = this.header.allocatedPages
 
     /** Returns the size of the HARE page file managed by this [DiskManager]. */
     val size
         get() = MemorySize(this.fileChannel.size().toDouble(), Units.BYTE)
+
+    /** Returns a list of free [PageId]s. This list is a snapshot created at time of invoking this method. */
+    val freePageIds: List<PageId>
+        get() = this.freePageStack.toList()
 
     /** Return true if this [FileChannel] and thus this [DiskManager] is still open. */
     override val isOpen
@@ -189,7 +193,7 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
     fun validate(): Boolean = this.header.checksum == this.calculateChecksum()
 
     /**
-     * Converts the given [PageId] to an offset into the file managed by this [DirectDiskManager]. Calling this method
+     * Converts the given [PageId] to an offset into the file managed by this [DiskManager]. Calling this method
      * also makes necessary sanity checks regarding the file's channel status and pageId bounds.
      *
      * @param pageId The [PageId] to translate to a position.

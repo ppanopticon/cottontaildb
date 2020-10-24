@@ -1,8 +1,8 @@
 package org.vitrivr.cottontail.storage.engine.hare.disk
 
 import org.vitrivr.cottontail.storage.engine.hare.DataCorruptionException
-import org.vitrivr.cottontail.storage.engine.hare.PageId
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
+import org.vitrivr.cottontail.storage.engine.hare.basics.View
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 
@@ -12,7 +12,7 @@ import java.nio.channels.FileChannel
  * @version 1.1.0
  * @author Ralph Gasser
  */
-class Header(val buffer: ByteBuffer) {
+class Header(override val buffer: ByteBuffer) : View {
     companion object {
         /** Constants. */
 
@@ -81,7 +81,7 @@ class Header(val buffer: ByteBuffer) {
         }
 
     /** Total number of [Page]s managed by this [DiskManager]. */
-    var allocatedPages: PageId
+    var allocatedPages: Long
         get() = this.buffer.getLong(HEADER_OFFSET_ALLOCATED)
         set(v) {
             this.buffer.putLong(HEADER_OFFSET_ALLOCATED, v)
@@ -117,7 +117,7 @@ class Header(val buffer: ByteBuffer) {
      * @param channel The [FileChannel] to read from.
      * @param position The position in the [FileChannel] to write to.
      */
-    fun read(channel: FileChannel, position: Long): Header {
+    override fun read(channel: FileChannel, position: Long): Header {
         channel.read(this.buffer.rewind(), position)
 
         /** Make necessary check on reading. */
@@ -139,8 +139,15 @@ class Header(val buffer: ByteBuffer) {
      * @param channel The [FileChannel] to write to.
      * @param position The position in the [FileChannel] to write to.
      */
-    fun write(channel: FileChannel, position: Long): Header {
+    override fun write(channel: FileChannel, position: Long): Header {
         channel.write(this.buffer.rewind(), position)
         return this
     }
+
+    /**
+     * Creates and returns a copy of this [Header].
+     *
+     * @return Copy of this [Header]
+     */
+    fun copy(): Header = Header(ByteBuffer.allocateDirect(this.buffer.capacity()).put(this.buffer.rewind()))
 }

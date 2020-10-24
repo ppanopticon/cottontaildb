@@ -1,9 +1,11 @@
 package org.vitrivr.cottontail.storage.engine.hare.disk
 
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
+import org.vitrivr.cottontail.storage.engine.hare.disk.wal.WALEntry
 import org.vitrivr.cottontail.utilities.extensions.exclusive
 import org.vitrivr.cottontail.utilities.extensions.shared
 import java.nio.ByteBuffer
+import java.nio.channels.FileChannel
 import java.util.concurrent.locks.StampedLock
 
 /**
@@ -12,37 +14,33 @@ import java.util.concurrent.locks.StampedLock
  *
  * @see DiskManager
  *
- * @version 1.2
+ * @version 1.3.0
  * @author Ralph Gasser
  */
-open class DataPage(internal var _data: ByteBuffer) : Page {
-
-    init {
-        this._data.clear() /* Safety measure: ByteBuffer is reset. */
-    }
-
+open class DataPage(override val buffer: ByteBuffer) : Page {
     /** A [StampedLock] that mediates access to this [DataPage]'s [ByteBuffer].  */
-    internal val lock: StampedLock = StampedLock()
+    val lock: StampedLock = StampedLock()
 
+    /** The size of this [DataPage] in bytes. */
     override val size: Int
-        get() = this._data.capacity()
+        get() = this.buffer.capacity()
 
     override fun getBytes(index: Int, byteBuffer: ByteBuffer): ByteBuffer = this.lock.shared {
-        val buffer = this._data.duplicate().position(index).limit(index + byteBuffer.remaining())
+        val buffer = this.buffer.duplicate().position(index).limit(index + byteBuffer.remaining())
         byteBuffer.put(buffer)
         return byteBuffer
     }
 
     override fun getBytes(index: Int, bytes: ByteArray) : ByteArray = this.lock.shared {
-        val buffer = this._data.duplicate().position(index)
+        val buffer = this.buffer.duplicate().position(index)
         buffer.get(bytes)
         return bytes
     }
 
     override fun getBytes(index: Int, limit: Int) : ByteArray = getBytes(index, ByteArray(limit-index))
-    override fun getBytes(index: Int) : ByteArray = getBytes(index, this._data.capacity())
+    override fun getBytes(index: Int) : ByteArray = getBytes(index, this.buffer.capacity())
     override fun getShorts(index: Int, array: ShortArray): ShortArray {
-        val buffer = this._data.duplicate().position(index)
+        val buffer = this.buffer.duplicate().position(index)
         for (i in array.indices) {
             array[i] = buffer.short
         }
@@ -50,7 +48,7 @@ open class DataPage(internal var _data: ByteBuffer) : Page {
     }
 
     override fun getChars(index: Int, array: CharArray): CharArray = this.lock.shared {
-        val buffer = this._data.duplicate().position(index)
+        val buffer = this.buffer.duplicate().position(index)
         for (i in array.indices) {
             array[i] = buffer.char
         }
@@ -58,7 +56,7 @@ open class DataPage(internal var _data: ByteBuffer) : Page {
     }
 
     override fun getInts(index: Int, array: IntArray): IntArray = this.lock.shared {
-        val buffer = this._data.duplicate().position(index)
+        val buffer = this.buffer.duplicate().position(index)
         for (i in array.indices) {
             array[i] = buffer.int
         }
@@ -66,7 +64,7 @@ open class DataPage(internal var _data: ByteBuffer) : Page {
     }
 
     override fun getLongs(index: Int, array: LongArray): LongArray = this.lock.shared {
-        val buffer = this._data.duplicate().position(index)
+        val buffer = this.buffer.duplicate().position(index)
         for (i in array.indices) {
             array[i] = buffer.long
         }
@@ -75,25 +73,25 @@ open class DataPage(internal var _data: ByteBuffer) : Page {
 
     override fun getDoubles(index: Int, array: DoubleArray): DoubleArray = this.lock.shared {
         for (i in array.indices) {
-            array[i] = this._data.getDouble(index + (i shl 3))
+            array[i] = this.buffer.getDouble(index + (i shl 3))
         }
         return array
     }
 
     override fun getFloats(index: Int, array: FloatArray): FloatArray = this.lock.shared {
         for (i in array.indices) {
-            array[i] = this._data.getFloat(index + (i shl 2))
+            array[i] = this.buffer.getFloat(index + (i shl 2))
         }
         return array
     }
 
-    override fun getByte(index: Int): Byte = this.lock.shared { this._data.get(index) }
-    override fun getShort(index: Int): Short = this.lock.shared { this._data.getShort(index) }
-    override fun getChar(index: Int): Char = this.lock.shared { this._data.getChar(index) }
-    override fun getInt(index: Int): Int = this.lock.shared { this._data.getInt(index) }
-    override fun getLong(index: Int): Long = this.lock.shared { this._data.getLong(index) }
-    override fun getFloat(index: Int): Float = this.lock.shared { this._data.getFloat(index) }
-    override fun getDouble(index: Int): Double = this.lock.shared { this._data.getDouble(index) }
+    override fun getByte(index: Int): Byte = this.lock.shared { this.buffer.get(index) }
+    override fun getShort(index: Int): Short = this.lock.shared { this.buffer.getShort(index) }
+    override fun getChar(index: Int): Char = this.lock.shared { this.buffer.getChar(index) }
+    override fun getInt(index: Int): Int = this.lock.shared { this.buffer.getInt(index) }
+    override fun getLong(index: Int): Long = this.lock.shared { this.buffer.getLong(index) }
+    override fun getFloat(index: Int): Float = this.lock.shared { this.buffer.getFloat(index) }
+    override fun getDouble(index: Int): Double = this.lock.shared { this.buffer.getDouble(index) }
 
     /**
      * Writes a [ByteBuffer] to the given position.
@@ -103,7 +101,7 @@ open class DataPage(internal var _data: ByteBuffer) : Page {
      * @return This [DataPage]
      */
     override fun putBytes(index: Int, value: ByteBuffer): DataPage = this.lock.exclusive {
-        this._data.position(index).put(value).rewind()
+        this.buffer.position(index).put(value).rewind()
         return this
     }
 
@@ -115,7 +113,7 @@ open class DataPage(internal var _data: ByteBuffer) : Page {
      * @return This [DataPage]
      */
     override fun putBytes(index: Int, value: ByteArray): DataPage = this.lock.exclusive {
-        this._data.position(index).put(value).rewind()
+        this.buffer.position(index).put(value).rewind()
         return this
     }
 
@@ -127,11 +125,11 @@ open class DataPage(internal var _data: ByteBuffer) : Page {
      * @return This [DataPage]
      */
     override fun putShorts(index: Int, value: ShortArray): Page = this.lock.exclusive {
-        this._data.position(index)
+        this.buffer.position(index)
         for (i in value.indices) {
-            this._data.putShort(value[i])
+            this.buffer.putShort(value[i])
         }
-        this._data.rewind()
+        this.buffer.rewind()
         this
     }
 
@@ -143,11 +141,11 @@ open class DataPage(internal var _data: ByteBuffer) : Page {
      * @return This [DataPage]
      */
     override fun putChars(index: Int, value: CharArray): Page = this.lock.exclusive {
-        this._data.position(index)
+        this.buffer.position(index)
         for (i in value.indices) {
-            this._data.putChar(value[i])
+            this.buffer.putChar(value[i])
         }
-        this._data.rewind()
+        this.buffer.rewind()
         this
     }
 
@@ -159,11 +157,11 @@ open class DataPage(internal var _data: ByteBuffer) : Page {
      * @return This [DataPage]
      */
     override fun putInts(index: Int, value: IntArray): Page = this.lock.exclusive {
-        this._data.position(index)
+        this.buffer.position(index)
         for (i in value.indices) {
-            this._data.putInt(value[i])
+            this.buffer.putInt(value[i])
         }
-        this._data.rewind()
+        this.buffer.rewind()
         this
     }
 
@@ -175,11 +173,11 @@ open class DataPage(internal var _data: ByteBuffer) : Page {
      * @return This [DataPage]
      */
     override fun putLongs(index: Int, value: LongArray): Page = this.lock.exclusive {
-        this._data.position(index)
+        this.buffer.position(index)
         for (i in value.indices) {
-            this._data.putLong(value[i])
+            this.buffer.putLong(value[i])
         }
-        this._data.rewind()
+        this.buffer.rewind()
         this
     }
 
@@ -192,7 +190,7 @@ open class DataPage(internal var _data: ByteBuffer) : Page {
      */
     override fun putFloats(index: Int, value: FloatArray): Page = this.lock.exclusive {
         for (i in value.indices) {
-            this._data.putFloat(index + (i shl 2), value[i])
+            this.buffer.putFloat(index + (i shl 2), value[i])
         }
         this
     }
@@ -206,7 +204,7 @@ open class DataPage(internal var _data: ByteBuffer) : Page {
      */
     override fun putDoubles(index: Int, value: DoubleArray): Page = this.lock.exclusive {
         for (i in value.indices) {
-            this._data.putDouble(index + (i shl 3), value[i])
+            this.buffer.putDouble(index + (i shl 3), value[i])
         }
         this
     }
@@ -219,7 +217,7 @@ open class DataPage(internal var _data: ByteBuffer) : Page {
      * @return This [DataPage]
      */
     override fun putByte(index: Int, value: Byte): DataPage = this.lock.exclusive {
-        this._data.put(index, value)
+        this.buffer.put(index, value)
         return this
     }
 
@@ -231,7 +229,7 @@ open class DataPage(internal var _data: ByteBuffer) : Page {
      * @return This [DataPage]
      */
     override fun putShort(index: Int, value: Short): DataPage = this.lock.exclusive {
-        this._data.putShort(index, value)
+        this.buffer.putShort(index, value)
         return this
     }
 
@@ -243,7 +241,7 @@ open class DataPage(internal var _data: ByteBuffer) : Page {
      * @return This [DataPage]
      */
     override fun putChar(index: Int, value: Char): DataPage = this.lock.exclusive {
-        this._data.putChar(index, value)
+        this.buffer.putChar(index, value)
         return this
     }
 
@@ -255,7 +253,7 @@ open class DataPage(internal var _data: ByteBuffer) : Page {
      * @return This [DataPage]
      */
     override fun putInt(index: Int, value: Int): DataPage = this.lock.exclusive {
-        this._data.putInt(index, value)
+        this.buffer.putInt(index, value)
         return this
     }
 
@@ -267,7 +265,7 @@ open class DataPage(internal var _data: ByteBuffer) : Page {
      * @return This [DataPage]
      */
     override fun putLong(index: Int, value: Long): DataPage = this.lock.exclusive {
-        this._data.putLong(index, value)
+        this.buffer.putLong(index, value)
         return this
     }
 
@@ -279,7 +277,7 @@ open class DataPage(internal var _data: ByteBuffer) : Page {
      * @return This [DataPage]
      */
     override fun putFloat(index: Int, value: Float): DataPage = this.lock.exclusive {
-        this._data.putFloat(index, value)
+        this.buffer.putFloat(index, value)
         return this
     }
 
@@ -291,7 +289,7 @@ open class DataPage(internal var _data: ByteBuffer) : Page {
      * @return This [DataPage]
      */
     override fun putDouble(index: Int, value: Double): DataPage = this.lock.exclusive {
-        this._data.putDouble(index, value)
+        this.buffer.putDouble(index, value)
         return this
     }
 
@@ -299,9 +297,31 @@ open class DataPage(internal var _data: ByteBuffer) : Page {
      * Clears the data in this [DataPage] effectively setting it to zero.
      */
     override fun clear(): DataPage = this.lock.exclusive {
-        for (i in 0 until this._data.capacity()) {
-            this._data.put(i, 0)
+        for (i in 0 until this.buffer.capacity()) {
+            this.buffer.put(i, 0)
         }
+        return this
+    }
+
+    /**
+     * Reads the content of this [WALEntry] from disk.
+     *
+     * @param channel The [FileChannel] to read from.
+     * @param position The position in the [FileChannel] to write to.
+     */
+    override fun read(channel: FileChannel, position: Long): DataPage {
+        channel.read(this.buffer.clear(), position)
+        return this
+    }
+
+    /**
+     * Writes the content of this [WALEntry] to disk.
+     *
+     * @param channel The [FileChannel] to write to.
+     * @param position The position in the [FileChannel] to write to.
+     */
+    override fun write(channel: FileChannel, position: Long): DataPage {
+        channel.write(this.buffer.clear(), position)
         return this
     }
 }

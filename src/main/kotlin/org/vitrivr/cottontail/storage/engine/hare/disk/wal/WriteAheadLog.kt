@@ -1,11 +1,8 @@
 package org.vitrivr.cottontail.storage.engine.hare.disk.wal
 
 import org.vitrivr.cottontail.storage.engine.hare.PageId
-import org.vitrivr.cottontail.storage.engine.hare.disk.DataPage
-import org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
-import org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager.Companion.FILE_HEADER_IDENTIFIER
-import org.vitrivr.cottontail.storage.engine.hare.disk.FileUtilities
-import org.vitrivr.cottontail.utilities.extensions.exclusive
+import org.vitrivr.cottontail.storage.engine.hare.disk.*
+
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.file.Files
@@ -22,33 +19,33 @@ import java.util.zip.CRC32C
  * @author Ralph Gasser
  * @version 1.1.0
  */
-open class WriteAheadLog(val path: Path, val lockTimeout: Long = 5000L) : AutoCloseable {
+open class WriteAheadLog(val manager: WALDiskManager, val lockTimeout: Long = 5000L) : AutoCloseable {
 
     companion object {
-        /** Size of the [WriteAheadLog.Header] in bytes. */
-        private const val OFFSET_HEADER = 0L
-
-        /** Size of the [WriteAheadLog.Header] in bytes. */
+        /** Size of the [WALHeader] in bytes. */
         private const val WAL_HEADER_SIZE = 128
 
-        /** Size of a [WriteAheadLog] entry. */
-        private const val WAL_ENTRY_SIZE = 12
+        /** Offset into the [WriteAheadLog] file to access the [WALHeader]. */
+        private const val OFFSET_WAL_HEADER = 0L
 
         /**
          * Creates a new page file in the HARE format.
          *
          * @param path [Path] under which to create the page file.
          */
-        fun create(path: Path, maxPageId: PageId, pageShift: Int = 12) {
+        fun create(path: Path) {
             /* Prepare header data for page file in the HARE format. */
-            val header = WALHeader(ByteBuffer.allocateDirect(WAL_HEADER_SIZE)).init()
+            val walHeader = WALHeader().init()
 
             /** Write data to file and close. */
             val channel = FileChannel.open(path, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW, StandardOpenOption.SYNC, StandardOpenOption.SPARSE)
-            header.write(channel, OFFSET_HEADER)
+            walHeader.write(channel, OFFSET_WAL_HEADER)
             channel.close()
         }
     }
+
+    /** The [Path] to the [WriteAheadLog] file. */
+    private val path = this.manager.path.parent.resolve(this.manager.path.fileName.toString() + ".wal")
 
     /** [FileChannel] used to write to this [WriteAheadLog]*/
     private val fileChannel = FileChannel.open(path, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.SPARSE, StandardOpenOption.DSYNC)
@@ -57,97 +54,138 @@ open class WriteAheadLog(val path: Path, val lockTimeout: Long = 5000L) : AutoCl
     private val fileLock = FileUtilities.acquireFileLock(this.fileChannel, this.lockTimeout)
 
     /** Reference to the [WALHeader] of the HARE [WriteAheadLog] file. */
-    private val header = WALHeader(ByteBuffer.allocateDirect(WAL_HEADER_SIZE))
+    private val walHeader = WALHeader().read(this.fileChannel, OFFSET_WAL_HEADER)
+
+    /** Reference to the [WALEntry] reference used to access the entries in this [WriteAheadLog]. */
+    private val entry = WALEntry()
 
     /** The [CRC32C] object used to calculate the CRC32 checksum of this [WriteAheadLog]. */
     private val crc32 = CRC32C()
 
+    /** Number of [PageId]s that have been allocated in underlying [WALDiskManager] at time of creating this [WriteAheadLog]. */
+    private var allocated = this.manager.pages
+
+    /** An [ArrayDeque] of free [PageId]s held in underlying [WALDiskManager] at time of creating this [WriteAheadLog]. */
+    private var freePageIds = ArrayDeque(this.manager.freePageIds)
+
     /**
-     * Appends a [WALAction] and the associated data to this [WriteAheadLog].
      *
-     * @param action The actual type of [WALAction] that was performed.
-     * @param pageId [PageId] affected by the [WALAction]
-     * @param page [DataPage] containing data affected by the [WALAction]
      */
     @Synchronized
-    fun append(action: WALAction, id: PageId? = null, page: DataPage? = null) {
-        check(this.fileChannel.isOpen) { "HARE Write Ahead Log (WAL) file for {${this.path}} has been closed and cannot be used for append." }
+    fun update(pageId: PageId, page: DataPage) {
+        check(this.fileChannel.isOpen) { "HARE Write Ahead Log (WAL) has been closed and cannot be used for update() operation (file = ${this.path})." }
+        require(pageId <= this.allocated) { "Error while logging HARE Write Ahead Log (WAL) update() operation, page ID $pageId is out of bounds (file = ${this.path})." }
 
-        /* Load buffer with data and update checksum. */
-        this.allocationBuffer.clear()
-        when (action) {
-            WALAction.APPEND -> {
-                this.header.maxPageId += 1
-                this.allocationBuffer.putInt(action.ordinal).putLong(this.header.maxPageId)
-                if (page != null) {
-                    page.lock.exclusive {
-                        this.allocationBuffer.put(page._data)
-                        page._data.clear()
-                    }
-                } else {
-                    repeat(this.header.pageSize) { this.allocationBuffer.put(0) }
-                }
-            }
-            WALAction.UPDATE -> {
-                require (id != null) { "HARE Write Ahead Log (WAL) UPDATE action requires a non-null page ID." }
-                this.allocationBuffer.putInt(action.ordinal).putLong(id)
-                if (page != null) {
-                    page.lock.exclusive {
-                        this.allocationBuffer.put(page._data)
-                        page._data.clear()
-                    }
-                } else {
-                    repeat(this.header.pageSize) { this.allocationBuffer.put(0) }
-                }
-            }
-            WALAction.FREE -> {
-                require (id != null) { "HARE Write Ahead Log (WAL) FREE action requires a non-null page ID." }
-                this.allocationBuffer.putInt(action.ordinal).putLong(id)
-                repeat(this.header.pageSize) { this.allocationBuffer.put(0) }
-            }
+        /* Prepare log entry. */
+        this.entry.sequenceNumber = this.walHeader.entries++
+        this.entry.action = WALAction.UPDATE
+        this.entry.pageId = pageId
+        this.entry.payloadSize = page.size
+
+        /* Calculate CRC32 checksum. */
+        this.crc32.update(this.entry.buffer.clear())
+        this.crc32.update(page.buffer.clear())
+        this.walHeader.checksum = this.crc32.value
+
+        /* Write log entry. */
+        this.entry.write(this.fileChannel, this.fileChannel.size())
+        page.write(this.fileChannel, this.fileChannel.size())
+        this.walHeader.write(this.fileChannel, OFFSET_WAL_HEADER)
+    }
+
+    /**
+     * Allocates a new page and returns its [PageId]. Calling this method writes the action to the log.
+     *
+     * @return Allocated [PageId].
+     */
+    @Synchronized
+    fun allocate(): PageId {
+        check(this.fileChannel.isOpen) { "HARE Write Ahead Log (WAL) has been closed and cannot be used for allocate() operation (file = ${this.path})." }
+
+        /* Prepare log entry. */
+        if (this.freePageIds.size > 0) {
+            this.entry.sequenceNumber = this.walHeader.entries++
+            this.entry.action = WALAction.ALLOCATE_REUSE
+            this.entry.pageId = this.freePageIds.removeLast()
+            this.entry.payloadSize = 0
+        } else {
+            this.entry.sequenceNumber = this.walHeader.entries++
+            this.entry.action = WALAction.ALLOCATE_APPEND
+            this.entry.pageId = (++this.allocated)
+            this.entry.payloadSize = 0
         }
 
-        /** Calculate CRC32 checksum. */
-        this.allocationBuffer.flip()
-        this.crc32.update(this.allocationBuffer)
+        /* Calculate CRC32 checksum. */
+        this.crc32.update(this.entry.buffer.clear())
+        this.walHeader.checksum = this.crc32.value
 
-        /* Write to WAL file. */
-        this.allocationBuffer.flip()
-        this.fileChannel.write(this.allocationBuffer)
+        /* Write log entry. */
+        this.entry.write(this.fileChannel, this.fileChannel.size())
+        this.walHeader.write(this.fileChannel, OFFSET_WAL_HEADER)
 
-        /* Update header of WAL file. */
-        this.header.entries += 1
-        this.header.checksum = crc32.value
-        this.header.flush()
+        /* Returns the PageId. */
+        return this.entry.pageId
+    }
+
+    /**
+     * Frees the [PageId]
+     *
+     * @return Allocated [PageId].
+     */
+    @Synchronized
+    fun free(pageId: PageId) {
+        check(this.fileChannel.isOpen) { "HARE Write Ahead Log (WAL) has been closed and cannot be used for free() operation (file = ${this.path})." }
+        require(pageId <= this.allocated) { "Error while logging HARE Write Ahead Log (WAL) free() operation, page ID $pageId is out of bounds (file = ${this.path})." }
+
+        /* Prepare log entry. */
+        if (pageId == this.allocated) {
+            this.entry.sequenceNumber = this.walHeader.entries++
+            this.entry.action = WALAction.FREE_TRUNCATE
+            this.entry.pageId = pageId
+            this.entry.payloadSize = 0
+        } else if (pageId < this.allocated){
+            this.freePageIds.addLast(pageId)
+            this.entry.sequenceNumber = this.walHeader.entries++
+            this.entry.action = WALAction.FREE_REUSE
+            this.entry.pageId = pageId
+            this.entry.payloadSize = 0
+        }
+
+        /* Calculate CRC32 checksum. */
+        this.crc32.update(this.entry.buffer.clear())
+        this.walHeader.checksum = this.crc32.value
+
+        /* Write log entry. */
+        this.entry.write(this.fileChannel, this.fileChannel.size())
+        this.walHeader.write(this.fileChannel, OFFSET_WAL_HEADER)
     }
 
     /**
      * Replays this [WriteAheadLog] thus transferring all changes into the given destination.
      *
-     * @param consumer A function that consumes the [WriteAheadLog] entry and return true on success.
+     * @param consumer A function that consumes the [WALEntry] entry and return true on success.
      */
     @Synchronized
-    fun replay(consumer: (WALAction, PageId, FileChannel) -> Boolean) {
+    fun replay(consumer: (WALEntry, FileChannel, Long) -> Boolean) {
         check(this.fileChannel.isOpen) { "HARE Write Ahead Log (WAL) file for {${this.path}} has been closed and cannot be used for replay." }
 
-        /* Initialize ByteBuffer to read prefixes.*/
-        val prefixBuffer = ByteBuffer.allocateDirect(WAL_ENTRY_SIZE)
+        /* Initialize start position for replay. */
+        var position: Long = WALHeader.SIZE.toLong()
+        for (seq in 0L until this.walHeader.entries) {
+            this.entry.read(this.fileChannel, position)
+            position += WALEntry.SIZE
+            require(this.entry.sequenceNumber == seq) { "Error during HARE Write Ahead Log (WAL) replay(): Expected sequence number $seq does not match actual sequence number ${entry.sequenceNumber}." }
 
-        /* Initialize FileChannel position. */
-        this.fileChannel.position(WAL_HEADER_SIZE.toLong())
-
-        for (i in this.header.transferred..this.header.entries) {
-            this.fileChannel.read(prefixBuffer.rewind())
-            prefixBuffer.rewind()
-
-            val action = WALAction.values()[prefixBuffer.int]
-            val pageId = prefixBuffer.long
-
-            /* Execute consumer; if it returns true, update WAL header. */
-            if (consumer(action, pageId, this.fileChannel)) {
-                this.header.transferred ++
-                this.header.flush()
+            /* Only process sequences numbers that have not been transferred already. */
+            if (seq >= this.walHeader.transferred) {
+                if (consumer(this.entry, this.fileChannel, position)) {
+                    this.walHeader.transferred += 1
+                    this.walHeader.write(this.fileChannel, OFFSET_WAL_HEADER)
+                }
             }
+
+            /* Increment file position. */
+            position += entry.size
         }
     }
 

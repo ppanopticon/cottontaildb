@@ -6,13 +6,10 @@ import java.nio.ByteBuffer
  * A [Page] is a wrapper for an individual data [Page] managed by the HARE storage engine. At their
  * core, [Page]s are mere chunks of data usually backed by a [ByteBuffer] with a fixed size= 2^n.
  *
- * @version 1.1
+ * @version 1.2.0
  * @author Ralph Gasser
  */
-interface Page {
-
-    /** Size of this [Page] in bytes. */
-    val size: Int
+interface Page : View {
 
     fun getBytes(index: Int, byteBuffer: ByteBuffer): ByteBuffer
     fun getBytes(index: Int, bytes: ByteArray) : ByteArray

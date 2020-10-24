@@ -16,6 +16,7 @@ import org.vitrivr.cottontail.storage.engine.hare.disk.DataPage
 import org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.memory.MemoryManager
+import org.vitrivr.cottontail.utilities.extensions.exclusive
 import org.vitrivr.cottontail.utilities.extensions.read
 import org.vitrivr.cottontail.utilities.extensions.shared
 import org.vitrivr.cottontail.utilities.extensions.write
@@ -31,7 +32,7 @@ import java.util.concurrent.locks.StampedLock
  *
  * @see EvictionQueue
  *
- * @version 1.2
+ * @version 1.2.0
  * @author Ralph Gasser
  */
 class BufferPool(private val disk: DiskManager, val size: Int = 25, val evictionPolicy: EvictionPolicy) : Resource {
@@ -120,21 +121,6 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, val eviction
     }
 
     /**
-     * Detaches a [PageReference]. Detached [PageReference]s are [PageReference]s that don't show up in the
-     * [BufferPool.pageDirectory] but are still retained (i.e. have a pin count > 0). Otherwise they behave
-     * as an ordinary [PageReference]. Detached [PageReference]s also count towards [BufferPool.size].
-     *
-     * @return A detached [PageReference].
-     */
-    fun detach(): PageReference = this.closeLock.read {
-        check(this.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
-        PAGE_ACCESS_COUNTER.increment()
-        this.directoryLock.write {
-            return evictPage(-1L, Priority.LOW).retain().clear()
-        }
-    }
-
-    /**
      * Adds a range of [PageId] to this [BufferPool]'s prefetch queue.
      *
      * @param range [LongRange] that should be pre-fetched.
@@ -154,26 +140,22 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, val eviction
     }
 
     /**
-     * Appends a new [PageRef] to the HARE page file managed by this [BufferPool] and returns a [PageRef] for that [PageRef]
+     * Appends a new HARE page to the page file managed by this [BufferPool] and returns a [PageId] for that page.
      *
-     * @param data [PageRef] containing the data that should be appended. That [PageRef] must be a detached [PageRef]
      * @return [PageRef] for the appended [DataPage]
      */
-    fun append(data: PageRef): PageId = this.closeLock.read {
+    fun append(): PageId = this.closeLock.read {
         check(this.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
-        this.directoryLock.write {
-            check (data.id == -1L && data is PageReference) { "Only pages detached from this BufferPool can be appended." }
-            return this.disk.allocate(data)
-        }
+        return this.disk.allocate()
     }
 
     /**
-     * Flushes all dirty [PageRef]s to disk and resets their dirty flag. This method should be used
-     * with care, since it will cause all [DataPage]s to be written to disk.
+     * Flushes all dirty [PageRef]s to disk and resets their dirty flag. This method should be used with care, since it
+     * will cause all [DataPage]s to be written to disk.
      */
     fun flush() = this.closeLock.read {
         check(this.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
-        this.directoryLock.read {
+        this.directoryLock.shared {
             for (p in this.pageDirectory.values) {
                 if (p.dirty) {
                     this.disk.update(p.id, p)
@@ -183,12 +165,12 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, val eviction
     }
 
     /**
-     * Synchronizes all dirty [PageRef]s with the version on disk thus resetting their dirty flag.
-     * This method should be used with care, since it will cause all [DataPage]s to be read from disk.
+     * Synchronizes all dirty [PageRef]s with the version on disk thus resetting their dirty flag. This method should be
+     * used with care, since it will cause all [DataPage]s to be read from disk.
      */
     fun synchronize() = this.closeLock.read {
         check(this.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
-        this.directoryLock.read {
+        this.directoryLock.shared {
             for (p in this.pageDirectory.values) {
                 if (p.dirty) {
                     this.disk.read(p.id, p)
@@ -200,7 +182,7 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, val eviction
     /** Closes this [BufferPool] and the underlying [DiskManager]. */
     override fun close() = this.closeLock.write {
         if (!this.closed) {
-            this.directoryLock.write {
+            this.directoryLock.exclusive {
                 val pages = this.pageDirectory.values.toList()
                 pages.forEach {
                     it.dispose()
@@ -219,7 +201,7 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, val eviction
      */
     private fun evictPage(id: PageId, priority: Priority): PageReference {
         val pageRef: PageReference = this.evictionQueue.poll()
-        return PageReference(id, priority, pageRef._data)
+        return PageReference(id, priority, pageRef.buffer)
     }
 
     /**
@@ -227,7 +209,7 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, val eviction
      * layers of the storage engine and access to a [DataPage] is only possible through such a [PageReference]
      *
      * @author Ralph Gasser
-     * @version 1.1
+     * @version 1.1.0
      */
     inner class PageReference(override val id: PageId, override val priority: Priority, data: ByteBuffer): DataPage(data), PageRef {
 

@@ -4,7 +4,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
-import org.vitrivr.cottontail.storage.engine.hare.disk.DataPage
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
 import java.nio.BufferOverflowException
 import java.nio.ByteBuffer
 import kotlin.random.Random

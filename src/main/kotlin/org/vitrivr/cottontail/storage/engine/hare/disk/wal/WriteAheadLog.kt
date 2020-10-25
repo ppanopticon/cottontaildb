@@ -1,9 +1,9 @@
 package org.vitrivr.cottontail.storage.engine.hare.disk.wal
 
 import org.vitrivr.cottontail.storage.engine.hare.PageId
-import org.vitrivr.cottontail.storage.engine.hare.disk.*
-
-import java.nio.ByteBuffer
+import org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.FileUtilities
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
 import java.nio.channels.FileChannel
 import java.nio.file.Files
 import java.nio.file.Path
@@ -29,18 +29,22 @@ open class WriteAheadLog(val manager: WALDiskManager, val lockTimeout: Long = 50
         private const val OFFSET_WAL_HEADER = 0L
 
         /**
-         * Creates a new page file in the HARE format.
+         * Creates a new [WriteAheadLog] and opens and returns it.
          *
-         * @param path [Path] under which to create the page file.
+         * @param manager [WALDiskManager] to create the [WriteAheadLog] for.
          */
-        fun create(path: Path) {
+        fun create(manager: WALDiskManager): WriteAheadLog {
             /* Prepare header data for page file in the HARE format. */
             val walHeader = WALHeader().init()
 
             /** Write data to file and close. */
+            val path = manager.path.parent.resolve(manager.path.fileName.toString() + ".wal")
             val channel = FileChannel.open(path, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW, StandardOpenOption.SYNC, StandardOpenOption.SPARSE)
             walHeader.write(channel, OFFSET_WAL_HEADER)
             channel.close()
+
+            /* Open and return WriteAheadLog. */
+            return WriteAheadLog(manager)
         }
     }
 
@@ -166,26 +170,22 @@ open class WriteAheadLog(val manager: WALDiskManager, val lockTimeout: Long = 50
      * @param consumer A function that consumes the [WALEntry] entry and return true on success.
      */
     @Synchronized
-    fun replay(consumer: (WALEntry, FileChannel, Long) -> Boolean) {
+    fun replay(consumer: (WALEntry, FileChannel) -> Boolean) {
         check(this.fileChannel.isOpen) { "HARE Write Ahead Log (WAL) file for {${this.path}} has been closed and cannot be used for replay." }
 
         /* Initialize start position for replay. */
-        var position: Long = WALHeader.SIZE.toLong()
+        this.fileChannel.position(WALHeader.SIZE.toLong())
         for (seq in 0L until this.walHeader.entries) {
-            this.entry.read(this.fileChannel, position)
-            position += WALEntry.SIZE
+            this.entry.read(this.fileChannel)
             require(this.entry.sequenceNumber == seq) { "Error during HARE Write Ahead Log (WAL) replay(): Expected sequence number $seq does not match actual sequence number ${entry.sequenceNumber}." }
 
             /* Only process sequences numbers that have not been transferred already. */
             if (seq >= this.walHeader.transferred) {
-                if (consumer(this.entry, this.fileChannel, position)) {
+                if (consumer(this.entry, this.fileChannel)) {
                     this.walHeader.transferred += 1
                     this.walHeader.write(this.fileChannel, OFFSET_WAL_HEADER)
                 }
             }
-
-            /* Increment file position. */
-            position += entry.size
         }
     }
 

@@ -309,7 +309,7 @@ open class DataPage(override val buffer: ByteBuffer) : Page {
      * @param channel The [FileChannel] to read from.
      * @param position The position in the [FileChannel] to write to.
      */
-    override fun read(channel: FileChannel, position: Long): DataPage {
+    override fun read(channel: FileChannel, position: Long): DataPage = this.lock.exclusive {
         channel.read(this.buffer.clear(), position)
         return this
     }
@@ -320,7 +320,7 @@ open class DataPage(override val buffer: ByteBuffer) : Page {
      * @param channel The [FileChannel] to write to.
      * @param position The position in the [FileChannel] to write to.
      */
-    override fun write(channel: FileChannel, position: Long): DataPage {
+    override fun write(channel: FileChannel, position: Long): DataPage = this.lock.shared {
         channel.write(this.buffer.clear(), position)
         return this
     }

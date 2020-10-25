@@ -3,10 +3,9 @@ package org.vitrivr.cottontail.storage.engine.hare.disk.direct
 import org.vitrivr.cottontail.storage.engine.hare.DataCorruptionException
 import org.vitrivr.cottontail.storage.engine.hare.PageId
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
-import org.vitrivr.cottontail.storage.engine.hare.disk.DataPage
 import org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
-import org.vitrivr.cottontail.storage.engine.hare.disk.LongStack
-import org.vitrivr.cottontail.utilities.extensions.exclusive
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.LongStack
 import org.vitrivr.cottontail.utilities.extensions.read
 import org.vitrivr.cottontail.utilities.extensions.write
 import java.nio.channels.FileLock
@@ -49,8 +48,7 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000, private val preAll
     override fun read(pageId: PageId, page: DataPage) {
         this.closeLock.read {
             check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to read data (file: ${this.path})." }
-            this.fileChannel.read(page.buffer, this.pageIdToOffset(pageId))
-            page.buffer.clear()
+            page.read(this.fileChannel, this.pageIdToOffset(pageId))
         }
     }
 
@@ -64,7 +62,7 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000, private val preAll
         this.closeLock.read {
             check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to read data (file: ${this.path})." }
             val locks = Array(pages.size) { pages[it].lock.writeLock() }
-            val buffers = Array(pages.size) { pages[it].buffer }
+            val buffers = Array(pages.size) { pages[it].buffer.clear() }
             this.fileChannel.position(this.pageIdToOffset(pageId))
             this.fileChannel.read(buffers)
             locks.indices.forEach { i ->
@@ -83,10 +81,7 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000, private val preAll
     override fun update(pageId: PageId, page: DataPage) {
         this.closeLock.read {
             check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to write data (file: ${this.path})." }
-            page.lock.exclusive {
-                this.fileChannel.write(page.buffer, this.pageIdToOffset(pageId))
-                page.buffer.clear()
-            }
+            page.write(this.fileChannel, this.pageIdToOffset(pageId))
         }
     }
 
@@ -103,15 +98,18 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000, private val preAll
         check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to write data (file: ${this.path})." }
 
         /* Pre-allocate pages if LongStack is empty. */
-        if (this.freePageStack.size == 0) {
-            val maxPageId = (++this.header.allocatedPages)
-            val preAllocatePageId = maxPageId + this.preAllocatePages
+        if (this.freePageStack.entries == 0) {
+            val nextPageId = this.header.allocatedPages + 1
+            val preAllocatePageId = nextPageId + this.preAllocatePages
             this.fileChannel.write(EMPTY.clear(), (preAllocatePageId + 1) shl this.header.pageShift)
-            for (pageId in preAllocatePageId..maxPageId) {
+            for (pageId in preAllocatePageId downTo nextPageId) {
                 this.freePageStack.offer(pageId)
             }
         }
+
+        /* Allocate PageId. */
         val newPageId = this.freePageStack.pop()
+        this.header.allocatedPages += 1
 
         /* Flush Header and LongStack. */
         this.header.write(this.fileChannel, OFFSET_HEADER)

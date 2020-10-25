@@ -6,20 +6,20 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
+import org.vitrivr.cottontail.TestConstants
 import org.vitrivr.cottontail.storage.basics.Units
-import org.vitrivr.cottontail.storage.engine.hare.disk.DataPage
 import org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectDiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
 import java.nio.ByteBuffer
 import java.nio.file.Files
-import java.nio.file.Paths
 import java.util.*
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
 import kotlin.time.measureTime
 
 class DirectDiskManagerTest {
-    val path = Paths.get("./test-direct-diskmgr-db.hare")
+    val path = TestConstants.testDataPath.resolve("test-direct-diskmgr-db.hare")
 
     var manager: DirectDiskManager? = null
 
@@ -32,7 +32,7 @@ class DirectDiskManagerTest {
     @BeforeEach
     fun beforeEach() {
         DiskManager.create(this.path, pageShift)
-        this.manager = DirectDiskManager(path = this.path, preAllocatePages = 1)
+        this.manager = DirectDiskManager(path = this.path, preAllocatePages = 0)
     }
 
     @AfterEach
@@ -45,7 +45,7 @@ class DirectDiskManagerTest {
     fun testCreationAndLoading() {
         assertEquals(this.path, this.manager!!.path)
         assertEquals(0, this.manager!!.pages)
-        assertEquals(DiskManager.SIZE_HEADER, this.manager!!.size.value.toInt())
+        assertEquals(this.manager!!.pageSize, this.manager!!.size.value.toInt())
         assertTrue(this.manager!!.validate())
     }
 
@@ -103,7 +103,7 @@ class DirectDiskManagerTest {
         for (i in newData.indices) {
             updateTime += measureTime {
                 page.putBytes(0, newData[i])
-                this.manager!!.update(i.toLong(), page)
+                this.manager!!.update(i + 1L, page)
             }
             assertArrayEquals(newData[i], page.getBytes(0))
         }
@@ -126,7 +126,7 @@ class DirectDiskManagerTest {
         var readTime = Duration.ZERO
         for (i in ref.indices) {
             readTime += measureTime {
-                this.manager!!.read(i.toLong(), page)
+                this.manager!!.read(i + 1L, page)
             }
             assertArrayEquals(ref[i], page.getBytes(0))
         }
@@ -147,7 +147,7 @@ class DirectDiskManagerTest {
         var readTime = Duration.ZERO
         for (i in ref.indices step 4) {
             readTime += measureTime {
-                this.manager!!.read(i.toLong(), arrayOf(page1, page2, page3, page4))
+                this.manager!!.read(i + 1L, arrayOf(page1, page2, page3, page4))
             }
             assertArrayEquals(ref[i], page1.getBytes(0))
             assertArrayEquals(ref[i+1], page2.getBytes(0))
@@ -176,9 +176,9 @@ class DirectDiskManagerTest {
         for (i in data.indices) {
             writeTime += measureTime {
                 page.putBytes(0, data[i])
-                this.manager!!.allocate(page)
+                this.manager!!.update(this.manager!!.allocate(), page)
             }
-            assertEquals(this.manager!!.pages, i+1L)
+            assertEquals(i + 1L, this.manager!!.pages)
         }
 
         val diskSize = this.manager!!.size `in` Units.MEGABYTE

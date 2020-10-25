@@ -15,7 +15,7 @@ import java.nio.channels.FileChannel
  * @version 1.1.0
  * @author Ralph Gasser
  */
-class Header(override val buffer: ByteBuffer) : View {
+class Header(val direct: Boolean = false) : View {
     companion object {
         /** Constants. */
 
@@ -24,6 +24,11 @@ class Header(override val buffer: ByteBuffer) : View {
 
         /** Identifier of every HARE file. */
         private val FILE_HEADER_IDENTIFIER = charArrayOf('H', 'A', 'R', 'E')
+
+        /** Sizes. */
+
+        /** Size of the HARE page file header in bytes. */
+        const val SIZE = 128
 
         /** Offsets. */
 
@@ -49,6 +54,13 @@ class Header(override val buffer: ByteBuffer) : View {
 
         /** Mask for consistency flag in in this [DiskManager.Header]. */
         const val HEADER_MASK_CONSISTENCY_OK = 1L shl 0
+    }
+
+    /** The [ByteBuffer] that backs this [Header]. */
+    override val buffer: ByteBuffer = if (this.direct) {
+        ByteBuffer.allocate(SIZE)
+    } else {
+        ByteBuffer.allocateDirect(SIZE)
     }
 
     /** Type of the file containing this [Header] (must be [FileType.DEFAULT]). */
@@ -156,11 +168,4 @@ class Header(override val buffer: ByteBuffer) : View {
         channel.write(this.buffer.rewind(), position)
         return this
     }
-
-    /**
-     * Creates and returns a copy of this [Header].
-     *
-     * @return Copy of this [Header]
-     */
-    fun copy(): Header = Header(ByteBuffer.allocateDirect(this.buffer.capacity()).put(this.buffer.rewind()))
 }

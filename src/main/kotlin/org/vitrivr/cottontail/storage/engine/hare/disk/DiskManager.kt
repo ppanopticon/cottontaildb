@@ -40,18 +40,13 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
         /** [ByteBuffer] containing a 0 byte. */
         val EMPTY: ByteBuffer = ByteBuffer.allocateDirect(1)
 
-        /** Sizes */
-
-        /** Size of the HARE page file header in bytes. */
-        const val SIZE_HEADER = 128
-
         /** Offsets. */
 
         /** Offset into the [DiskManager] file to access the header.*/
         const val OFFSET_HEADER = 0L
 
         /** The offset into the [DiskManager] file to get the [LongStack] for free pages. */
-        const val OFFSET_FREE_PAGE_STACK = SIZE_HEADER.toLong()
+        const val OFFSET_FREE_PAGE_STACK = Header.SIZE.toLong()
 
         /**
          * Creates a new page file in the HARE format.
@@ -61,8 +56,8 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
         fun create(path: Path, pageShift: Int = 18) {
             /* Prepare header data for page file in the HARE format. */
             val pageSize = 1 shl pageShift
-            val header = Header(ByteBuffer.allocateDirect(SIZE_HEADER)).init(pageShift)
-            val stack = LongStack(ByteBuffer.allocateDirect(pageSize - SIZE_HEADER)).init()
+            val header = Header(true).init(pageShift)
+            val stack = LongStack(ByteBuffer.allocateDirect(pageSize - Header.SIZE)).init()
 
             /* Create parent directories. */
             if (Files.notExists(path.parent)) {
@@ -84,10 +79,10 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
     protected val fileLock = FileUtilities.acquireFileLock(this.fileChannel, this.lockTimeout)
 
     /** Reference to the [Header] of the HARE file managed by this [DiskManager]. */
-    protected val header = Header(ByteBuffer.allocateDirect(SIZE_HEADER)).read(this.fileChannel, OFFSET_HEADER)
+    protected val header = Header(true).read(this.fileChannel, OFFSET_HEADER)
 
     /** Reference to the [LongStack] of the HARE file managed by this [DiskManager]. */
-    protected val freePageStack: LongStack = LongStack(ByteBuffer.allocateDirect(pageSize - SIZE_HEADER)).read(this.fileChannel, OFFSET_FREE_PAGE_STACK)
+    protected val freePageStack: LongStack = LongStack(ByteBuffer.allocateDirect(this.pageSize - Header.SIZE)).read(this.fileChannel, OFFSET_FREE_PAGE_STACK)
 
     /** A [ReentrantReadWriteLock] that mediates access to the closed state of this [DiskManager]. */
     protected val closeLock = StampedLock()

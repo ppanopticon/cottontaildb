@@ -1,7 +1,7 @@
 package org.vitrivr.cottontail.storage.engine.hare.disk.structures
 
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
-import org.vitrivr.cottontail.storage.engine.hare.disk.wal.WALEntry
+import org.vitrivr.cottontail.storage.engine.hare.basics.View
 import org.vitrivr.cottontail.utilities.extensions.exclusive
 import org.vitrivr.cottontail.utilities.extensions.shared
 import java.nio.ByteBuffer
@@ -14,7 +14,7 @@ import java.util.concurrent.locks.StampedLock
  *
  * @see org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
  *
- * @version 1.3.0
+ * @version 1.3.1
  * @author Ralph Gasser
  */
 open class DataPage(override val buffer: ByteBuffer) : Page {
@@ -304,7 +304,7 @@ open class DataPage(override val buffer: ByteBuffer) : Page {
     }
 
     /**
-     * Reads the content of this [WALEntry] from disk.
+     * Reads the content of this [DataPage] from the given [FileChannel].
      *
      * @param channel The [FileChannel] to read from.
      * @param position The position in the [FileChannel] to write to.
@@ -315,13 +315,34 @@ open class DataPage(override val buffer: ByteBuffer) : Page {
     }
 
     /**
-     * Writes the content of this [WALEntry] to disk.
+     * Reads the content of this [DataPage] from the given [FileChannel].
+     *
+     * @param channel The [FileChannel] to read from.
+     * @param position The position in the [FileChannel] to write to.
+     */
+    override fun read(channel: FileChannel): DataPage = this.lock.exclusive {
+        channel.read(this.buffer.clear())
+        return this
+    }
+
+    /**
+     * Writes the content of this [DataPage] to the given [FileChannel].
      *
      * @param channel The [FileChannel] to write to.
      * @param position The position in the [FileChannel] to write to.
      */
     override fun write(channel: FileChannel, position: Long): DataPage = this.lock.shared {
         channel.write(this.buffer.clear(), position)
+        return this
+    }
+
+    /**
+     * Writes the content of this [DataPage] to the given [FileChannel].
+     *
+     * @param channel The [FileChannel] to write to.
+     */
+    override fun write(channel: FileChannel): View {
+        channel.write(this.buffer.clear())
         return this
     }
 }

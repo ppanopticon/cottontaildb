@@ -70,19 +70,27 @@ class LongStack(override val buffer: ByteBuffer) : View {
     }
 
     /**
-     * Reads the content of this [LongStack] from disk.
+     * Reads the content of this [LongStack] from the given [FileChannel].
      *
      * @param channel The [FileChannel] to read from.
+     * @param position The position within the [FileChannel] to read at.
      * @return This [LongStack]
      */
     override fun read(channel: FileChannel, position: Long): LongStack {
         channel.read(this.buffer.rewind(), position)
+        this.validate()
+        return this
+    }
 
-        /* Prepare buffer to read. */
-        this.buffer.flip()
-
-        /* Make necessary check on reading. */
-        require(this.buffer.int >= 0) { DataCorruptionException("Negative size for LongStack detected.") }
+    /**
+     * Reads the content of this [LongStack] from the given [FileChannel].
+     *
+     * @param channel The [FileChannel] to read from.
+     * @return This [LongStack]
+     */
+    override fun read(channel: FileChannel): View {
+        channel.read(this.buffer.rewind())
+        this.validate()
         return this
     }
 
@@ -90,10 +98,33 @@ class LongStack(override val buffer: ByteBuffer) : View {
      * Writes the content of this [LongStack] to disk.
      *
      * @param channel The [FileChannel] to write to.
+     * @param position The position within the [FileChannel] to write to.
      * @return This [LongStack]
      */
     override fun write(channel: FileChannel, position: Long): LongStack {
         channel.write(this.buffer.rewind(), position)
         return this
+    }
+
+    /**
+     * Writes the content of this [LongStack] to the given [FileChannel].
+     *
+     * @param channel The [FileChannel] to write to.
+     * @return This [LongStack]
+     */
+    override fun write(channel: FileChannel): View {
+        channel.write(this.buffer.rewind())
+        return this
+    }
+
+    /**
+     * Validates this [LongStack].
+     */
+    private fun validate() {
+        /* Prepare buffer to read. */
+        this.buffer.rewind()
+
+        /* Make necessary check on reading. */
+        require(this.buffer.int >= 0) { DataCorruptionException("Negative size for LongStack detected.") }
     }
 }

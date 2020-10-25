@@ -2,9 +2,7 @@ package org.vitrivr.cottontail.storage.engine.hare.disk.wal
 
 import org.vitrivr.cottontail.storage.engine.hare.DataCorruptionException
 import org.vitrivr.cottontail.storage.engine.hare.basics.View
-import org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.FileType
-import org.vitrivr.cottontail.storage.engine.hare.disk.Header
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 
@@ -12,13 +10,13 @@ import java.nio.channels.FileChannel
  * A view on the header section of a [WriteAheadLog] file.
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.0.1
  */
 class WALHeader : View {
 
     companion object {
         /** Size of this HARE WAL file header. */
-        const val SIZE = 1
+        const val SIZE = 128
 
         /** Version of the HARE WAL file. */
         const val WAL_VERSION = 1
@@ -48,7 +46,7 @@ class WALHeader : View {
 
         /** Masks. */
 
-        /** Mask for consistency flag in in this [DiskManager.Header]. */
+        /** Mask for consistency flag in in this [WALHeader]. */
         const val HEADER_MASK_CONSISTENCY_OK = 1L shl 0
     }
 
@@ -108,15 +106,57 @@ class WALHeader : View {
     }
 
     /**
-     * Reads the content of this [WALHeader] from disk.
+     * Reads the content of this [WALHeader] from the given [FileChannel].
      *
      * @param channel The [FileChannel] to read from.
      * @param position The position in the [FileChannel] to write to.
      */
     override fun read(channel: FileChannel, position: Long): WALHeader {
         channel.read(this.buffer.rewind(), position)
+        this.validate()
+        return this
+    }
 
-        /** Make necessary check on reading. */
+    /**
+     * Reads the content of this [WALHeader] from the given [FileChannel].
+     *
+     * @param channel The [FileChannel] to read from.
+     */
+    override fun read(channel: FileChannel): View {
+        channel.read(this.buffer.rewind())
+        this.validate()
+        return this
+    }
+
+    /**
+     * Writes the content of this [WALHeader] to the given [FileChannel].
+     *
+     * @param channel The [FileChannel] to write to.
+     * @param position The position in the [FileChannel] to write to.
+     */
+    override fun write(channel: FileChannel, position: Long): WALHeader {
+        channel.write(this.buffer.rewind(), position)
+        return this
+    }
+
+    /**
+     * Writes the content of this [WALHeader] to the given [FileChannel].
+     *
+     * @param channel The [FileChannel] to write to.
+     */
+    override fun write(channel: FileChannel): View {
+        channel.write(this.buffer.rewind())
+        return this
+    }
+
+    /**
+     * Validates this [WALHeader]
+     */
+    private fun validate() {
+        /* Prepare buffer to read. */
+        this.buffer.rewind()
+
+        /* Make necessary check on reading. */
         if (this.buffer.char != FILE_HEADER_IDENTIFIER[0]) {
             throw DataCorruptionException("HARE identifier missing in HARE WAL file.")
         }
@@ -144,17 +184,5 @@ class WALHeader : View {
         }
 
         /* ToDo: CRC32 check. */
-        return this
-    }
-
-    /**
-     * Writes the content of this [WALHeader] to disk.
-     *
-     * @param channel The [FileChannel] to write to.
-     * @param position The position in the [FileChannel] to write to.
-     */
-    override fun write(channel: FileChannel, position: Long): WALHeader {
-        channel.write(this.buffer.rewind(), position)
-        return this
     }
 }

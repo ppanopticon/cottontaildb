@@ -12,7 +12,7 @@ import java.nio.channels.FileChannel
  *
  * @see org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
  *
- * @version 1.1.0
+ * @version 1.1.1
  * @author Ralph Gasser
  */
 class Header(val direct: Boolean = false) : View {
@@ -132,7 +132,7 @@ class Header(val direct: Boolean = false) : View {
     }
 
     /**
-     * Reads the content of this [Header] from disk.
+     * Reads the content of this [Header] from the given [FileChannel].
      *
      * @param channel The [FileChannel] to read from.
      * @param position The position in the [FileChannel] to write to.
@@ -140,7 +140,49 @@ class Header(val direct: Boolean = false) : View {
      */
     override fun read(channel: FileChannel, position: Long): Header {
         channel.read(this.buffer.rewind(), position)
+        this.validate()
+        return this
+    }
 
+    /**
+     * Reads the content of this [Header] from the given [FileChannel].
+     *
+     * @param channel The [FileChannel] to read from.
+     * @return This [Header]
+     */
+    override fun read(channel: FileChannel): Header {
+        channel.read(this.buffer.rewind())
+        this.validate()
+        return this
+    }
+
+    /**
+     * Writes the content of this [Header] to the given [FileChannel].
+     *
+     * @param channel The [FileChannel] to write to.
+     * @param position The position in the [FileChannel] to write to.
+     * @return This [Header]
+     */
+    override fun write(channel: FileChannel, position: Long): Header {
+        channel.write(this.buffer.rewind(), position)
+        return this
+    }
+
+    /**
+     * Writes the content of this [Header] to the given [FileChannel].
+     *
+     * @param channel The [FileChannel] to write to.
+     * @return This [Header]
+     */
+    override fun write(channel: FileChannel): View {
+        channel.write(this.buffer.rewind())
+        return this
+    }
+
+    /**
+     * Validates this [Header].
+     */
+    private fun validate() {
         /* Prepare buffer to read. */
         this.buffer.rewind()
 
@@ -154,18 +196,5 @@ class Header(val direct: Boolean = false) : View {
         require(this.buffer.int >= 10) { DataCorruptionException("Page shift mismatch in HARE page file.") }
         this.buffer.long
         require(this.buffer.long >= 0) { DataCorruptionException("Negative number of allocated pages found in HARE page file.") }
-        return this
-    }
-
-    /**
-     * Writes the content of this [Header] to disk.
-     *
-     * @param channel The [FileChannel] to write to.
-     * @param position The position in the [FileChannel] to write to.
-     * @return This [Header]
-     */
-    override fun write(channel: FileChannel, position: Long): Header {
-        channel.write(this.buffer.rewind(), position)
-        return this
     }
 }

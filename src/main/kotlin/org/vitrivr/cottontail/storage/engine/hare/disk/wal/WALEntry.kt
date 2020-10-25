@@ -9,7 +9,7 @@ import java.nio.channels.FileChannel
  * A view on the entry of a [WriteAheadLog] file.
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.0.1
  */
 class WALEntry : View {
 
@@ -64,7 +64,7 @@ class WALEntry : View {
         }
 
     /**
-     * Reads the content of this [WALEntry] from disk.
+     * Reads the content of this [WALEntry] from the given [FileChannel].
      *
      * @param channel The [FileChannel] to read from.
      * @param position The position in the [FileChannel] to write to.
@@ -75,13 +75,34 @@ class WALEntry : View {
     }
 
     /**
-     * Writes the content of this [WALEntry] to disk.
+     * Reads the content of this [WALEntry] from the given [FileChannel].
+     *
+     * @param channel The [FileChannel] to read from.
+     */
+    override fun read(channel: FileChannel): View {
+        channel.read(this.buffer.rewind())
+        return this
+    }
+
+    /**
+     * Writes the content of this [WALEntry] to the given [FileChannel].
      *
      * @param channel The [FileChannel] to write to.
      * @param position The position in the [FileChannel] to write to.
      */
     override fun write(channel: FileChannel, position: Long): WALEntry {
         channel.write(this.buffer.rewind(), position)
+        return this
+    }
+
+    /**
+     * Writes the content of this [WALEntry] to the given [FileChannel].
+     *
+     * @param channel The [FileChannel] to write to.
+     * @param position The position in the [FileChannel] to write to.
+     */
+    override fun write(channel: FileChannel): View {
+        channel.write(this.buffer.rewind())
         return this
     }
 }

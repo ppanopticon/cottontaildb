@@ -7,7 +7,7 @@ import java.nio.channels.FileChannel
  * A view on a [ByteBuffer] which allows for easier access as well as interaction with [FileChannels].
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.0.1
  */
 interface View {
     /** The [ByteBuffer] referenced by this [View]. */
@@ -26,10 +26,25 @@ interface View {
     fun read(channel: FileChannel, position: Long): View
 
     /**
-     * Writes the content of this [View] to disk.
+     * Reads the content of this [View] from the given [FileChannel]. That [FileChannel]'s
+     * position is changed by the action.
+     *
+     * @param channel The [FileChannel] to read from.
+     */
+    fun read(channel: FileChannel): View
+
+    /**
+     * Writes the content of this [View] to the given [FileChannel].
      *
      * @param channel The [FileChannel] to write to.
-     * @param position The position in the [FileChannel] to write to.
      */
     fun write(channel: FileChannel, position: Long): View
+
+    /**
+     * Writes the content of this [View] the given [FileChannel]. That [FileChannel]'s
+     * position is changed by the action.
+     *
+     * @param channel The [FileChannel] to write to.
+     */
+    fun write(channel: FileChannel): View
 }

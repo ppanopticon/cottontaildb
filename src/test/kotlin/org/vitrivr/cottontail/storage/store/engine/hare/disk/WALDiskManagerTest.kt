@@ -6,20 +6,20 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
+import org.vitrivr.cottontail.TestConstants
 import org.vitrivr.cottontail.storage.basics.Units
-import org.vitrivr.cottontail.storage.engine.hare.disk.DataPage
 import org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectDiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
 import org.vitrivr.cottontail.storage.engine.hare.disk.wal.WALDiskManager
 import java.nio.ByteBuffer
-import java.nio.file.Paths
 import java.util.*
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
 import kotlin.time.measureTime
 
 class WALDiskManagerTest {
-    val path = Paths.get("./test-wal-diskmgr-db.hare")
+    val path = TestConstants.testDataPath.resolve("test-direct-diskmgr-db.hare")
 
     var manager: WALDiskManager? = null
 
@@ -65,7 +65,7 @@ class WALDiskManagerTest {
      * Appends [DataPage]s of random bytes and checks, if those [DataPage]s' content remains the same after reading.
      */
     @ExperimentalTime
-    @ParameterizedTest(name="WALDiskManager (Append / Commit / Close / Read): pageSize={0}")
+    @ParameterizedTest(name = "WALDiskManager (Append / Commit / Close / Read): pages={0}")
     @ValueSource(ints = [5000, 10000, 20000, 50000, 100000])
     fun testPersistence(size: Int) {
         val data = this.initWithData(size)
@@ -83,7 +83,7 @@ class WALDiskManagerTest {
      * Updates [DataPage]s with random bytes and checks, if those [DataPage]s' content remains the same after reading.
      */
     @ExperimentalTime
-    @ParameterizedTest(name="WALDiskManager (Append / Commit / Update / Commit / Read): pageSize={0}")
+    @ParameterizedTest(name = "WALDiskManager (Append / Commit / Update / Commit / Read): pages={0}")
     @ValueSource(ints = [5000, 10000, 20000, 50000, 100000])
     fun testUpdateWithCommit(size: Int) {
         val page = DataPage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
@@ -116,7 +116,7 @@ class WALDiskManagerTest {
      * Appends [DataPage]s of random bytes and checks, if those [DataPage]s' content remains the same after reading.
      */
     @ExperimentalTime
-    @ParameterizedTest(name="WALDiskManager (Append / Commit / Update / Rollback / Read): pageSize={0}")
+    @ParameterizedTest(name = "WALDiskManager (Append / Commit / Update / Rollback / Read): pages={0}")
     @ValueSource(ints = [5000, 10000, 20000, 50000, 100000])
     fun testUpdateWithRollback(size: Int) {
         val page = DataPage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
@@ -205,7 +205,8 @@ class WALDiskManagerTest {
         for (i in data.indices) {
             page.putBytes(0, data[i])
             writeTime += measureTime {
-                this.manager!!.allocate(page)
+                val pageId = this.manager!!.allocate()
+                this.manager!!.update(pageId, page)
             }
         }
 

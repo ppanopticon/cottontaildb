@@ -3,15 +3,14 @@ package org.vitrivr.cottontail.storage.engine.hare.disk.wal
 import org.vitrivr.cottontail.storage.engine.hare.DataCorruptionException
 import org.vitrivr.cottontail.storage.engine.hare.PageId
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
-import org.vitrivr.cottontail.storage.engine.hare.disk.DataPage
 import org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
-import org.vitrivr.cottontail.storage.engine.hare.disk.LongStack
 import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectDiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.LongStack
 import org.vitrivr.cottontail.utilities.extensions.exclusive
 import org.vitrivr.cottontail.utilities.extensions.read
 import org.vitrivr.cottontail.utilities.extensions.shared
 import org.vitrivr.cottontail.utilities.extensions.write
-import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.channels.FileLock
 import java.nio.file.Files
@@ -139,31 +138,53 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000, private val preAlloca
      */
     override fun commit(): Unit = useExclusiveWAL {
         val pageSizeLong = this.pageSize.toLong()
-        it.replay { entry, channel, position ->
+        it.replay { entry, channel ->
             when (entry.action) {
-                WALAction.UPDATE -> this.fileChannel.transferFrom(channel, this.pageIdToOffset(entry.pageId), pageSizeLong)
+                WALAction.UPDATE -> {
+                    this.fileChannel.transferFrom(channel, this.pageIdToOffset(entry.pageId), pageSizeLong)
+                }
                 WALAction.ALLOCATE_REUSE -> {
                     val reusePageId = this.freePageStack.pop()
-                    require(reusePageId == entry.pageId) { "Failed to commit. The reused page ID $reusePageId does not match the expected page ID ${entry.pageId} (file: ${this.path}, pages: ${this.pages})."  }
+                    require(reusePageId == entry.pageId) { "Failed to commit. The reused page ID $reusePageId does not match the expected page ID ${entry.pageId} (file: ${this.path}, pages: ${this.pages})." }
+
+                    /* Write changes to disk. */
+                    this.freePageStack.write(this.fileChannel, OFFSET_FREE_PAGE_STACK)
                 }
                 WALAction.ALLOCATE_APPEND -> {
-                    /* Default case; page has not been allocated yet */
-                    if (id - 1 == this.header.allocatedPages) {
-                        this.header.allocatedPages += this.preAllocatePages
-                        this.header.flush()
-                        this.fileChannel.write(ByteBuffer.allocate(1), (this.header.allocatedPages + this.preAllocatePages) shl this.header.pageShift)
+                    val newPageId = (++this.header.allocatedPages)
+                    val preAllocatePageId = newPageId + this.preAllocatePages
+                    require(newPageId == entry.pageId) { "Failed to commit. The new page ID $newPageId does not match the expected page ID ${entry.pageId} (file: ${this.path}, pages: ${this.pages})." }
+                    for (pageId in preAllocatePageId..newPageId) {
+                        this.freePageStack.offer(pageId)
                     }
-                    this.fileChannel.transferFrom(b, this.pageIdToOffset(id), pageSizeLong)
+
+                    /* Write changes to disk. */
+                    this.header.write(this.fileChannel, OFFSET_HEADER)
+                    this.freePageStack.write(this.fileChannel, OFFSET_FREE_PAGE_STACK)
+                    this.fileChannel.write(EMPTY.clear(), (preAllocatePageId + 1) shl this.header.pageShift)
                 }
-                WALAction.FREE -> TODO()
+                WALAction.FREE_REUSE -> {
+                    this.freePageStack.offer(entry.pageId)
+
+                    /* Write changes to disk. */
+                    this.freePageStack.write(this.fileChannel, OFFSET_FREE_PAGE_STACK)
+                }
+                WALAction.FREE_TRUNCATE -> {
+                    this.header.allocatedPages -= 1
+
+                    /* Write changes to disk. */
+                    this.fileChannel.truncate((this.header.allocatedPages + 1) shl this.header.pageShift)
+                    this.header.write(this.fileChannel, OFFSET_HEADER)
+                }
             }
             true
         }
 
-        /* Update file header. */
+        /* Update file header and force all data to disk. */
         this.header.isConsistent = true
         this.header.checksum = this.calculateChecksum()
-        this.header.flush()
+        this.header.write(this.fileChannel, OFFSET_HEADER)
+        this.fileChannel.force(true)
 
         /** Delete WAL. */
         it.close()
@@ -177,7 +198,8 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000, private val preAlloca
     override fun rollback() = useExclusiveWAL {
         /* Update file header. */
         this.header.isConsistent = true
-        this.header.flush()
+        this.header.write(this.fileChannel, OFFSET_HEADER)
+        this.fileChannel.force(true)
 
         /** Delete WAL. */
         it.close()
@@ -228,9 +250,7 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000, private val preAlloca
                         this.header.write(this.fileChannel, OFFSET_HEADER)
 
                         /* Generate WriteAheadLogFile. */
-                        val walPath = this.path.parent.resolve("${this.path.fileName}.wal")
-                        WriteAheadLog.create(walPath, this.pages, this.pageShift)
-                        this.wal = WriteAheadLog(walPath, this.lockTimeout)
+                        this.wal = WriteAheadLog.create(this)
                     }
                 }
                 return action(this.wal!!)

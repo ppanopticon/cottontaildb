@@ -5,6 +5,7 @@ import org.vitrivr.cottontail.storage.engine.hare.Address
 import org.vitrivr.cottontail.storage.engine.hare.PageId
 import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnFile.FixedHareCursor
 import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
+import org.vitrivr.cottontail.storage.engine.hare.buffer.Priority
 import org.vitrivr.cottontail.storage.engine.hare.views.DirectoryPageView
 import org.vitrivr.cottontail.storage.engine.hare.views.Flags
 import java.lang.Long
@@ -107,10 +108,9 @@ class DirectoryCursor(private val bufferPool: BufferPool) : AutoCloseable {
             val newDirectoryPageId = Long.max(this.headerView.allocationPageId, this.headerView.lastDirectoryPageId) + 1L
             var tupleId = -1L
             if (newDirectoryPageId >= this.bufferPool.totalPages) {
-                val page = this.bufferPool.detach()
+                val page = this.bufferPool.get(this.bufferPool.append(), Priority.LOW)
                 val view = DirectoryPageView().initializeAndWrap(page, this.pageId, this.lastTupleId + 1)
                 tupleId = view.allocate(flags, address)
-                this.bufferPool.append(page)
                 page.release()
             } else {
                 val page = this.bufferPool.get(newDirectoryPageId)

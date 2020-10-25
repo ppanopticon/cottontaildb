@@ -5,7 +5,7 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.storage.engine.hare.Address
-import org.vitrivr.cottontail.storage.engine.hare.disk.DataPage
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
 import org.vitrivr.cottontail.storage.engine.hare.views.DirectoryPageView
 import org.vitrivr.cottontail.storage.engine.hare.views.Flags
 import java.nio.ByteBuffer

@@ -14,9 +14,9 @@ import org.vitrivr.cottontail.storage.engine.hare.basics.PageRef
 import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
 import org.vitrivr.cottontail.storage.engine.hare.buffer.Priority
 import org.vitrivr.cottontail.storage.engine.hare.buffer.eviction.EvictionPolicy
-import org.vitrivr.cottontail.storage.engine.hare.disk.DataPage
 import org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectDiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
 import org.vitrivr.cottontail.storage.engine.hare.disk.wal.WALDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.serializer.Serializer
 import org.vitrivr.cottontail.storage.engine.hare.toPageId
@@ -65,15 +65,15 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSi
             /** Allocate file header page. */
             val page = DataPage(ByteBuffer.allocate(manager.pageSize))
             HeaderPageView().initializeAndWrap(page, columnDef)
-            manager.allocate(page)
+            manager.update(manager.allocate(), page)
 
             /** Allocate first directory page. */
             DirectoryPageView().initializeAndWrap(page.clear(), DirectoryPageView.NO_REF, 0L)
-            manager.update(ROOT_DIRECTORY_PAGE_ID, page)
+            manager.update(manager.allocate(), page)
 
             /** Allocate first slotted page. */
             SlottedPageView().initializeAndWrap(page.clear())
-            manager.update(ROOT_ALLOCATION_PAGE_ID, page)
+            manager.update(manager.allocate(), page)
 
             /** Close manager. */
             manager.close()
@@ -331,8 +331,7 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSi
                 allocationPage.release()
                 allocationPageId = max(this.headerView.allocationPageId, this.headerView.lastDirectoryPageId) + 1L
                 if (allocationPageId >= this.bufferPool.totalPages) {
-                    allocationPage = this.bufferPool.detach()
-                    allocationPageId = this.bufferPool.append(allocationPage)
+                    allocationPageId = this.bufferPool.append()
                     allocationPage.release()
                 }
                 allocationPage = this.bufferPool.get(allocationPageId)

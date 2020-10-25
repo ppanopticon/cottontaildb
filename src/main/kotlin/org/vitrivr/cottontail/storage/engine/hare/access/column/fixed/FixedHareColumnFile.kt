@@ -14,9 +14,9 @@ import org.vitrivr.cottontail.storage.engine.hare.basics.PageRef
 import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
 import org.vitrivr.cottontail.storage.engine.hare.buffer.Priority
 import org.vitrivr.cottontail.storage.engine.hare.buffer.eviction.EvictionPolicy
-import org.vitrivr.cottontail.storage.engine.hare.disk.DataPage
 import org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectDiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
 import org.vitrivr.cottontail.storage.engine.hare.disk.wal.WALDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.serializer.Serializer
 import org.vitrivr.cottontail.utilities.extensions.exclusive
@@ -70,10 +70,12 @@ class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize:
             /** Allocate file header page. */
             val page = DataPage(ByteBuffer.allocate(manager.pageSize))
             HeaderPageView().initializeAndWrap(page, columnDef)
-            manager.allocate(page)
+
+            /* Allocate header page. */
+            manager.update(manager.allocate(), page)
 
             /** Allocate first data page. */
-            manager.allocate(page.clear())
+            manager.update(manager.allocate(), page.clear())
             manager.close()
         }
 
@@ -389,15 +391,15 @@ class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize:
             val pageId = address.toPageId()
             val slotId = address.toSlotId()
             val offset = slotId * this.header.entrySize
-            if (pageId >= this.bufferPool.totalPages) {
+            if (pageId > this.bufferPool.totalPages) {
                 /* Case 1: Data goes on new pages. */
-                val page = this.bufferPool.detach()
+                this.bufferPool.append()
+                val page = this.bufferPool.get(pageId)
                 try {
                     if (value != null) {
                         page.putLong(offset, 0L)
                         this.serializer.serialize(page, offset + ENTRY_HEADER_SIZE, value)
                     }
-                    this.bufferPool.append(page)
                 } finally {
                     page.release()
                 }

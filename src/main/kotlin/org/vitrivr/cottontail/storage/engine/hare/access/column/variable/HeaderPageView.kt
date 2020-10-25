@@ -7,7 +7,7 @@ import org.vitrivr.cottontail.storage.engine.hare.PageId
 import org.vitrivr.cottontail.storage.engine.hare.access.column.variable.VariableHareColumnFile.Companion.ROOT_ALLOCATION_PAGE_ID
 import org.vitrivr.cottontail.storage.engine.hare.access.column.variable.VariableHareColumnFile.Companion.ROOT_DIRECTORY_PAGE_ID
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
-import org.vitrivr.cottontail.storage.engine.hare.disk.DataPage
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
 import org.vitrivr.cottontail.storage.engine.hare.views.AbstractPageView
 import org.vitrivr.cottontail.storage.engine.hare.views.DirectoryPageView
 import org.vitrivr.cottontail.storage.engine.hare.views.ViewConstants

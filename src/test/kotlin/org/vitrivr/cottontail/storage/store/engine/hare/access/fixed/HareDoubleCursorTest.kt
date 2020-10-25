@@ -11,8 +11,8 @@ import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.values.DoubleValue
 import org.vitrivr.cottontail.storage.basics.Units
 import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnFile
-import org.vitrivr.cottontail.storage.engine.hare.disk.DataPage
 import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectDiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
 import java.nio.file.Files
 import java.util.*
 import kotlin.time.Duration

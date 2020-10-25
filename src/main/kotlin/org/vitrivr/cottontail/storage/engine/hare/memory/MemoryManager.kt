@@ -4,7 +4,7 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.vitrivr.cottontail.storage.engine.hare.basics.ReferenceCounted
-import org.vitrivr.cottontail.storage.engine.hare.disk.DataPage
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
 import org.vitrivr.cottontail.utilities.extensions.convertWriteLock
 import org.vitrivr.cottontail.utilities.extensions.write
 import java.nio.ByteBuffer

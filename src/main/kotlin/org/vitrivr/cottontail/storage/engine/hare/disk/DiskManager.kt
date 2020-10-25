@@ -5,6 +5,9 @@ import org.vitrivr.cottontail.storage.basics.Units
 import org.vitrivr.cottontail.storage.engine.hare.PageId
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
 import org.vitrivr.cottontail.storage.engine.hare.basics.Resource
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.Header
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.LongStack
 
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
@@ -178,7 +181,7 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
     fun calculateChecksum(): Long {
         val page = ByteBuffer.allocateDirect(this.header.pageSize)
         val crc32 = CRC32C()
-        for (i in 0L until this.pages) {
+        for (i in 1L until this.pages) {
             this.fileChannel.read(page, this.pageIdToOffset(i))
             crc32.update(page.flip())
         }
@@ -200,7 +203,7 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
      * @return The offset into the file.
      */
     protected fun pageIdToOffset(pageId: PageId): Long {
-        require(pageId > 0 && pageId < this.header.allocatedPages) { "The given page ID $pageId is out of bounds for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
+        require(pageId > 0 && pageId <= this.header.allocatedPages) { "The given page ID $pageId is out of bounds for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
         return pageId shl this.header.pageShift
     }
 }

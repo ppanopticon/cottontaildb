@@ -6,23 +6,23 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
+import org.vitrivr.cottontail.TestConstants
 import org.vitrivr.cottontail.storage.basics.Units
 import org.vitrivr.cottontail.storage.engine.hare.basics.PageRef
 import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
 import org.vitrivr.cottontail.storage.engine.hare.buffer.Priority
 import org.vitrivr.cottontail.storage.engine.hare.buffer.eviction.EvictionPolicy
-import org.vitrivr.cottontail.storage.engine.hare.disk.DataPage
 import org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectDiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
 import java.nio.file.Files
-import java.nio.file.Paths
 import java.util.*
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
 import kotlin.time.measureTime
 
 class BufferPoolTest {
-    val path = Paths.get("./test-bufferpool-db.hare")
+    val path = TestConstants.testDataPath.resolve("test-bufferpool-db.hare")
 
     var _manager: DirectDiskManager? = null
 
@@ -92,9 +92,9 @@ class BufferPoolTest {
         var updateTime = Duration.ZERO
         for (i in newData.indices) {
             updateTime += measureTime {
-                val page = this.pool!!.get(i.toLong())
+                val page = this.pool!!.get(i + 1L)
                 page.putBytes(0, newData[i])
-                Assertions.assertEquals(i.toLong(), page.id)
+                Assertions.assertEquals(i + 1L, page.id)
                 page.release()
             }
         }
@@ -119,11 +119,11 @@ class BufferPoolTest {
         for (i in ref.indices) {
             var page: PageRef?
             readTime += measureTime {
-                page = this.pool!!.get(i.toLong())
+                page = this.pool!!.get(i + 1L)
             }
 
             Assertions.assertArrayEquals(ref[i], page!!.getBytes(0))
-            Assertions.assertEquals(i.toLong(), page!!.id)
+            Assertions.assertEquals(i + 1L, page!!.id)
             page?.release()
         }
         val diskSize = this.pool!!.diskSize `in` Units.MEGABYTE
@@ -144,12 +144,11 @@ class BufferPoolTest {
             bytes
         }
         writeTime += measureTime {
-            val page = this.pool!!.detach()
             for (i in data.indices) {
+                val page = this.pool!!.get(this.pool!!.append())
                 page.putBytes(0, data[i])
-                this.pool!!.append(data = page)
+                page.release()
             }
-            page.release()
         }
 
         /** Flush data to disk. */

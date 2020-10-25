@@ -12,9 +12,9 @@ import org.vitrivr.cottontail.storage.engine.hare.basics.Resource
 import org.vitrivr.cottontail.storage.engine.hare.buffer.eviction.EvictionPolicy
 import org.vitrivr.cottontail.storage.engine.hare.buffer.eviction.EvictionQueue
 import org.vitrivr.cottontail.storage.engine.hare.buffer.eviction.EvictionQueueToken
-import org.vitrivr.cottontail.storage.engine.hare.disk.DataPage
 import org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectDiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
 import org.vitrivr.cottontail.storage.engine.hare.memory.MemoryManager
 import org.vitrivr.cottontail.utilities.extensions.exclusive
 import org.vitrivr.cottontail.utilities.extensions.read

@@ -1,37 +1,39 @@
-package org.vitrivr.cottontail.storage.engine.hare.disk
+package org.vitrivr.cottontail.storage.engine.hare.disk.structures
 
 import org.vitrivr.cottontail.storage.engine.hare.DataCorruptionException
-import org.vitrivr.cottontail.storage.engine.hare.PageId
+import org.vitrivr.cottontail.storage.engine.hare.basics.View
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
-import java.util.*
 
 /**
- * A view on a stack of [Long]s. A data structure used in HARE [DiskManager]s.
+ * A [View] on a stack of [Long]s.
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.1.0
  */
-class LongStack(val buffer: ByteBuffer) {
+class LongStack(override val buffer: ByteBuffer) : View {
 
-    /** Number of freed pages, i.e., size of freed pages stack. */
-    val size: Int
+    /** Number of entries int his [LongStack]. */
+    val entries: Int
         get() = this.buffer.getInt(0)
+
+    /** The total capacity of this [LongStack]. */
+    val capacity: Int = ((this.buffer.capacity() - Int.SIZE_BYTES) / Long.SIZE_BYTES)
 
     /**
      * Offers a [Long] to add to the [LongStack].
      *
-     * @param pageId The [Long] to add to the stack.
+     * @param value The [Long] to add to the stack.
      * @return True, if [Long] could be accepted, false if stack is full.
      */
-    fun offer(pageId: Long): Boolean {
-        val position = this.size
+    fun offer(value: Long): Boolean {
+        val position = this.entries
         val offset = Int.SIZE_BYTES + position * Long.SIZE_BYTES
         if (offset + Long.SIZE_BYTES > this.buffer.capacity()) {
             return false /* Stack of freed pages if full. */
         }
         this.buffer.putInt(0, position + 1)
-        this.buffer.putLong(offset, pageId)
+        this.buffer.putLong(offset, value)
         return true
     }
 
@@ -41,7 +43,7 @@ class LongStack(val buffer: ByteBuffer) {
      * @return The [Long] of the freed page.
      */
     fun pop(): Long {
-        val position = this.size - 1
+        val position = this.entries - 1
         require(position >= 0) { "LongStack is empty." }
         val offset = Int.SIZE_BYTES + position * Long.SIZE_BYTES
         val pageId = this.buffer.getLong(offset)
@@ -55,7 +57,7 @@ class LongStack(val buffer: ByteBuffer) {
      *
      * @return [List] of [Long]s
      */
-    fun toList(): List<Long> = (0 until this.size).map { this.buffer.getLong(Int.SIZE_BYTES + it * Long.SIZE_BYTES) }
+    fun toList(): List<Long> = (0 until this.entries).map { this.buffer.getLong(Int.SIZE_BYTES + it * Long.SIZE_BYTES) }
 
     /**
      * Initializes this [LongStack].
@@ -73,11 +75,14 @@ class LongStack(val buffer: ByteBuffer) {
      * @param channel The [FileChannel] to read from.
      * @return This [LongStack]
      */
-    fun read(channel: FileChannel, position: Long): LongStack {
+    override fun read(channel: FileChannel, position: Long): LongStack {
         channel.read(this.buffer.rewind(), position)
 
-        /** Make necessary check on reading. */
-        require(this.buffer.int >= 0) { DataCorruptionException("Negative size for LongStack detected..") }
+        /* Prepare buffer to read. */
+        this.buffer.flip()
+
+        /* Make necessary check on reading. */
+        require(this.buffer.int >= 0) { DataCorruptionException("Negative size for LongStack detected.") }
         return this
     }
 
@@ -87,7 +92,7 @@ class LongStack(val buffer: ByteBuffer) {
      * @param channel The [FileChannel] to write to.
      * @return This [LongStack]
      */
-    fun write(channel: FileChannel, position: Long): LongStack {
+    override fun write(channel: FileChannel, position: Long): LongStack {
         channel.write(this.buffer.rewind(), position)
         return this
     }

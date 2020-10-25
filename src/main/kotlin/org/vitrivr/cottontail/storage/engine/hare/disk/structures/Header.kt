@@ -1,13 +1,16 @@
-package org.vitrivr.cottontail.storage.engine.hare.disk
+package org.vitrivr.cottontail.storage.engine.hare.disk.structures
 
 import org.vitrivr.cottontail.storage.engine.hare.DataCorruptionException
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
 import org.vitrivr.cottontail.storage.engine.hare.basics.View
+import org.vitrivr.cottontail.storage.engine.hare.disk.FileType
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 
 /**
- * A view on the header section of a [DiskManager].
+ * A view on the header section of a [org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager].
+ *
+ * @see org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
  *
  * @version 1.1.0
  * @author Ralph Gasser
@@ -57,12 +60,14 @@ class Header(override val buffer: ByteBuffer) : View {
         get() = this.buffer.getInt(HEADER_OFFSET_VERSION)
 
     /** The bit shift used to determine the [Page] size of the page file managed by this [DiskManager]. */
-    val pageShift: Int = this.buffer.getInt(HEADER_OFFSET_SIZE)
+    val pageShift: Int
+        get() = this.buffer.getInt(HEADER_OFFSET_SIZE)
 
-    /** The [Page] size of the page file managed by this [DiskManager]. */
-    val pageSize: Int = 1 shl this.pageShift
+    /** The [Page] size of the page file. */
+    val pageSize: Int
+        get() = 1 shl this.pageShift
 
-    /** Flags for this [DiskManager]. */
+    /** Flags set in this [Header]. */
     var flags: Long
         get() = this.buffer.getLong(HEADER_OFFSET_FLAGS)
         set(v) {
@@ -95,7 +100,10 @@ class Header(override val buffer: ByteBuffer) : View {
         }
 
     /**
+     * Initializes this [ByteBuffer] as new [Header].
      *
+     * @param pageShift The [pageShift] constant, which is configurable.
+     * @return This [Header]
      */
     fun init(pageShift: Int): Header {
         this.buffer.putChar(FILE_HEADER_IDENTIFIER[0])             /* 0: Identifier H. */
@@ -116,11 +124,15 @@ class Header(override val buffer: ByteBuffer) : View {
      *
      * @param channel The [FileChannel] to read from.
      * @param position The position in the [FileChannel] to write to.
+     * @return This [Header]
      */
     override fun read(channel: FileChannel, position: Long): Header {
         channel.read(this.buffer.rewind(), position)
 
-        /** Make necessary check on reading. */
+        /* Prepare buffer to read. */
+        this.buffer.rewind()
+
+        /* Make necessary check on reading. */
         require(this.buffer.char == FILE_HEADER_IDENTIFIER[0]) { DataCorruptionException("HARE identifier missing in HARE page file.") }
         require(this.buffer.char == FILE_HEADER_IDENTIFIER[1]) { DataCorruptionException("HARE identifier missing in HARE page file.") }
         require(this.buffer.char == FILE_HEADER_IDENTIFIER[2]) { DataCorruptionException("HARE identifier missing in HARE page file.") }
@@ -138,6 +150,7 @@ class Header(override val buffer: ByteBuffer) : View {
      *
      * @param channel The [FileChannel] to write to.
      * @param position The position in the [FileChannel] to write to.
+     * @return This [Header]
      */
     override fun write(channel: FileChannel, position: Long): Header {
         channel.write(this.buffer.rewind(), position)

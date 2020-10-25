@@ -1,4 +1,4 @@
-package org.vitrivr.cottontail.storage.engine.hare.disk
+package org.vitrivr.cottontail.storage.engine.hare.disk.structures
 
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
 import org.vitrivr.cottontail.storage.engine.hare.disk.wal.WALEntry
@@ -9,10 +9,10 @@ import java.nio.channels.FileChannel
 import java.util.concurrent.locks.StampedLock
 
 /**
- * This is a wrapper for an individual data [DataPage] managed by the HARE storage engine. At their core,
- * [DataPage]s are mere chunks of data  by a [ByteBuffer] with a fixed size= 2^n.
+ * This is a wrapper for an individual data [DataPage] managed by the HARE storage engine. At their
+ * core, [DataPage]s are chunks of data in a [ByteBuffer] with a fixed size= 2^n.
  *
- * @see DiskManager
+ * @see org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
  *
  * @version 1.3.0
  * @author Ralph Gasser

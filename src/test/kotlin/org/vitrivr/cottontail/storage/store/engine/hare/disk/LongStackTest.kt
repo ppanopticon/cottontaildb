@@ -17,11 +17,11 @@ import java.util.*
  */
 class LongStackTest {
     /**
-     * Appends [DataPage]s of random bytes and checks, if those [DataPage]s' content remains the same after reading.
+     * Offers random [Long]s to the [LongStack] and then pops and compares the values.
      */
     @ParameterizedTest()
     @ValueSource(ints = [512, 2048, 4096])
-    fun test(size: Int) {
+    fun testPop(size: Int) {
         val stack = LongStack(ByteBuffer.allocate(size))
         val random = SplittableRandom()
         val list = mutableListOf<Long>()
@@ -40,6 +40,35 @@ class LongStackTest {
         while (stack.entries > 0) {
             Assertions.assertEquals(list[i2], stack.pop())
             i2--
+        }
+    }
+
+    /**
+     * Offers random [Long]s to the [LongStack] and then checks, if [LongStack.contains] returns true for them.
+     */
+    @ParameterizedTest()
+    @ValueSource(ints = [512, 2048, 4096])
+    fun testContains(size: Int) {
+        val stack = LongStack(ByteBuffer.allocate(size))
+        val random = SplittableRandom()
+        val list = mutableListOf<Long>()
+
+        /** Append random values. */
+        var i1 = 0
+        while (stack.entries < stack.capacity) {
+            val next = random.nextLong()
+            list.add(next)
+            Assertions.assertTrue(stack.offer(next))
+            Assertions.assertEquals(stack.entries, ++i1)
+        }
+
+        /** Test positive (i.e. matching) values. */
+        for (v in list) {
+            Assertions.assertTrue(stack.contains(v))
+        }
+        /** Test negative (i.e. non-matching) values. */
+        repeat(10) {
+            Assertions.assertFalse(stack.contains(random.nextLong()))
         }
     }
 

@@ -53,6 +53,21 @@ class LongStack(override val buffer: ByteBuffer) : View {
     }
 
     /**
+     * Returns true, if this [LongStack] contains the given long and false otherwise.
+     *
+     * @param value The [Long] to check.
+     * @return True, if the [LongStack] contains this value.
+     */
+    fun contains(value: Long): Boolean {
+        for (i in 0 until this.entries) {
+            if (this.buffer.getLong(Int.SIZE_BYTES + i * Long.SIZE_BYTES) == value) {
+                return true
+            }
+        }
+        return false
+    }
+
+    /**
      * Converts the current snapshot of this [LongStack] into [List] of [Long].
      *
      * @return [List] of [Long]s

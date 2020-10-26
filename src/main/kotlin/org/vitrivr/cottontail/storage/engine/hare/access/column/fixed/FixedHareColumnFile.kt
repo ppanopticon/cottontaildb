@@ -32,16 +32,16 @@ import java.util.concurrent.locks.StampedLock
  * A HARE column file where each entry has a fixed size and can be directly addressed by a [TupleId].
  *
  * @author Ralph Gasser
- * @param 1.0
+ * @param 1.0.1
  */
 class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize: Int = 5) : AutoCloseable {
 
     /** Companion object with important constants. */
     companion object {
         /** [PageId] of the root [DataPage]. */
-        const val ROOT_PAGE_ID: PageId = 0
+        const val ROOT_PAGE_ID: PageId = 1L
 
-        /** */
+        /** Constant for beginning of file. */
         const val CURSOR_BOF = -1L
 
         /** Size of an entry's header in bytes. */
@@ -168,7 +168,7 @@ class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize:
      * A [Cursor] for access to the raw entries in a [FixedHareColumnFile].
      *
      * @author Ralph Gasser
-     * @version 1.0
+     * @version 1.0.1
      */
     inner class FixedHareCursor(val writeable: Boolean, val bufferSize: Int) : ReadableCursor<T>, WritableCursor<T> {
         /** Internal (per-cursor) [BufferPool]. */
@@ -185,7 +185,7 @@ class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize:
 
         /** The maximum [TupleId] supported by this [FixedHareCursor]. */
         override val maximum: TupleId
-            get() = this.header.count - 1
+            get() = this.header.count
 
         /** Internal lock to mediate access to closing the [FixedHareCursor]. */
         private val closeLock = StampedLock()
@@ -484,7 +484,11 @@ class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize:
             }
         }
 
-        /** Converts a [TupleId] to an [Address] given the number of slots per [org.vitrivr.cottontail.storage.engine.hare.basics.Page]. */
-        private fun TupleId.toAddress(): Address = (((this / this@FixedHareColumnFile.slotsPerPage) + 1L) shl 16) or ((this % slotsPerPage) and Short.MAX_VALUE.toLong())
+        /**
+         * Inline function: Converts a [TupleId] to an [Address] given the number of slots per [org.vitrivr.cottontail.storage.engine.hare.basics.Page].
+         *
+         * @return [Address] representation for this [TupleId]
+         */
+        private fun TupleId.toAddress(): Address = (((this / this@FixedHareColumnFile.slotsPerPage) + 2L) shl 16) or ((this % slotsPerPage) and Short.MAX_VALUE.toLong())
     }
 }

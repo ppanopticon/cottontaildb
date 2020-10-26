@@ -1,6 +1,7 @@
 package org.vitrivr.cottontail.storage.engine.hare.disk.structures
 
 import org.vitrivr.cottontail.storage.engine.hare.DataCorruptionException
+import org.vitrivr.cottontail.storage.engine.hare.PageId
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
 import org.vitrivr.cottontail.storage.engine.hare.basics.View
 import org.vitrivr.cottontail.storage.engine.hare.disk.FileType
@@ -12,7 +13,7 @@ import java.nio.channels.FileChannel
  *
  * @see org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
  *
- * @version 1.1.2
+ * @version 1.1.3
  * @author Ralph Gasser
  */
 class Header(val direct: Boolean = false) : View {
@@ -50,8 +51,11 @@ class Header(val direct: Boolean = false) : View {
         /** The offset into a [Header] to get the number of dangling pages. */
         private const val HEADER_OFFSET_DANGLING = 36
 
+        /** The offset into a [Header] to get the number of dangling pages. */
+        private const val HEADER_OFFSET_MAX_PAGEID = 44
+
         /** The offset into a [Header] to get the checksum for the file. */
-        private const val HEADER_OFFSET_CHECKSUM = 44
+        private const val HEADER_OFFSET_CHECKSUM = 52
 
         /** Masks. */
 
@@ -114,6 +118,13 @@ class Header(val direct: Boolean = false) : View {
             this.buffer.putLong(HEADER_OFFSET_DANGLING, v)
         }
 
+    /** Maximum [PageId] allocated in the HARE file this [Header] belongs to. */
+    var maximumPageId: PageId
+        get() = this.buffer.getLong(HEADER_OFFSET_MAX_PAGEID)
+        set(v) {
+            this.buffer.putLong(HEADER_OFFSET_MAX_PAGEID, v)
+        }
+
     /** CRC32C checksum for the HARE file this [Header] belongs to. */
     var checksum: Long
         get() = this.buffer.getLong(HEADER_OFFSET_CHECKSUM)
@@ -137,8 +148,10 @@ class Header(val direct: Boolean = false) : View {
         this.buffer.putInt(pageShift)                              /* 16: Size of a HARE page; stored as bit shift. */
         this.buffer.putLong(HEADER_MASK_CONSISTENCY_OK)            /* 20: Flags used by the HARE page file. */
         this.buffer.putLong(0L)                              /* 28: Allocated page counter; number of allocated pages. */
-        this.buffer.putLong(0L)                              /* 36: CRC32 checksum for HARE file. */
-        return this                                                /* 44-127: For future use. */
+        this.buffer.putLong(0L)                              /* 36: Dangling page counter; number of dangling pages. */
+        this.buffer.putLong(0L)                              /* 44: Maximum page ID known by this HARE file. */
+        this.buffer.putLong(0L)                              /* 52: CRC32 checksum for HARE file. */
+        return this                                                /* 60-127: For future use. */
     }
 
     /**
@@ -206,5 +219,7 @@ class Header(val direct: Boolean = false) : View {
         require(this.buffer.int >= 10) { DataCorruptionException("Page shift mismatch in HARE page file.") }
         this.buffer.long
         require(this.buffer.long >= 0) { DataCorruptionException("Negative number of allocated pages found in HARE page file.") }
+        require(this.buffer.long >= 0) { DataCorruptionException("Negative number of dangling pages found in HARE page file.") }
+        require(this.buffer.long >= 0) { DataCorruptionException("Negative number for maximum page ID found in HARE page file.") }
     }
 }

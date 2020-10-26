@@ -1,6 +1,7 @@
 package org.vitrivr.cottontail.storage.store.engine.hare.disk
 
 import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -8,6 +9,8 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import org.vitrivr.cottontail.TestConstants
 import org.vitrivr.cottontail.storage.basics.Units
+import org.vitrivr.cottontail.storage.engine.hare.PageId
+import org.vitrivr.cottontail.storage.engine.hare.basics.PageConstants
 import org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
@@ -53,7 +56,7 @@ class DirectDiskManagerTest {
      * Appends [DataPage]s of random bytes and checks, if those [DataPage]s' content remains the same after reading.
      */
     @ExperimentalTime
-    @ParameterizedTest(name="DirectDiskManager (Append / Read): pageSize={0}")
+    @ParameterizedTest(name="DirectDiskManager (Append / Read): pages={0}")
     @ValueSource(ints = [5000, 10000, 20000, 50000, 100000])
     fun testAppendPage(size: Int) {
         val data = this.initWithData(size)
@@ -67,7 +70,7 @@ class DirectDiskManagerTest {
      * Appends [DataPage]s of random bytes and checks, if those [DataPage]s' content remains the same after reading.
      */
     @ExperimentalTime
-    @ParameterizedTest(name="DirectDiskManager (Append / Close / Read): pageSize={0}")
+    @ParameterizedTest(name="DirectDiskManager (Append / Close / Read): pages={0}")
     @ValueSource(ints = [5000, 10000, 20000, 50000, 100000])
     fun testPersistence(size: Int) {
         val data = this.initWithData(size)
@@ -86,7 +89,7 @@ class DirectDiskManagerTest {
      * Updates [DataPage]s with random bytes and checks, if those [DataPage]s' content remains the same after reading.
      */
     @ExperimentalTime
-    @ParameterizedTest(name="DirectDiskManager (Append / Update / Read): pageSize={0}")
+    @ParameterizedTest(name="DirectDiskManager (Append / Update / Read): pages={0}")
     @ValueSource(ints = [5000, 10000, 20000, 50000, 100000])
     fun testUpdatePage(size: Int) {
         val page = DataPage(ByteBuffer.allocateDirect(pageSize))
@@ -114,6 +117,68 @@ class DirectDiskManagerTest {
         /* Check if data remains the same. */
         this.compareSingleRead(newData)
         this.compareMultiRead(newData)
+    }
+
+    /**
+     * Frees [DataPage]s and checks correctness of their content.
+     */
+    @ExperimentalTime
+    @ParameterizedTest(name="DirectDiskManager (Append / Free / Read): pages={0}")
+    @ValueSource(ints = [5000, 10000, 20000, 50000, 100000])
+    fun testFreePage(size: Int) {
+        val data = this.initWithData(size)
+        val random = SplittableRandom()
+        val pageIds = mutableListOf<PageId>()
+
+        /* Truncate last page and compare sizes. */
+        for (i in 0 until 100) {
+            val pageId = random.nextLong(1L, data.size.toLong())
+            if (!pageIds.contains(pageId)) {
+                this.manager!!.free(pageId)
+                pageIds.add(pageId)
+            } else {
+                assertThrows(IllegalArgumentException::class.java) {
+                    this.manager!!.free(pageId)
+                }
+            }
+        }
+
+        /* Check page content. */
+        val page = DataPage(ByteBuffer.allocateDirect(pageSize))
+        for (pageId in pageIds) {
+            this.manager!!.read(pageId, page)
+            assertEquals(PageConstants.PAGE_TYPE_FREED, page.getInt(0))
+        }
+    }
+
+    /**
+     * Frees [DataPage]s and checks correctness of page reuse.
+     */
+    @ExperimentalTime
+    @ParameterizedTest(name="DirectDiskManager (Append / Free / Append): pages={0}")
+    @ValueSource(ints = [5000, 10000, 20000, 50000, 100000])
+    fun testFreePageReuse(size: Int) {
+        val data = this.initWithData(size)
+        val random = SplittableRandom()
+        val pageIds = mutableListOf<PageId>()
+
+        /* Truncate last page and compare sizes. */
+        for (i in 0 until 100) {
+            val pageId = random.nextLong(1L, data.size.toLong())
+            if (!pageIds.contains(pageId)) {
+                this.manager!!.free(pageId)
+                pageIds.add(pageId)
+            } else {
+                assertThrows(IllegalArgumentException::class.java) {
+                    this.manager!!.free(pageId)
+                }
+            }
+        }
+
+        /* Check page re-use. */
+        for (i in pageIds.size-1 downTo 0) {
+            assertEquals(pageIds[i], this.manager!!.allocate())
+        }
     }
 
     /**

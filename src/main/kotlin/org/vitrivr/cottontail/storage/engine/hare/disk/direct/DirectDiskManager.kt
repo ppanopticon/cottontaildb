@@ -9,6 +9,7 @@ import org.vitrivr.cottontail.storage.engine.hare.disk.structures.LongStack
 import org.vitrivr.cottontail.utilities.extensions.read
 import java.nio.channels.FileLock
 import java.nio.file.Path
+import kotlin.math.max
 
 /**
  * The [DirectDiskManager] facilitates reading and writing of [Page]s from/to the underlying HARE page file. Only one
@@ -98,7 +99,7 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000, private val preAll
 
         /* Pre-allocate pages if LongStack is empty. */
         if (this.freePageStack.entries == 0) {
-            val nextPageId = this.header.allocatedPages + 1
+            val nextPageId = this.header.maximumPageId + 1
             val preAllocatePageId = nextPageId + this.preAllocatePages
             this.fileChannel.write(EMPTY.clear(), (preAllocatePageId + 1) shl this.header.pageShift)
             for (pageId in preAllocatePageId downTo nextPageId) {
@@ -109,6 +110,7 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000, private val preAll
         /* Allocate PageId. */
         val newPageId = this.freePageStack.pop()
         this.header.allocatedPages += 1
+        this.header.maximumPageId = max(this.header.maximumPageId, newPageId)
 
         /* Flush Header and LongStack. */
         this.header.write(this.fileChannel, OFFSET_HEADER)
@@ -122,7 +124,7 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000, private val preAll
      * Frees the page with the given [PageId] making space for new entries. The implementation uses a 2-tiered approach:
      *
      * 1) [PageId]s are added to the [freePageStack] and marked for re-use.
-     * 3) If the [freePageStack] is full, the [Page] is left dangling and can only be reclaimed through compaction.
+     * 2) If the [freePageStack] is full, the [Page] is left dangling and can only be reclaimed through compaction.
      *
      * @param pageId The [PageId] of the page that should be freed.
      */

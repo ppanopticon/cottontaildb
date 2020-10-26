@@ -238,10 +238,14 @@ class DirectDiskManagerTest {
             bytes
         }
 
+        var prev: PageId = 0L
         for (i in data.indices) {
             writeTime += measureTime {
                 page.putBytes(0, data[i])
-                this.manager!!.update(this.manager!!.allocate(), page)
+                val pageId = this.manager!!.allocate()
+                assertEquals(prev + 1L, pageId) /* Make sure pageIds increase monotonically. */
+                prev = pageId
+                this.manager!!.update(pageId, page)
             }
             assertEquals(i + 1L, this.manager!!.pages)
         }

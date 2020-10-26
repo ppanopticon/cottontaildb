@@ -8,6 +8,7 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import org.vitrivr.cottontail.TestConstants
 import org.vitrivr.cottontail.storage.basics.Units
+import org.vitrivr.cottontail.storage.engine.hare.PageId
 import org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
@@ -202,10 +203,13 @@ class WALDiskManagerTest {
             bytes
         }
 
+        var prev: PageId = 0L
         for (i in data.indices) {
             page.putBytes(0, data[i])
             writeTime += measureTime {
                 val pageId = this.manager!!.allocate()
+                Assertions.assertEquals(prev + 1L, pageId)  /* Make sure pageIds increase monotonically. */
+                prev = pageId
                 this.manager!!.update(pageId, page)
             }
         }

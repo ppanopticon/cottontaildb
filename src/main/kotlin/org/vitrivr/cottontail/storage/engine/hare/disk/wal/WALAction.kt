@@ -16,9 +16,6 @@ enum class WALAction {
     /** An existing page was updated. */
     UPDATE,
 
-    /** A page was freed by truncating the file */
-    FREE_TRUNCATE,
-
     /** A page was freed by adding it to the list of reusable pages. */
-    FREE_REUSE
+    FREE
 }

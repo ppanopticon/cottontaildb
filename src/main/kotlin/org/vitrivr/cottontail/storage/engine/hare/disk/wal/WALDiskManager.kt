@@ -17,6 +17,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.locks.ReentrantLock
 import java.util.concurrent.locks.StampedLock
+import kotlin.math.max
 
 /**
  * The [WALDiskManager] facilitates reading and writing of [Page]s from/to the underlying disk storage. Only one
@@ -28,7 +29,7 @@ import java.util.concurrent.locks.StampedLock
  *
  * @see DiskManager
  *
- * @version 1.3.0
+ * @version 1.3.1
  * @author Ralph Gasser
  */
 class WALDiskManager(path: Path, lockTimeout: Long = 5000, private val preAllocatePages: Int = 32) : DiskManager(path, lockTimeout) {
@@ -144,37 +145,48 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000, private val preAlloca
                     this.fileChannel.transferFrom(channel, this.pageIdToOffset(entry.pageId), pageSizeLong)
                 }
                 WALAction.ALLOCATE_REUSE -> {
-                    val reusePageId = this.freePageStack.pop()
-                    require(reusePageId == entry.pageId) { "Failed to commit. The reused page ID $reusePageId does not match the expected page ID ${entry.pageId} (file: ${this.path}, pages: ${this.pages})." }
+                    val newPageId = this.freePageStack.pop()
+                    require(newPageId == entry.pageId) { "Failed to commit. The reused page ID $newPageId does not match the expected page ID ${entry.pageId} (file: ${this.path}, pages: ${this.pages})." }
+
+                    /* Increment allocated pages count. */
+                    this.header.allocatedPages += 1
+                    this.header.maximumPageId = max(newPageId, this.header.maximumPageId)
 
                     /* Write changes to disk. */
+                    this.header.write(this.fileChannel, OFFSET_HEADER)
                     this.freePageStack.write(this.fileChannel, OFFSET_FREE_PAGE_STACK)
                 }
                 WALAction.ALLOCATE_APPEND -> {
-                    val newPageId = (++this.header.allocatedPages)
+                    val newPageId = this.header.maximumPageId + 1
                     val preAllocatePageId = newPageId + this.preAllocatePages
                     require(newPageId == entry.pageId) { "Failed to commit. The new page ID $newPageId does not match the expected page ID ${entry.pageId} (file: ${this.path}, pages: ${this.pages})." }
                     for (pageId in preAllocatePageId..newPageId) {
                         this.freePageStack.offer(pageId)
                     }
 
+                    /* Increment allocated pages count. */
+                    this.header.allocatedPages += 1
+                    this.header.maximumPageId = max(newPageId, this.header.maximumPageId)
+
                     /* Write changes to disk. */
                     this.header.write(this.fileChannel, OFFSET_HEADER)
                     this.freePageStack.write(this.fileChannel, OFFSET_FREE_PAGE_STACK)
                     this.fileChannel.write(EMPTY.clear(), (preAllocatePageId + 1) shl this.header.pageShift)
                 }
-                WALAction.FREE_REUSE -> {
-                    this.freePageStack.offer(entry.pageId)
+                WALAction.FREE -> {
+                    /* Add PageId to stack or increment number of dangling pages. */
+                    if (!this.freePageStack.offer(entry.pageId)) {
+                        this.header.danglingPages += 1
+                    }
 
-                    /* Write changes to disk. */
-                    this.freePageStack.write(this.fileChannel, OFFSET_FREE_PAGE_STACK)
-                }
-                WALAction.FREE_TRUNCATE -> {
+                    /* Decrement number of allocated pages. */
                     this.header.allocatedPages -= 1
 
                     /* Write changes to disk. */
-                    this.fileChannel.truncate((this.header.allocatedPages + 1) shl this.header.pageShift)
+                    val offset = pageIdToOffset(entry.pageId)
                     this.header.write(this.fileChannel, OFFSET_HEADER)
+                    this.freePageStack.write(this.fileChannel, OFFSET_FREE_PAGE_STACK)
+                    this.fileChannel.write(FREED.flip(), offset)
                 }
             }
             true

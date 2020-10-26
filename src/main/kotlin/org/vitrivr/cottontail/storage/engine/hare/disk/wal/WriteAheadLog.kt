@@ -142,18 +142,11 @@ open class WriteAheadLog(val manager: WALDiskManager, val lockTimeout: Long = 50
         require(pageId <= this.allocated) { "Error while logging HARE Write Ahead Log (WAL) free() operation, page ID $pageId is out of bounds (file = ${this.path})." }
 
         /* Prepare log entry. */
-        if (pageId == this.allocated) {
-            this.entry.sequenceNumber = this.walHeader.entries++
-            this.entry.action = WALAction.FREE_TRUNCATE
-            this.entry.pageId = pageId
-            this.entry.payloadSize = 0
-        } else if (pageId < this.allocated){
-            this.freePageIds.addLast(pageId)
-            this.entry.sequenceNumber = this.walHeader.entries++
-            this.entry.action = WALAction.FREE_REUSE
-            this.entry.pageId = pageId
-            this.entry.payloadSize = 0
-        }
+        this.freePageIds.addLast(pageId)
+        this.entry.sequenceNumber = this.walHeader.entries++
+        this.entry.action = WALAction.FREE
+        this.entry.pageId = pageId
+        this.entry.payloadSize = 0
 
         /* Calculate CRC32 checksum. */
         this.crc32.update(this.entry.buffer.clear())

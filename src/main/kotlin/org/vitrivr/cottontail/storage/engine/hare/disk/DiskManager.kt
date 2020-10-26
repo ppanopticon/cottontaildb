@@ -4,10 +4,12 @@ import org.vitrivr.cottontail.storage.basics.MemorySize
 import org.vitrivr.cottontail.storage.basics.Units
 import org.vitrivr.cottontail.storage.engine.hare.PageId
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
+import org.vitrivr.cottontail.storage.engine.hare.basics.PageConstants
 import org.vitrivr.cottontail.storage.engine.hare.basics.Resource
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.Header
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.LongStack
+import org.vitrivr.cottontail.utilities.extensions.write
 
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
@@ -39,6 +41,9 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
 
         /** [ByteBuffer] containing a 0 byte. */
         val EMPTY: ByteBuffer = ByteBuffer.allocateDirect(1)
+
+        /** [ByteBuffer] containing [PageConstants.PAGE_TYPE_FREED]. */
+        val FREED: ByteBuffer = ByteBuffer.allocateDirect(4).putInt(PageConstants.PAGE_TYPE_FREED)
 
         /** Offsets. */
 
@@ -193,6 +198,22 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
      * @return true If and only if checksum in header and of content are identical.
      */
     fun validate(): Boolean = this.header.checksum == this.calculateChecksum()
+
+    /**
+     * Closes this [DiskManager].
+     */
+    final override fun close() = this.closeLock.write {
+        if (this.isOpen) {
+            this.prepareClose()
+            this.fileLock.release()
+            this.fileChannel.close()
+        }
+    }
+
+    /**
+     * Logic that should be executed prior to closing a [DiskManager].
+     */
+    protected abstract fun prepareClose()
 
     /**
      * Converts the given [PageId] to an offset into the file managed by this [DiskManager]. Calling this method

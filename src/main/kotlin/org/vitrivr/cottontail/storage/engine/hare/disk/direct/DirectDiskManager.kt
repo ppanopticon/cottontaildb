@@ -7,7 +7,6 @@ import org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.LongStack
 import org.vitrivr.cottontail.utilities.extensions.read
-import org.vitrivr.cottontail.utilities.extensions.write
 import java.nio.channels.FileLock
 import java.nio.file.Path
 
@@ -21,7 +20,7 @@ import java.nio.file.Path
  *
  * @see DiskManager
  *
- * @version 1.3.0
+ * @version 1.3.1
  * @author Ralph Gasser
  */
 class DirectDiskManager(path: Path, lockTimeout: Long = 5000, private val preAllocatePages: Int = 32) : DiskManager(path, lockTimeout) {
@@ -120,25 +119,31 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000, private val preAll
     }
 
     /**
-     * Frees the page with the given [PageId] making space for new entries
+     * Frees the page with the given [PageId] making space for new entries. The implementation uses a 2-tiered approach:
+     *
+     * 1) [PageId]s are added to the [freePageStack] and marked for re-use.
+     * 3) If the [freePageStack] is full, the [Page] is left dangling and can only be reclaimed through compaction.
      *
      * @param pageId The [PageId] of the page that should be freed.
      */
     override fun free(pageId: PageId) = this.closeLock.read {
+        /* Sanity checks. */
         check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to write data (file: ${this.path})." }
-        require(pageId in 1L..this.header.allocatedPages) { "The given page ID $pageId is out of bounds for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
+        require(!this.freePageStack.contains(pageId)) { "The given page ID $pageId has already been freed for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
 
-        /* Free page by truncating (last page only) or by adding page to free page stack. */
-        if (pageId == this.header.allocatedPages) {
-            this.header.allocatedPages -= 1
-            this.fileChannel.truncate(this.fileChannel.size() - this.pageSize)
-        } else if (!this.freePageStack.offer(pageId)) {
-            TODO("Free page stack is full; file needs compaction!")
+        /* Free page by truncating the file (last page only) or by adding page to free page stack. */
+        val offset = this.pageIdToOffset(pageId)
+        if (!this.freePageStack.offer(pageId)) {
+            this.header.danglingPages += 1
         }
+
+        /* Decrement number of allocated pages. */
+        this.header.allocatedPages -= 1
 
         /* Flush Header and LongStack. */
         this.header.write(this.fileChannel, OFFSET_HEADER)
         this.freePageStack.write(this.fileChannel, OFFSET_FREE_PAGE_STACK)
+        this.fileChannel.write(FREED.flip(), offset)
         Unit
     }
 
@@ -157,20 +162,13 @@ class DirectDiskManager(path: Path, lockTimeout: Long = 5000, private val preAll
     }
 
     /**
-     * Closes this [DiskManager]. Will cause the [DiskManager.Header] to be finalized properly.
+     * Re-calculates the file checksum and updates the consistency flag in the header, which
+     * indicates that the file was properly closed.
      */
-    override fun close() = this.closeLock.write {
-        if (this.isOpen) {
-            /* Update consistency information in the header. */
-            this.header.checksum = this.calculateChecksum()
-            this.header.isConsistent = true
-            this.header.write(this.fileChannel, OFFSET_HEADER)
-
-            /* Close FileChannel and release file lock. */
-            if (this.fileChannel.isOpen) {
-                this.fileLock.release()
-                this.fileChannel.close()
-            }
-        }
+    override fun prepareClose() {
+        /* Update consistency information in the header. */
+        this.header.checksum = this.calculateChecksum()
+        this.header.isConsistent = true
+        this.header.write(this.fileChannel, OFFSET_HEADER)
     }
 }

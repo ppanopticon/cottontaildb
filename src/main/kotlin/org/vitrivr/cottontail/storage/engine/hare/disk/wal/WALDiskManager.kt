@@ -218,19 +218,11 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000, private val preAlloca
     }
 
     /**
-     * Closes the HARE page file backing this [WALDiskManager] and associated [WriteAheadLog] files.
+     * Closes the [WriteAheadLog] associated with this [WALDiskManager].
      */
-    override fun close() = this.closeLock.write {
-        if (this.isOpen) {
-            /* Close WAL. */
-            this.wal?.close()
-
-            /* Close FileChannel and release file lock. */
-            if (this.fileChannel.isOpen) {
-                this.fileLock.release()
-                this.fileChannel.close()
-            }
-        }
+    override fun prepareClose() {
+        /* Close WAL. */
+        this.wal?.close()
     }
 
     /**

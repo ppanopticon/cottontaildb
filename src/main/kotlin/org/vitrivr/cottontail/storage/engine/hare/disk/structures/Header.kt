@@ -12,7 +12,7 @@ import java.nio.channels.FileChannel
  *
  * @see org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
  *
- * @version 1.1.1
+ * @version 1.1.2
  * @author Ralph Gasser
  */
 class Header(val direct: Boolean = false) : View {
@@ -47,12 +47,15 @@ class Header(val direct: Boolean = false) : View {
         /** The offset into a [Header] to get the number of allocated pages. */
         private const val HEADER_OFFSET_ALLOCATED = 28
 
-        /** The offset into a [Header] to get the number of pre-allocated pages. */
-        private const val HEADER_OFFSET_CHECKSUM = 36
+        /** The offset into a [Header] to get the number of dangling pages. */
+        private const val HEADER_OFFSET_DANGLING = 36
+
+        /** The offset into a [Header] to get the checksum for the file. */
+        private const val HEADER_OFFSET_CHECKSUM = 44
 
         /** Masks. */
 
-        /** Mask for consistency flag in in this [DiskManager.Header]. */
+        /** Mask for consistency flag in in this [Header]. */
         const val HEADER_MASK_CONSISTENCY_OK = 1L shl 0
     }
 
@@ -71,7 +74,7 @@ class Header(val direct: Boolean = false) : View {
     val version: Int
         get() = this.buffer.getInt(HEADER_OFFSET_VERSION)
 
-    /** The bit shift used to determine the [Page] size of the page file managed by this [DiskManager]. */
+    /** The bit shift used to determine the [Page] size of the HARE file this [Header] belongs to. */
     val pageShift: Int
         get() = this.buffer.getInt(HEADER_OFFSET_SIZE)
 
@@ -97,14 +100,21 @@ class Header(val direct: Boolean = false) : View {
             }
         }
 
-    /** Total number of [Page]s managed by this [DiskManager]. */
+    /** Total number of [Page]s managed by the HARE file this [Header] belongs to. */
     var allocatedPages: Long
         get() = this.buffer.getLong(HEADER_OFFSET_ALLOCATED)
         set(v) {
             this.buffer.putLong(HEADER_OFFSET_ALLOCATED, v)
         }
 
-    /** CRC32C checksum for the HARE file. */
+    /** Number of dangling [Page]s in the HARE file this [Header] belongs to. */
+    var danglingPages: Long
+        get() = this.buffer.getLong(HEADER_OFFSET_DANGLING)
+        set(v) {
+            this.buffer.putLong(HEADER_OFFSET_DANGLING, v)
+        }
+
+    /** CRC32C checksum for the HARE file this [Header] belongs to. */
     var checksum: Long
         get() = this.buffer.getLong(HEADER_OFFSET_CHECKSUM)
         set(v) {

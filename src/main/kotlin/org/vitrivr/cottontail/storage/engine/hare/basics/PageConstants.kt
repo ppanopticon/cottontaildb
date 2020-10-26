@@ -10,7 +10,7 @@ package org.vitrivr.cottontail.storage.engine.hare.basics
 object PageConstants {
 
     /** Constant used to identify a [Page] that has been freed. Used internally by [org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager] */
-    const val PAGE_TYPE_FREED = Long.MIN_VALUE
+    const val PAGE_TYPE_FREED = Int.MIN_VALUE
 
     /**
      * Constant used to identify a [Page] that has not been initialized as [AbstractPageView].

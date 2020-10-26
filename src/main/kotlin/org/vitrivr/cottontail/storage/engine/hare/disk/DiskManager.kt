@@ -104,6 +104,10 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
     val pages: Long
         get() = this.header.allocatedPages
 
+    /** The maximum [PageId]s held by the HARE page file managed by this [DiskManager]. */
+    val maximumPageId: PageId
+        get() = this.header.maximumPageId
+
     /** Returns the size of the HARE page file managed by this [DiskManager]. */
     val size
         get() = MemorySize(this.fileChannel.size().toDouble(), Units.BYTE)
@@ -223,7 +227,7 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
      * @return The offset into the file.
      */
     protected fun pageIdToOffset(pageId: PageId): Long {
-        require(pageId > 0) { "The given page ID $pageId is out of bounds for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
+        require(pageId in 0L..this.header.maximumPageId) { "The given page ID $pageId is out of bounds for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
         return pageId shl this.header.pageShift
     }
 }

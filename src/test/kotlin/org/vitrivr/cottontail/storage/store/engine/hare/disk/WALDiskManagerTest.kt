@@ -9,6 +9,7 @@ import org.junit.jupiter.params.provider.ValueSource
 import org.vitrivr.cottontail.TestConstants
 import org.vitrivr.cottontail.storage.basics.Units
 import org.vitrivr.cottontail.storage.engine.hare.PageId
+import org.vitrivr.cottontail.storage.engine.hare.basics.PageConstants
 import org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
@@ -78,6 +79,71 @@ class WALDiskManagerTest {
         /* Check if data remains the same. */
         this.compareSingleRead(data)
         this.compareMultiRead(data)
+    }
+
+    /**
+     * Frees [DataPage]s and checks correctness of their content, with a commit in between.
+     */
+    @ExperimentalTime
+    @ParameterizedTest(name="DirectDiskManager (Append / Free / Commit / Read): pages={0}")
+    @ValueSource(ints = [5000, 10000, 20000, 50000, 100000])
+    fun testFreePage(size: Int) {
+        val data = this.initWithData(size)
+        val random = SplittableRandom()
+        val pageIds = mutableListOf<PageId>()
+
+        /* Truncate last page and compare sizes. */
+        for (i in 0 until 100) {
+            val pageId = random.nextLong(1L, data.size.toLong())
+            if (!pageIds.contains(pageId)) {
+                this.manager!!.free(pageId)
+                pageIds.add(pageId)
+            } else {
+                Assertions.assertThrows(IllegalArgumentException::class.java) {
+                    this.manager!!.free(pageId)
+                }
+            }
+        }
+        this.manager!!.commit()
+
+        /* Check page content. */
+        val page = DataPage(ByteBuffer.allocateDirect(pageSize))
+        for (pageId in pageIds) {
+            this.manager!!.read(pageId, page)
+            Assertions.assertEquals(PageConstants.PAGE_TYPE_FREED, page.getInt(0))
+        }
+    }
+
+    /**
+     * Frees [DataPage]s and checks correctness of page reuse with commit in between.
+     */
+    @ExperimentalTime
+    @ParameterizedTest(name="DirectDiskManager (Append / Free / Commit / Append): pages={0}")
+    @ValueSource(ints = [5000, 10000, 20000, 50000, 100000])
+    fun testFreePageReuse(size: Int) {
+        val data = this.initWithData(size)
+        val random = SplittableRandom()
+        val pageIds = mutableListOf<PageId>()
+
+        /* Free random pages. */
+        for (i in 0 until 100) {
+            val pageId = random.nextLong(1L, data.size.toLong())
+            if (!pageIds.contains(pageId)) {
+                this.manager!!.free(pageId)
+                pageIds.add(pageId)
+            } else {
+                Assertions.assertThrows(IllegalArgumentException::class.java) {
+                    this.manager!!.free(pageId)
+                }
+            }
+        }
+        this.manager!!.commit()
+
+        /* Check page re-use. */
+        for (i in pageIds.size-1 downTo 0) {
+            Assertions.assertEquals(pageIds[i], this.manager!!.allocate())
+        }
+        this.manager!!.rollback()
     }
 
     /**

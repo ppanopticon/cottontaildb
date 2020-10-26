@@ -10,7 +10,7 @@ import org.vitrivr.cottontail.storage.engine.hare.basics.Page
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
 import org.vitrivr.cottontail.storage.engine.hare.views.AbstractPageView
 import org.vitrivr.cottontail.storage.engine.hare.views.DirectoryPageView
-import org.vitrivr.cottontail.storage.engine.hare.views.ViewConstants
+import org.vitrivr.cottontail.storage.engine.hare.basics.PageConstants
 
 /**
  * The [HeaderPageView] of a [VariableHareColumnFile]. The [HeaderPageView] is usually located on
@@ -51,7 +51,7 @@ class HeaderPageView : AbstractPageView() {
 
     /** The [pageTypeIdentifier] for the [HeaderPageView]. */
     override val pageTypeIdentifier: Int
-        get() = ViewConstants.HEADER_VARIABLE_COLUMN
+        get() = PageConstants.PAGE_TYPE_HEADER_VARIABLE_COLUMN
 
     /** The [ColumnType] held by this [VariableHareColumnFile]. */
     val type: ColumnType<*>

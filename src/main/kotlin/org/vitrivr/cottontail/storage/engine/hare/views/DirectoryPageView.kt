@@ -4,6 +4,7 @@ import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.storage.engine.hare.Address
 import org.vitrivr.cottontail.storage.engine.hare.PageId
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
+import org.vitrivr.cottontail.storage.engine.hare.basics.PageConstants
 
 /**
  * A [AbstractPageView] implementation for a directory [Page] that maps [TupleId] to [Address].
@@ -50,7 +51,7 @@ open class DirectoryPageView : AbstractPageView() {
 
     /** The [pageTypeIdentifier] for the [SlottedPageView]. */
     override val pageTypeIdentifier: Int
-        get() = ViewConstants.PAGE_TYPE_DIRECTORY
+        get() = PageConstants.PAGE_TYPE_DIRECTORY
 
     /** The [PageId] of the previous [DirectoryPageView] page. */
     var previousPageId: PageId

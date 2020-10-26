@@ -1,13 +1,16 @@
-package org.vitrivr.cottontail.storage.engine.hare.views
+package org.vitrivr.cottontail.storage.engine.hare.basics
 
-import org.vitrivr.cottontail.storage.engine.hare.basics.Page
 
 /**
+ * Collection of constants used with [Page] data structures.
  *
  * @author Ralph Gasser
  * @version 1.0
  */
-object ViewConstants {
+object PageConstants {
+
+    /** Constant used to identify a [Page] that has been freed. Used internally by [org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager] */
+    const val PAGE_TYPE_FREED = Long.MIN_VALUE
 
     /**
      * Constant used to identify a [Page] that has not been initialized as [AbstractPageView].
@@ -23,8 +26,8 @@ object ViewConstants {
     const val PAGE_TYPE_DIRECTORY = 129
 
     /** Constant used to identify a [Page] used as a header for a [org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnFile]. */
-    const val HEADER_FIXED_COLUMN = 512
+    const val PAGE_TYPE_HEADER_FIXED_COLUMN = 512
 
     /** Constant used to identify a [Page] used as a header for a [org.vitrivr.cottontail.storage.engine.hare.access.column.variable.VariableHareColumnFile]. */
-    const val HEADER_VARIABLE_COLUMN = 513
+    const val PAGE_TYPE_HEADER_VARIABLE_COLUMN = 513
 }

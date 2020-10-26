@@ -1,6 +1,7 @@
 package org.vitrivr.cottontail.storage.engine.hare.views
 
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
+import org.vitrivr.cottontail.storage.engine.hare.basics.PageConstants
 
 /**
  * [AbstractPageView]s provide a certain view onto a [Page] object, i.e., allow a specific mode of interaction,
@@ -10,7 +11,7 @@ import org.vitrivr.cottontail.storage.engine.hare.basics.Page
  * that is, [AbstractPageView] instances can be re-used with different [Page]s.
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.0.0
  */
 abstract class AbstractPageView {
 
@@ -53,7 +54,7 @@ abstract class AbstractPageView {
      */
     open fun initializeAndWrap(page: Page): AbstractPageView {
         val type = page.getInt(0)
-        require(type == ViewConstants.PAGE_TYPE_UNINITIALIZED) { "Cannot initialize page of type $type as ${this.javaClass.simpleName} (type = ${this.pageTypeIdentifier})." }
+        require(type == PageConstants.PAGE_TYPE_UNINITIALIZED) { "Cannot initialize page of type $type as ${this.javaClass.simpleName} (type = ${this.pageTypeIdentifier})." }
         page.putInt(0, this.pageTypeIdentifier)
         this.page = page
         return this

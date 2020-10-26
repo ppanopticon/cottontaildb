@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.storage.engine.hare.views
 
 import org.vitrivr.cottontail.storage.engine.hare.SlotId
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
+import org.vitrivr.cottontail.storage.engine.hare.basics.PageConstants
 
 /**
  * A [AbstractPageView] implementation for a slotted [Page] design.
@@ -44,7 +45,7 @@ class SlottedPageView : AbstractPageView() {
 
     /** The [pageTypeIdentifier] for the [SlottedPageView]. */
     override val pageTypeIdentifier: Int
-        get() = ViewConstants.PAGE_TYPE_SLOTTED
+        get() = PageConstants.PAGE_TYPE_SLOTTED
 
 
     /**

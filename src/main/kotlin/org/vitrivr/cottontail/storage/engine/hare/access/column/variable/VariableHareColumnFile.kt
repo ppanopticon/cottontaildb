@@ -34,20 +34,20 @@ import java.util.concurrent.locks.StampedLock
  * A HARE column file where each entry has a fixed size and can be addressed by a [TupleId].
  *
  * @author Ralph Gasser
- * @param 1.0
+ * @param 1.0.1
  */
 class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSize: Int = 5) : AutoCloseable {
     /** Companion object with important constants. */
     companion object {
 
         /** [PageId] of the root [DataPage] in a [VariableHareColumnFile. */
-        const val ROOT_PAGE_ID: PageId = 0L
+        const val ROOT_PAGE_ID: PageId = 1L
 
         /** [PageId] of the root [DirectoryPageView]. */
-        const val ROOT_DIRECTORY_PAGE_ID: PageId = 1L
+        const val ROOT_DIRECTORY_PAGE_ID: PageId = 2L
 
         /** [PageId] of the root [SlottedPageView]. */
-        const val ROOT_ALLOCATION_PAGE_ID: PageId = 2L
+        const val ROOT_ALLOCATION_PAGE_ID: PageId = 3L
 
         /**
          * Creates a new [VariableHareColumnFile] under the given location.
@@ -164,7 +164,7 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSi
      * A [Cursor] for access to the raw entries in a [VariableHareColumnFile].
      *
      * @author Ralph Gasser
-     * @version 1.0
+     * @version 1.0.1
      */
     inner class VariableHareCursor(val writeable: Boolean, val bufferSize: Int) : WritableCursor<T>, ReadableCursor<T> {
         /** Internal [BufferPool]; shared for writeable cursors and dedicated for read-only cursors. */
@@ -332,7 +332,6 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSi
                 allocationPageId = max(this.headerView.allocationPageId, this.headerView.lastDirectoryPageId) + 1L
                 if (allocationPageId >= this.bufferPool.totalPages) {
                     allocationPageId = this.bufferPool.append()
-                    allocationPage.release()
                 }
                 allocationPage = this.bufferPool.get(allocationPageId)
                 slotId = view.initializeAndWrap(allocationPage).allocate(allocationSize) ?: TODO("Data that does not fit a single page.")
@@ -374,7 +373,5 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSi
                 this.closed = true
             }
         }
-
-
     }
 }

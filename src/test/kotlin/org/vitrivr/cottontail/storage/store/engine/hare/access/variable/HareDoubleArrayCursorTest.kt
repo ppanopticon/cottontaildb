@@ -13,6 +13,7 @@ import org.vitrivr.cottontail.storage.basics.Units
 import org.vitrivr.cottontail.storage.engine.hare.access.column.variable.VariableHareColumnFile
 import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.LongStack
 import org.vitrivr.cottontail.storage.store.engine.hare.access.AbstractCursorTest
 import java.nio.file.Files
 import java.util.*
@@ -21,6 +22,7 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.measureTime
 
 /**
+ * Test case for [VariableHareColumnFile] data structure in combination with [DoubleVectorValue]s.
  *
  * @author Ralph Gasser
  * @version 1.0

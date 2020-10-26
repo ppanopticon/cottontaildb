@@ -130,7 +130,6 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000, private val preAlloca
      * @param pageId The [PageId] of the page that should be freed.
      */
     override fun free(pageId: PageId) = createOrUseSharedWAL {
-        require(pageId in 1L..this.header.allocatedPages) { "The given page ID $pageId is out of bounds for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
         it.free(pageId)
     }
 

@@ -9,6 +9,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
 import java.util.zip.CRC32C
+import kotlin.math.max
 
 /**
  * A file used for write-ahead logging. It allows for all the basic operations supported by
@@ -17,7 +18,7 @@ import java.util.zip.CRC32C
  * @see WALDiskManager
  *
  * @author Ralph Gasser
- * @version 1.1.0
+ * @version 1.1.1
  */
 open class WriteAheadLog(val manager: WALDiskManager, val lockTimeout: Long = 5000L) : AutoCloseable {
 
@@ -69,6 +70,9 @@ open class WriteAheadLog(val manager: WALDiskManager, val lockTimeout: Long = 50
     /** Number of [PageId]s that have been allocated in underlying [WALDiskManager] at time of creating this [WriteAheadLog]. */
     private var allocated = this.manager.pages
 
+    /** Number of [PageId]s that have been allocated in underlying [WALDiskManager] at time of creating this [WriteAheadLog]. */
+    private var maximumPageId = this.manager.maximumPageId
+
     /** An [ArrayDeque] of free [PageId]s held in underlying [WALDiskManager] at time of creating this [WriteAheadLog]. */
     private var freePageIds = ArrayDeque(this.manager.freePageIds)
 
@@ -115,12 +119,15 @@ open class WriteAheadLog(val manager: WALDiskManager, val lockTimeout: Long = 50
         } else {
             this.entry.sequenceNumber = this.walHeader.entries++
             this.entry.action = WALAction.ALLOCATE_APPEND
-            this.entry.pageId = (++this.allocated)
+            this.entry.pageId = this.maximumPageId + 1
             this.entry.payloadSize = 0
         }
 
+        /* Update maximum page id. */
+        this.allocated += 1
+        this.maximumPageId = max(this.entry.pageId, this.maximumPageId)
+
         /* Calculate CRC32 checksum. */
-        this.crc32.update(this.entry.buffer.clear())
         this.walHeader.checksum = this.crc32.value
 
         /* Write log entry. */
@@ -138,8 +145,10 @@ open class WriteAheadLog(val manager: WALDiskManager, val lockTimeout: Long = 50
      */
     @Synchronized
     fun free(pageId: PageId) {
+        /* Sanity checks. */
         check(this.fileChannel.isOpen) { "HARE Write Ahead Log (WAL) has been closed and cannot be used for free() operation (file = ${this.path})." }
-        require(pageId <= this.allocated) { "Error while logging HARE Write Ahead Log (WAL) free() operation, page ID $pageId is out of bounds (file = ${this.path})." }
+        require(pageId in 1L..this.maximumPageId) { "Error while logging HARE Write Ahead Log (WAL) free() operation, page ID $pageId is out of bounds (file = ${this.path})." }
+        require(!this.freePageIds.contains(pageId)) { "Error while logging HARE Write Ahead Log (WAL) free() operation, page ID $pageId has already been freed (file = ${this.path})." }
 
         /* Prepare log entry. */
         this.freePageIds.addLast(pageId)

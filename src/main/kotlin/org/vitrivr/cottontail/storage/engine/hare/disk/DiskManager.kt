@@ -24,7 +24,7 @@ import java.util.zip.CRC32C
  * usually residing on some form of persistent storage. Only one  [DiskManager] can be opened per HARE
  * page fil and it acquires an exclusive [FileLock] once created.
  *
- * @version 1.2.0
+ * @version 1.2.1
  * @author Ralph Gasser
  */
 abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resource {
@@ -143,7 +143,11 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
     abstract fun allocate(): PageId
 
     /**
-     * Frees the [Page] identified by the given [PageId] making space for new entries
+     * Frees the [Page] identified by the given [PageId] making space for new entries.
+     *
+     * By definition, a freed [Page] is not necessarily erased or deleted instantly (it can be, however). Nevertheless,
+     * it is unsafe to use [PageId]s of freed [Page]s, until they are re-allocated, since freed [Page]s may be invalidated,
+     * removed or replaced at any time.
      *
      * @param pageId The [PageId] that should be freed.
      */
@@ -198,7 +202,7 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
      * @return The offset into the file.
      */
     protected fun pageIdToOffset(pageId: PageId): Long {
-        require(pageId > 0 && pageId <= this.header.allocatedPages) { "The given page ID $pageId is out of bounds for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
+        require(pageId > 0) { "The given page ID $pageId is out of bounds for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
         return pageId shl this.header.pageShift
     }
 }

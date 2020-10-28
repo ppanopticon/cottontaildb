@@ -9,14 +9,14 @@ import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 
 /**
- * A view on the header section of a [org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager].
+ * A view on the header section of a [org.vitrivr.cottontail.storage.engine.hare.disk.HareDiskManager].
  *
- * @see org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
+ * @see org.vitrivr.cottontail.storage.engine.hare.disk.HareDiskManager
  *
  * @version 1.1.3
  * @author Ralph Gasser
  */
-class Header(val direct: Boolean = false) : View {
+class HareHeader(val direct: Boolean = false) : View {
     companion object {
         /** Constants. */
 
@@ -33,52 +33,52 @@ class Header(val direct: Boolean = false) : View {
 
         /** Offsets. */
 
-        /** The offset into a [Header] to get its type. */
+        /** The offset into a [HareHeader] to get its type. */
         private const val HEADER_OFFSET_TYPE = 8
 
-        /** The offset into a [Header] to get its version. */
+        /** The offset into a [HareHeader] to get its version. */
         private const val HEADER_OFFSET_VERSION = 12
 
-        /** The offset into a [Header] to get its size. */
+        /** The offset into a [HareHeader] to get its size. */
         private const val HEADER_OFFSET_SIZE = 16
 
-        /** The offset into a [Header] to get its flags. */
+        /** The offset into a [HareHeader] to get its flags. */
         private const val HEADER_OFFSET_FLAGS = 20
 
-        /** The offset into a [Header] to get the number of allocated pages. */
+        /** The offset into a [HareHeader] to get the number of allocated pages. */
         private const val HEADER_OFFSET_ALLOCATED = 28
 
-        /** The offset into a [Header] to get the number of dangling pages. */
+        /** The offset into a [HareHeader] to get the number of dangling pages. */
         private const val HEADER_OFFSET_DANGLING = 36
 
-        /** The offset into a [Header] to get the number of dangling pages. */
+        /** The offset into a [HareHeader] to get the number of dangling pages. */
         private const val HEADER_OFFSET_MAX_PAGEID = 44
 
-        /** The offset into a [Header] to get the checksum for the file. */
+        /** The offset into a [HareHeader] to get the checksum for the file. */
         private const val HEADER_OFFSET_CHECKSUM = 52
 
         /** Masks. */
 
-        /** Mask for consistency flag in in this [Header]. */
+        /** Mask for consistency flag in in this [HareHeader]. */
         const val HEADER_MASK_CONSISTENCY_OK = 1L shl 0
     }
 
-    /** The [ByteBuffer] that backs this [Header]. */
+    /** The [ByteBuffer] that backs this [HareHeader]. */
     override val buffer: ByteBuffer = if (this.direct) {
         ByteBuffer.allocate(SIZE)
     } else {
         ByteBuffer.allocateDirect(SIZE)
     }
 
-    /** Type of the file containing this [Header] (must be [FileType.DEFAULT]). */
+    /** Type of the file containing this [HareHeader] (must be [FileType.PAGE]). */
     val type: FileType
         get() = FileType.values()[this.buffer.getInt(HEADER_OFFSET_TYPE)]
 
-    /** Version of the file containing this [Header]. */
+    /** Version of the file containing this [HareHeader]. */
     val version: Int
         get() = this.buffer.getInt(HEADER_OFFSET_VERSION)
 
-    /** The bit shift used to determine the [Page] size of the HARE file this [Header] belongs to. */
+    /** The bit shift used to determine the [Page] size of the HARE file this [HareHeader] belongs to. */
     val pageShift: Int
         get() = this.buffer.getInt(HEADER_OFFSET_SIZE)
 
@@ -86,7 +86,7 @@ class Header(val direct: Boolean = false) : View {
     val pageSize: Int
         get() = 1 shl this.pageShift
 
-    /** Flags set in this [Header]. */
+    /** Flags set in this [HareHeader]. */
     var flags: Long
         get() = this.buffer.getLong(HEADER_OFFSET_FLAGS)
         set(v) {
@@ -104,28 +104,28 @@ class Header(val direct: Boolean = false) : View {
             }
         }
 
-    /** Total number of [Page]s managed by the HARE file this [Header] belongs to. */
+    /** Total number of [Page]s managed by the HARE file this [HareHeader] belongs to. */
     var allocatedPages: Long
         get() = this.buffer.getLong(HEADER_OFFSET_ALLOCATED)
         set(v) {
             this.buffer.putLong(HEADER_OFFSET_ALLOCATED, v)
         }
 
-    /** Number of dangling [Page]s in the HARE file this [Header] belongs to. */
+    /** Number of dangling [Page]s in the HARE file this [HareHeader] belongs to. */
     var danglingPages: Long
         get() = this.buffer.getLong(HEADER_OFFSET_DANGLING)
         set(v) {
             this.buffer.putLong(HEADER_OFFSET_DANGLING, v)
         }
 
-    /** Maximum [PageId] allocated in the HARE file this [Header] belongs to. */
+    /** Maximum [PageId] allocated in the HARE file this [HareHeader] belongs to. */
     var maximumPageId: PageId
         get() = this.buffer.getLong(HEADER_OFFSET_MAX_PAGEID)
         set(v) {
             this.buffer.putLong(HEADER_OFFSET_MAX_PAGEID, v)
         }
 
-    /** CRC32C checksum for the HARE file this [Header] belongs to. */
+    /** CRC32C checksum for the HARE file this [HareHeader] belongs to. */
     var checksum: Long
         get() = this.buffer.getLong(HEADER_OFFSET_CHECKSUM)
         set(v) {
@@ -133,17 +133,17 @@ class Header(val direct: Boolean = false) : View {
         }
 
     /**
-     * Initializes this [ByteBuffer] as new [Header].
+     * Initializes this [ByteBuffer] as new [HareHeader].
      *
      * @param pageShift The [pageShift] constant, which is configurable.
-     * @return This [Header]
+     * @return This [HareHeader]
      */
-    fun init(pageShift: Int): Header {
+    fun init(pageShift: Int): HareHeader {
         this.buffer.putChar(FILE_HEADER_IDENTIFIER[0])             /* 0: Identifier H. */
         this.buffer.putChar(FILE_HEADER_IDENTIFIER[1])             /* 2: Identifier A. */
         this.buffer.putChar(FILE_HEADER_IDENTIFIER[2])             /* 4: Identifier R. */
         this.buffer.putChar(FILE_HEADER_IDENTIFIER[3])             /* 6: Identifier E. */
-        this.buffer.putInt(FileType.DEFAULT.ordinal)               /* 8: Type of HARE file. */
+        this.buffer.putInt(FileType.PAGE.ordinal)               /* 8: Type of HARE file. */
         this.buffer.putInt(FILE_HEADER_VERSION)                    /* 12: Version of the HARE format. */
         this.buffer.putInt(pageShift)                              /* 16: Size of a HARE page; stored as bit shift. */
         this.buffer.putLong(HEADER_MASK_CONSISTENCY_OK)            /* 20: Flags used by the HARE page file. */
@@ -155,47 +155,47 @@ class Header(val direct: Boolean = false) : View {
     }
 
     /**
-     * Reads the content of this [Header] from the given [FileChannel].
+     * Reads the content of this [HareHeader] from the given [FileChannel].
      *
      * @param channel The [FileChannel] to read from.
      * @param position The position in the [FileChannel] to write to.
-     * @return This [Header]
+     * @return This [HareHeader]
      */
-    override fun read(channel: FileChannel, position: Long): Header {
+    override fun read(channel: FileChannel, position: Long): HareHeader {
         channel.read(this.buffer.rewind(), position)
         this.validate()
         return this
     }
 
     /**
-     * Reads the content of this [Header] from the given [FileChannel].
+     * Reads the content of this [HareHeader] from the given [FileChannel].
      *
      * @param channel The [FileChannel] to read from.
-     * @return This [Header]
+     * @return This [HareHeader]
      */
-    override fun read(channel: FileChannel): Header {
+    override fun read(channel: FileChannel): HareHeader {
         channel.read(this.buffer.rewind())
         this.validate()
         return this
     }
 
     /**
-     * Writes the content of this [Header] to the given [FileChannel].
+     * Writes the content of this [HareHeader] to the given [FileChannel].
      *
      * @param channel The [FileChannel] to write to.
      * @param position The position in the [FileChannel] to write to.
-     * @return This [Header]
+     * @return This [HareHeader]
      */
-    override fun write(channel: FileChannel, position: Long): Header {
+    override fun write(channel: FileChannel, position: Long): HareHeader {
         channel.write(this.buffer.rewind(), position)
         return this
     }
 
     /**
-     * Writes the content of this [Header] to the given [FileChannel].
+     * Writes the content of this [HareHeader] to the given [FileChannel].
      *
      * @param channel The [FileChannel] to write to.
-     * @return This [Header]
+     * @return This [HareHeader]
      */
     override fun write(channel: FileChannel): View {
         channel.write(this.buffer.rewind())
@@ -203,7 +203,7 @@ class Header(val direct: Boolean = false) : View {
     }
 
     /**
-     * Validates this [Header].
+     * Validates this [HareHeader].
      */
     private fun validate() {
         /* Prepare buffer to read. */
@@ -214,7 +214,7 @@ class Header(val direct: Boolean = false) : View {
         require(this.buffer.char == FILE_HEADER_IDENTIFIER[1]) { DataCorruptionException("HARE identifier missing in HARE page file.") }
         require(this.buffer.char == FILE_HEADER_IDENTIFIER[2]) { DataCorruptionException("HARE identifier missing in HARE page file.") }
         require(this.buffer.char == FILE_HEADER_IDENTIFIER[3]) { DataCorruptionException("HARE identifier missing in HARE page file.") }
-        require(this.buffer.int == FileType.DEFAULT.ordinal)
+        require(this.buffer.int == FileType.PAGE.ordinal)
         require(this.buffer.int == FILE_HEADER_VERSION) { DataCorruptionException("File version mismatch in HARE page file.") }
         require(this.buffer.int >= 10) { DataCorruptionException("Page shift mismatch in HARE page file.") }
         this.buffer.long

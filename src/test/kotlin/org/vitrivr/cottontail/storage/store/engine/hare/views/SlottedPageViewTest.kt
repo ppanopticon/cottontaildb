@@ -4,7 +4,7 @@ import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import org.vitrivr.cottontail.storage.engine.hare.SlotId
-import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
 import org.vitrivr.cottontail.storage.engine.hare.views.SlottedPageView
 import java.nio.ByteBuffer
 import kotlin.random.Random
@@ -23,7 +23,7 @@ class SlottedPageViewTest {
     @ValueSource(ints = [4096, 8192, 16384, 32768])
     fun testWrapException(pageSize: Int) {
         val buffer = ByteBuffer.allocate(pageSize)
-        val page = DataPage(buffer)
+        val page = HarePage(buffer)
         Assertions.assertThrows(IllegalArgumentException::class.java) {
             SlottedPageView().wrap(page)
         }
@@ -33,7 +33,7 @@ class SlottedPageViewTest {
     @ValueSource(ints = [4096, 8192, 16384, 32768])
     fun testFullAllocation(pageSize: Int) {
         val buffer = ByteBuffer.allocate(pageSize)
-        val page = DataPage(buffer)
+        val page = HarePage(buffer)
         val slotted = SlottedPageView().initializeAndWrap(page)
 
         /** Check vanilla page. */
@@ -54,7 +54,7 @@ class SlottedPageViewTest {
     @ValueSource(ints = [4096, 8192, 16384, 32768])
     fun testOverflowAllocation(pageSize: Int) {
         val buffer = ByteBuffer.allocate(pageSize)
-        val page = DataPage(buffer)
+        val page = HarePage(buffer)
         val slotted = SlottedPageView().initializeAndWrap(page)
         val allocationSize = slotted.freeSpace - SlottedPageView.SIZE_ENTRY + 1
 
@@ -75,7 +75,7 @@ class SlottedPageViewTest {
     @ValueSource(ints = [4096, 8192, 16384, 32768])
     fun testRandomWriteRead(pageSize: Int) {
         val buffer = ByteBuffer.allocate(pageSize)
-        val page = DataPage(buffer)
+        val page = HarePage(buffer)
         val slotted = SlottedPageView().initializeAndWrap(page)
 
         /** Check vanilla page. */

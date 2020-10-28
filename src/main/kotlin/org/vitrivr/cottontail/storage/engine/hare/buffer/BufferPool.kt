@@ -12,9 +12,9 @@ import org.vitrivr.cottontail.storage.engine.hare.basics.Resource
 import org.vitrivr.cottontail.storage.engine.hare.buffer.eviction.EvictionPolicy
 import org.vitrivr.cottontail.storage.engine.hare.buffer.eviction.EvictionQueue
 import org.vitrivr.cottontail.storage.engine.hare.buffer.eviction.EvictionQueueToken
-import org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
-import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectDiskManager
-import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
+import org.vitrivr.cottontail.storage.engine.hare.disk.HareDiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectHareDiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
 import org.vitrivr.cottontail.storage.engine.hare.memory.MemoryManager
 import org.vitrivr.cottontail.utilities.extensions.exclusive
 import org.vitrivr.cottontail.utilities.extensions.read
@@ -27,15 +27,15 @@ import java.util.concurrent.locks.ReentrantReadWriteLock
 import java.util.concurrent.locks.StampedLock
 
 /**
- * A [BufferPool] mediates access to a HARE file through a [DirectDiskManager] and facilitates
- * reading and writing [DataPage]s from/to memory and swapping [DataPage]s into the in-memory buffer.
+ * A [BufferPool] mediates access to a HARE file through a [DirectHareDiskManager] and facilitates
+ * reading and writing [HarePage]s from/to memory and swapping [HarePage]s into the in-memory buffer.
  *
  * @see EvictionQueue
  *
  * @version 1.2.0
  * @author Ralph Gasser
  */
-class BufferPool(private val disk: DiskManager, val size: Int = 25, val evictionPolicy: EvictionPolicy) : Resource {
+class BufferPool(private val disk: HareDiskManager, val size: Int = 25, val evictionPolicy: EvictionPolicy) : Resource {
 
     companion object {
         val METER_REGISTRY: MeterRegistry = JmxMeterRegistry(JmxConfig.DEFAULT, Clock.SYSTEM)
@@ -46,7 +46,7 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, val eviction
     /** Creates a new [MemoryManager.MemoryBlock] for this [BufferPool]. */
     private val memory = MemoryManager.request(this.size shl this.disk.pageShift)
 
-    /** Array of [DataPage]s that are kept in memory. */
+    /** Array of [HarePage]s that are kept in memory. */
     private val pages = this.memory.paged(this.disk.pageShift, this.size)
 
     /** The internal directory that maps [PageId]s to [PageReference]s.*/
@@ -64,7 +64,7 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, val eviction
     /** Internal flag used to indicate whether this [BufferPool] has been closed. */
     private var closed: Boolean = false
 
-    /** Return true if this [DiskManager] and thus this [BufferPool] is still open. */
+    /** Return true if this [HareDiskManager] and thus this [BufferPool] is still open. */
     override val isOpen: Boolean
         get() = this.disk.isOpen && !this.closed
 
@@ -75,11 +75,11 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, val eviction
     /** The amount of memory used by this [BufferPool] to buffer [PageReference]s. */
     val memorySize = this.memory.size
 
-    /** Returns the total number of buffered [DataPage]s. */
+    /** Returns the total number of buffered [HarePage]s. */
     val bufferedPages
         get() = this.pageDirectory.size
 
-    /** Returns the total number of [DataPage]s stored in the HARE Page file underpinning this [BufferPool]. */
+    /** Returns the total number of [HarePage]s stored in the HARE Page file underpinning this [BufferPool]. */
     val totalPages
         get() = this.disk.pages
 
@@ -88,13 +88,13 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, val eviction
     }
 
     /**
-     * Reads the [DataPage] identified by the given [PageId]. If a [PageReference] for the requested [DataPage]
-     * exists in the [BufferPool], that [PageReference] is returned. Otherwise, the [DataPage] is read from
+     * Reads the [HarePage] identified by the given [PageId]. If a [PageReference] for the requested [HarePage]
+     * exists in the [BufferPool], that [PageReference] is returned. Otherwise, the [HarePage] is read from
      * underlying storage.
      *
-     * @param pageId The [PageId] of the requested [DataPage]
+     * @param pageId The [PageId] of the requested [HarePage]
      * @param priority A [Priority] hint for the new [PageReference]. Acts as a hint to the [EvictionQueue].
-     * @return [PageReference] for the requested [DataPage]
+     * @return [PageReference] for the requested [HarePage]
      */
     fun get(pageId: PageId, priority: Priority = Priority.DEFAULT): PageReference = this.closeLock.read {
         check(this.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
@@ -132,7 +132,7 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, val eviction
             val pageRefs = range.map {
                 this@BufferPool.evictPage(it, Priority.DEFAULT)
             }
-            this@BufferPool.disk.read(range.first, (pageRefs.toTypedArray() as Array<DataPage>))
+            this@BufferPool.disk.read(range.first, (pageRefs.toTypedArray() as Array<HarePage>))
             pageRefs.forEach {
                 this@BufferPool.pageDirectory[it.id] = it
             }
@@ -142,7 +142,7 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, val eviction
     /**
      * Appends a new HARE page to the page file managed by this [BufferPool] and returns a [PageId] for that page.
      *
-     * @return [PageRef] for the appended [DataPage]
+     * @return [PageRef] for the appended [HarePage]
      */
     fun append(): PageId = this.closeLock.read {
         check(this.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
@@ -151,7 +151,7 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, val eviction
 
     /**
      * Flushes all dirty [PageRef]s to disk and resets their dirty flag. This method should be used with care, since it
-     * will cause all [DataPage]s to be written to disk.
+     * will cause all [HarePage]s to be written to disk.
      */
     fun flush() = this.closeLock.read {
         check(this.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
@@ -166,7 +166,7 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, val eviction
 
     /**
      * Synchronizes all dirty [PageRef]s with the version on disk thus resetting their dirty flag. This method should be
-     * used with care, since it will cause all [DataPage]s to be read from disk.
+     * used with care, since it will cause all [HarePage]s to be read from disk.
      */
     fun synchronize() = this.closeLock.read {
         check(this.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
@@ -179,7 +179,7 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, val eviction
         }
     }
 
-    /** Closes this [BufferPool] and the underlying [DiskManager]. */
+    /** Closes this [BufferPool] and the underlying [HareDiskManager]. */
     override fun close() = this.closeLock.write {
         if (!this.closed) {
             this.directoryLock.exclusive {
@@ -205,13 +205,13 @@ class BufferPool(private val disk: DiskManager, val size: Int = 25, val eviction
     }
 
     /**
-     * A reference to a [DataPage] held by this [BufferPool]. These references are exposed to the upper
-     * layers of the storage engine and access to a [DataPage] is only possible through such a [PageReference]
+     * A reference to a [HarePage] held by this [BufferPool]. These references are exposed to the upper
+     * layers of the storage engine and access to a [HarePage] is only possible through such a [PageReference]
      *
      * @author Ralph Gasser
      * @version 1.1.0
      */
-    inner class PageReference(override val id: PageId, override val priority: Priority, data: ByteBuffer): DataPage(data), PageRef {
+    inner class PageReference(override val id: PageId, override val priority: Priority, data: ByteBuffer): HarePage(data), PageRef {
 
         /** Flag indicating whether or not this [PageReference] is dirty. */
         private val _dirty = AtomicBoolean(false)

@@ -7,14 +7,14 @@ import org.vitrivr.cottontail.storage.engine.hare.PageId
 import org.vitrivr.cottontail.storage.engine.hare.access.column.variable.VariableHareColumnFile.Companion.ROOT_ALLOCATION_PAGE_ID
 import org.vitrivr.cottontail.storage.engine.hare.access.column.variable.VariableHareColumnFile.Companion.ROOT_DIRECTORY_PAGE_ID
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
-import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
 import org.vitrivr.cottontail.storage.engine.hare.views.AbstractPageView
 import org.vitrivr.cottontail.storage.engine.hare.views.DirectoryPageView
 import org.vitrivr.cottontail.storage.engine.hare.basics.PageConstants
 
 /**
  * The [HeaderPageView] of a [VariableHareColumnFile]. The [HeaderPageView] is usually located on
- * the first [DataPage] in the [VariableHareColumnFile] file.
+ * the first [HarePage] in the [VariableHareColumnFile] file.
  *
  * @author Ralph Gasser
  * @version 1.0

@@ -3,7 +3,7 @@ package org.vitrivr.cottontail.storage.store.engine.hare.disk
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
-import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.LongStack
 
 import java.nio.ByteBuffer
@@ -73,7 +73,7 @@ class LongStackTest {
     }
 
     /**
-     * Appends [DataPage]s of random bytes and checks, if those [DataPage]s' content remains the same after reading.
+     * Appends [HarePage]s of random bytes and checks, if those [HarePage]s' content remains the same after reading.
      */
     @ParameterizedTest()
     @ValueSource(ints = [512, 2048, 4096])

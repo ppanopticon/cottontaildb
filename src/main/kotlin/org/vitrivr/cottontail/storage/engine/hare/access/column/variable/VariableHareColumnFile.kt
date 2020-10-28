@@ -14,10 +14,10 @@ import org.vitrivr.cottontail.storage.engine.hare.basics.PageRef
 import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
 import org.vitrivr.cottontail.storage.engine.hare.buffer.Priority
 import org.vitrivr.cottontail.storage.engine.hare.buffer.eviction.EvictionPolicy
-import org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
-import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectDiskManager
-import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
-import org.vitrivr.cottontail.storage.engine.hare.disk.wal.WALDiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.HareDiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectHareDiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
+import org.vitrivr.cottontail.storage.engine.hare.disk.wal.WALHareDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.serializer.Serializer
 import org.vitrivr.cottontail.storage.engine.hare.toPageId
 import org.vitrivr.cottontail.storage.engine.hare.toSlotId
@@ -40,7 +40,7 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSi
     /** Companion object with important constants. */
     companion object {
 
-        /** [PageId] of the root [DataPage] in a [VariableHareColumnFile. */
+        /** [PageId] of the root [HarePage] in a [VariableHareColumnFile. */
         const val ROOT_PAGE_ID: PageId = 1L
 
         /** [PageId] of the root [DirectoryPageView]. */
@@ -58,12 +58,12 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSi
         fun create(path: Path, columnDef: ColumnDef<*>) {
             val entrySize = columnDef.serializer.physicalSize + SlottedPageView.SIZE_ENTRY /* Each entry has a offset entry on the slotted page. */
             val pageShift = determinePageSize(entrySize)
-            DiskManager.create(path, pageShift)
+            HareDiskManager.create(path, pageShift)
 
-            val manager = DirectDiskManager(path, 5000)
+            val manager = DirectHareDiskManager(path, 5000)
 
             /** Allocate file header page. */
-            val page = DataPage(ByteBuffer.allocate(manager.pageSize))
+            val page = HarePage(ByteBuffer.allocate(manager.pageSize))
             HeaderPageView().initializeAndWrap(page, columnDef)
             manager.update(manager.allocate(), page)
 
@@ -85,9 +85,9 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSi
          * @param entrySize Size of an entry in bytes.
          */
         private fun determinePageSize(entrySize: Int): Int {
-            var pageShift = StrictMath.max(BitUtil.toShift(BitUtil.nextPowerOfTwo(entrySize)), DiskManager.MIN_PAGE_SHIFT)
+            var pageShift = StrictMath.max(BitUtil.toShift(BitUtil.nextPowerOfTwo(entrySize)), HareDiskManager.MIN_PAGE_SHIFT)
             var waste = (1 shl pageShift) - SlottedPageView.SIZE_HEADER - entrySize * StrictMath.floorDiv((1 shl pageShift), entrySize)
-            for (i in (pageShift + 1)..DiskManager.MAX_PAGE_SHIFT) {
+            for (i in (pageShift + 1)..HareDiskManager.MAX_PAGE_SHIFT) {
                 val newWaste = (1 shl i) - SlottedPageView.SIZE_HEADER - entrySize * StrictMath.floorDiv((1 shl i), entrySize)
                 if (newWaste < waste) {
                     waste = newWaste
@@ -98,11 +98,11 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSi
         }
     }
 
-    /** Initializes the [DiskManager] based on the `wal` property. */
+    /** Initializes the [HareDiskManager] based on the `wal` property. */
     val disk = if (wal) {
-        WALDiskManager(this.path)
+        WALHareDiskManager(this.path)
     } else {
-        DirectDiskManager(this.path)
+        DirectHareDiskManager(this.path)
     }
 
     /** Initializes the [BufferPool]. */

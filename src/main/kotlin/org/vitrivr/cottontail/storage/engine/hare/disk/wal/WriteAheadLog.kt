@@ -1,9 +1,11 @@
 package org.vitrivr.cottontail.storage.engine.hare.disk.wal
 
+import org.vitrivr.cottontail.storage.engine.hare.DataCorruptionException
 import org.vitrivr.cottontail.storage.engine.hare.PageId
-import org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.HareDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.FileUtilities
-import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
+import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.file.Files
 import java.nio.file.Path
@@ -13,14 +15,14 @@ import kotlin.math.max
 
 /**
  * A file used for write-ahead logging. It allows for all the basic operations supported by
- * [DiskManager]s. The series of operations executed by this [WriteAheadLog] can then be replayed.
+ * [HareDiskManager]s. The series of operations executed by this [WriteAheadLog] can then be replayed.
  *
- * @see WALDiskManager
+ * @see WALHareDiskManager
  *
  * @author Ralph Gasser
  * @version 1.1.1
  */
-open class WriteAheadLog(val manager: WALDiskManager, val lockTimeout: Long = 5000L) : AutoCloseable {
+open class WriteAheadLog(private val manager: WALHareDiskManager, private val lockTimeout: Long = 5000L) : AutoCloseable {
 
     companion object {
         /** Size of the [WALHeader] in bytes. */
@@ -32,9 +34,9 @@ open class WriteAheadLog(val manager: WALDiskManager, val lockTimeout: Long = 50
         /**
          * Creates a new [WriteAheadLog] and opens and returns it.
          *
-         * @param manager [WALDiskManager] to create the [WriteAheadLog] for.
+         * @param manager [WALHareDiskManager] to create the [WriteAheadLog] for.
          */
-        fun create(manager: WALDiskManager): WriteAheadLog {
+        fun create(manager: WALHareDiskManager): WriteAheadLog {
             /* Prepare header data for page file in the HARE format. */
             val walHeader = WALHeader().init()
 
@@ -53,7 +55,7 @@ open class WriteAheadLog(val manager: WALDiskManager, val lockTimeout: Long = 50
     private val path = this.manager.path.parent.resolve(this.manager.path.fileName.toString() + ".wal")
 
     /** [FileChannel] used to write to this [WriteAheadLog]*/
-    private val fileChannel = FileChannel.open(path, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.SPARSE, StandardOpenOption.DSYNC)
+    private val fileChannel = FileChannel.open(path, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.SPARSE, StandardOpenOption.SYNC)
 
     /** Acquire lock on [WriteAheadLog] file. */
     private val fileLock = FileUtilities.acquireFileLock(this.fileChannel, this.lockTimeout)
@@ -67,20 +69,36 @@ open class WriteAheadLog(val manager: WALDiskManager, val lockTimeout: Long = 50
     /** The [CRC32C] object used to calculate the CRC32 checksum of this [WriteAheadLog]. */
     private val crc32 = CRC32C()
 
-    /** Number of [PageId]s that have been allocated in underlying [WALDiskManager] at time of creating this [WriteAheadLog]. */
+    /** Number of [PageId]s that have been allocated in underlying [WALHareDiskManager] at time of creating this [WriteAheadLog]. */
     private var allocated = this.manager.pages
 
-    /** Number of [PageId]s that have been allocated in underlying [WALDiskManager] at time of creating this [WriteAheadLog]. */
+    /** Number of [PageId]s that have been allocated in underlying [WALHareDiskManager] at time of creating this [WriteAheadLog]. */
     private var maximumPageId = this.manager.maximumPageId
 
-    /** An [ArrayDeque] of free [PageId]s held in underlying [WALDiskManager] at time of creating this [WriteAheadLog]. */
+    /** An [ArrayDeque] of free [PageId]s held in underlying [WALHareDiskManager] at time of creating this [WriteAheadLog]. */
     private var freePageIds = ArrayDeque(this.manager.freePageIds)
 
+    init {
+        if (this.walHeader.entries > 0) {
+            /* Re-calculate the CRC32 checksum. */
+            this.calculateChecksum()
+
+            /* Check if checksum is consistent with what is stored in header. */
+            if (this.walHeader.checksum != this.crc32.value) {
+                throw DataCorruptionException("Data corruption in Write Ahead Log (WAL): CRC32 checksum of data does not match checksum in header.")
+            }
+        }
+        this.fileChannel.position(this.fileChannel.size())
+    }
+
     /**
+     * Logs an update operation for a [PageId] and a [HarePage].
      *
+     * @param pageId The [PageId] to update.
+     * @param page The [HarePage] to write to the page.
      */
     @Synchronized
-    fun update(pageId: PageId, page: DataPage) {
+    fun update(pageId: PageId, page: HarePage) {
         check(this.fileChannel.isOpen) { "HARE Write Ahead Log (WAL) has been closed and cannot be used for update() operation (file = ${this.path})." }
         require(pageId <= this.allocated) { "Error while logging HARE Write Ahead Log (WAL) update() operation, page ID $pageId is out of bounds (file = ${this.path})." }
 
@@ -96,13 +114,13 @@ open class WriteAheadLog(val manager: WALDiskManager, val lockTimeout: Long = 50
         this.walHeader.checksum = this.crc32.value
 
         /* Write log entry. */
-        this.entry.write(this.fileChannel, this.fileChannel.size())
-        page.write(this.fileChannel, this.fileChannel.size())
+        this.entry.write(this.fileChannel)
+        page.write(this.fileChannel)
         this.walHeader.write(this.fileChannel, OFFSET_WAL_HEADER)
     }
 
     /**
-     * Allocates a new page and returns its [PageId]. Calling this method writes the action to the log.
+     * Logs an allocation of a new page and returns its [PageId].
      *
      * @return Allocated [PageId].
      */
@@ -128,10 +146,11 @@ open class WriteAheadLog(val manager: WALDiskManager, val lockTimeout: Long = 50
         this.maximumPageId = max(this.entry.pageId, this.maximumPageId)
 
         /* Calculate CRC32 checksum. */
+        this.crc32.update(this.entry.buffer.clear())
         this.walHeader.checksum = this.crc32.value
 
         /* Write log entry. */
-        this.entry.write(this.fileChannel, this.fileChannel.size())
+        this.entry.write(this.fileChannel)
         this.walHeader.write(this.fileChannel, OFFSET_WAL_HEADER)
 
         /* Returns the PageId. */
@@ -139,9 +158,9 @@ open class WriteAheadLog(val manager: WALDiskManager, val lockTimeout: Long = 50
     }
 
     /**
-     * Frees the [PageId]
+     * Logs a free operation for the given [PageId]
      *
-     * @return Allocated [PageId].
+     * @param pageId The [PageId] to free.
      */
     @Synchronized
     fun free(pageId: PageId) {
@@ -162,7 +181,7 @@ open class WriteAheadLog(val manager: WALDiskManager, val lockTimeout: Long = 50
         this.walHeader.checksum = this.crc32.value
 
         /* Write log entry. */
-        this.entry.write(this.fileChannel, this.fileChannel.size())
+        this.entry.write(this.fileChannel)
         this.walHeader.write(this.fileChannel, OFFSET_WAL_HEADER)
     }
 
@@ -174,6 +193,12 @@ open class WriteAheadLog(val manager: WALDiskManager, val lockTimeout: Long = 50
     @Synchronized
     fun replay(consumer: (WALEntry, FileChannel) -> Boolean) {
         check(this.fileChannel.isOpen) { "HARE Write Ahead Log (WAL) file for {${this.path}} has been closed and cannot be used for replay." }
+
+        /* Force-update header and checksum and compare. */
+        this.walHeader.read(this.fileChannel, OFFSET_WAL_HEADER)
+        if (this.crc32.value != this.walHeader.checksum) {
+            throw DataCorruptionException("Data corruption in Write Ahead Log (WAL): CRC32 checksum of data does not match checksum in header.")
+        }
 
         /* Initialize start position for replay. */
         this.fileChannel.position(WALHeader.SIZE.toLong())
@@ -191,6 +216,21 @@ open class WriteAheadLog(val manager: WALDiskManager, val lockTimeout: Long = 50
         }
     }
 
+    /**
+     * Checks if this [WriteAheadLog] is valid.
+     */
+    @Synchronized
+    fun valid(): Boolean {
+        check(this.fileChannel.isOpen) { "HARE Write Ahead Log (WAL) file for {${this.path}} has been closed and cannot be used for replay." }
+
+        /* Force-update header. */
+        this.walHeader.read(this.fileChannel, OFFSET_WAL_HEADER)
+        return this.crc32.value == this.walHeader.checksum
+    }
+
+    /**
+     * Closes this [WriteAheadLog].
+     */
     @Synchronized
     override fun close() {
         if (this.fileChannel.isOpen) {
@@ -206,5 +246,23 @@ open class WriteAheadLog(val manager: WALDiskManager, val lockTimeout: Long = 50
     fun delete() {
         this.close()
         Files.delete(this.path)
+    }
+
+    /**
+     * Re-calculates the [CRC32C] checksum for this [WriteAheadLog].
+     */
+    private fun calculateChecksum() {
+        val buffer = ByteBuffer.allocateDirect(this.manager.pageSize)
+        this.crc32.reset()
+        this.fileChannel.position(WALHeader.SIZE.toLong())
+        for (seq in 0L until this.walHeader.entries) {
+            this.entry.read(this.fileChannel)
+            this.crc32.update(this.entry.buffer.clear())
+            if (this.entry.payloadSize > 0) {
+                this.fileChannel.read(buffer.rewind())
+                this.crc32.update(buffer.rewind())
+            }
+        }
+        this.fileChannel.position(this.fileChannel.size())
     }
 }

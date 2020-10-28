@@ -12,9 +12,9 @@ import org.vitrivr.cottontail.storage.engine.hare.basics.PageRef
 import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
 import org.vitrivr.cottontail.storage.engine.hare.buffer.Priority
 import org.vitrivr.cottontail.storage.engine.hare.buffer.eviction.EvictionPolicy
-import org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
-import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectDiskManager
-import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
+import org.vitrivr.cottontail.storage.engine.hare.disk.HareDiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectHareDiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
 import java.nio.file.Files
 import java.util.*
 import kotlin.time.Duration
@@ -24,7 +24,7 @@ import kotlin.time.measureTime
 class BufferPoolTest {
     val path = TestConstants.testDataPath.resolve("test-bufferpool-db.hare")
 
-    var _manager: DirectDiskManager? = null
+    var _manager: DirectHareDiskManager? = null
 
     var pool: BufferPool? = null
 
@@ -34,8 +34,8 @@ class BufferPoolTest {
 
     @BeforeEach
     fun beforeEach() {
-        DiskManager.create(this.path, this.pageShift)
-        this._manager = DirectDiskManager(path = this.path, preAllocatePages = 1)
+        HareDiskManager.create(this.path, this.pageShift)
+        this._manager = DirectHareDiskManager(path = this.path, preAllocatePages = 1)
         this.pool = BufferPool(this._manager!!, 10, EvictionPolicy.LRU)
     }
 
@@ -46,7 +46,7 @@ class BufferPoolTest {
     }
 
     /**
-     * Appends [DataPage]s of random bytes and checks, if those [DataPage]s' content remains the same after reading.
+     * Appends [HarePage]s of random bytes and checks, if those [HarePage]s' content remains the same after reading.
      */
     @ExperimentalTime
     @ParameterizedTest(name="BufferPool (direct) (page retention): pages={0}")
@@ -61,7 +61,7 @@ class BufferPoolTest {
     }
 
     /**
-     * Appends [DataPage]s of random bytes and checks, if those [DataPage]s' content remains the same after reading.
+     * Appends [HarePage]s of random bytes and checks, if those [HarePage]s' content remains the same after reading.
      */
     @ExperimentalTime
     @ParameterizedTest(name="BufferPool (direct) (append): pages={0}")
@@ -74,7 +74,7 @@ class BufferPoolTest {
     }
 
     /**
-     * Updates [DataPage]s with random bytes and checks, if those [DataPage]s' content remains the same after reading.
+     * Updates [HarePage]s with random bytes and checks, if those [HarePage]s' content remains the same after reading.
      */
     @ExperimentalTime
     @ParameterizedTest(name="BufferPool (direct) (append / update): pages={0}")
@@ -111,7 +111,7 @@ class BufferPoolTest {
     }
 
     /**
-     * Compares the data stored in this [DirectDiskManager] with the data provided as array of [ByteArray]s
+     * Compares the data stored in this [DirectHareDiskManager] with the data provided as array of [ByteArray]s
      */
     @ExperimentalTime
     private fun compareData(ref: Array<ByteArray>) {
@@ -131,9 +131,9 @@ class BufferPoolTest {
     }
 
     /**
-     * Initializes this [DirectDiskManager] with random data.
+     * Initializes this [DirectHareDiskManager] with random data.
      *
-     * @param size The number of [DataPage]s to write.
+     * @param size The number of [HarePage]s to write.
      */
     @ExperimentalTime
     private fun initWithData(size: Int) : Array<ByteArray> {

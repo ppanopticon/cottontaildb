@@ -9,19 +9,19 @@ import java.nio.channels.FileChannel
 import java.util.concurrent.locks.StampedLock
 
 /**
- * This is a wrapper for an individual data [DataPage] managed by the HARE storage engine. At their
- * core, [DataPage]s are chunks of data in a [ByteBuffer] with a fixed size= 2^n.
+ * This is a wrapper for an individual data [HarePage] managed by the HARE storage engine. At their
+ * core, [HarePage]s are chunks of data in a [ByteBuffer] with a fixed size= 2^n.
  *
- * @see org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
+ * @see org.vitrivr.cottontail.storage.engine.hare.disk.HareDiskManager
  *
  * @version 1.3.1
  * @author Ralph Gasser
  */
-open class DataPage(override val buffer: ByteBuffer) : Page {
-    /** A [StampedLock] that mediates access to this [DataPage]'s [ByteBuffer].  */
+open class HarePage(override val buffer: ByteBuffer) : Page {
+    /** A [StampedLock] that mediates access to this [HarePage]'s [ByteBuffer].  */
     val lock: StampedLock = StampedLock()
 
-    /** The size of this [DataPage] in bytes. */
+    /** The size of this [HarePage] in bytes. */
     override val size: Int
         get() = this.buffer.capacity()
 
@@ -98,9 +98,9 @@ open class DataPage(override val buffer: ByteBuffer) : Page {
      *
      * @param index Position to write byte to.
      * @param value New [ByteArray] value to write.
-     * @return This [DataPage]
+     * @return This [HarePage]
      */
-    override fun putBytes(index: Int, value: ByteBuffer): DataPage = this.lock.exclusive {
+    override fun putBytes(index: Int, value: ByteBuffer): HarePage = this.lock.exclusive {
         this.buffer.position(index).put(value).rewind()
         return this
     }
@@ -110,9 +110,9 @@ open class DataPage(override val buffer: ByteBuffer) : Page {
      *
      * @param index Position to write byte to.
      * @param value [ByteArray] value to write.
-     * @return This [DataPage]
+     * @return This [HarePage]
      */
-    override fun putBytes(index: Int, value: ByteArray): DataPage = this.lock.exclusive {
+    override fun putBytes(index: Int, value: ByteArray): HarePage = this.lock.exclusive {
         this.buffer.position(index).put(value).rewind()
         return this
     }
@@ -122,7 +122,7 @@ open class DataPage(override val buffer: ByteBuffer) : Page {
      *
      * @param index Position to write byte to.
      * @param value [ShortArray] value to write.
-     * @return This [DataPage]
+     * @return This [HarePage]
      */
     override fun putShorts(index: Int, value: ShortArray): Page = this.lock.exclusive {
         this.buffer.position(index)
@@ -138,7 +138,7 @@ open class DataPage(override val buffer: ByteBuffer) : Page {
      *
      * @param index Position to write byte to.
      * @param value [CharArray] value to write.
-     * @return This [DataPage]
+     * @return This [HarePage]
      */
     override fun putChars(index: Int, value: CharArray): Page = this.lock.exclusive {
         this.buffer.position(index)
@@ -154,7 +154,7 @@ open class DataPage(override val buffer: ByteBuffer) : Page {
      *
      * @param index Position to write byte to.
      * @param value [IntArray] value to write.
-     * @return This [DataPage]
+     * @return This [HarePage]
      */
     override fun putInts(index: Int, value: IntArray): Page = this.lock.exclusive {
         this.buffer.position(index)
@@ -170,7 +170,7 @@ open class DataPage(override val buffer: ByteBuffer) : Page {
      *
      * @param index Position to write byte to.
      * @param value [LongArray] value to write.
-     * @return This [DataPage]
+     * @return This [HarePage]
      */
     override fun putLongs(index: Int, value: LongArray): Page = this.lock.exclusive {
         this.buffer.position(index)
@@ -186,7 +186,7 @@ open class DataPage(override val buffer: ByteBuffer) : Page {
      *
      * @param index Position to write byte to.
      * @param value [FloatArray] value to write.
-     * @return This [DataPage]
+     * @return This [HarePage]
      */
     override fun putFloats(index: Int, value: FloatArray): Page = this.lock.exclusive {
         for (i in value.indices) {
@@ -200,7 +200,7 @@ open class DataPage(override val buffer: ByteBuffer) : Page {
      *
      * @param index Position to write byte to.
      * @param value [DoubleArray] value to write.
-     * @return This [DataPage]
+     * @return This [HarePage]
      */
     override fun putDoubles(index: Int, value: DoubleArray): Page = this.lock.exclusive {
         for (i in value.indices) {
@@ -214,9 +214,9 @@ open class DataPage(override val buffer: ByteBuffer) : Page {
      *
      * @param index Position to write byte to.
      * @param value New [Byte] value to write.
-     * @return This [DataPage]
+     * @return This [HarePage]
      */
-    override fun putByte(index: Int, value: Byte): DataPage = this.lock.exclusive {
+    override fun putByte(index: Int, value: Byte): HarePage = this.lock.exclusive {
         this.buffer.put(index, value)
         return this
     }
@@ -226,9 +226,9 @@ open class DataPage(override val buffer: ByteBuffer) : Page {
      *
      * @param index Position to write byte to.
      * @param value New [Short] value to write.
-     * @return This [DataPage]
+     * @return This [HarePage]
      */
-    override fun putShort(index: Int, value: Short): DataPage = this.lock.exclusive {
+    override fun putShort(index: Int, value: Short): HarePage = this.lock.exclusive {
         this.buffer.putShort(index, value)
         return this
     }
@@ -238,9 +238,9 @@ open class DataPage(override val buffer: ByteBuffer) : Page {
      *
      * @param index Position to write byte to.
      * @param value New [Char] value to write.
-     * @return This [DataPage]
+     * @return This [HarePage]
      */
-    override fun putChar(index: Int, value: Char): DataPage = this.lock.exclusive {
+    override fun putChar(index: Int, value: Char): HarePage = this.lock.exclusive {
         this.buffer.putChar(index, value)
         return this
     }
@@ -250,9 +250,9 @@ open class DataPage(override val buffer: ByteBuffer) : Page {
      *
      * @param index Position to write byte to.
      * @param value New [Int] value to write.
-     * @return This [DataPage]
+     * @return This [HarePage]
      */
-    override fun putInt(index: Int, value: Int): DataPage = this.lock.exclusive {
+    override fun putInt(index: Int, value: Int): HarePage = this.lock.exclusive {
         this.buffer.putInt(index, value)
         return this
     }
@@ -262,9 +262,9 @@ open class DataPage(override val buffer: ByteBuffer) : Page {
      *
      * @param index Position to write byte to.
      * @param value New [Long] value to write.
-     * @return This [DataPage]
+     * @return This [HarePage]
      */
-    override fun putLong(index: Int, value: Long): DataPage = this.lock.exclusive {
+    override fun putLong(index: Int, value: Long): HarePage = this.lock.exclusive {
         this.buffer.putLong(index, value)
         return this
     }
@@ -274,9 +274,9 @@ open class DataPage(override val buffer: ByteBuffer) : Page {
      *
      * @param index Position to write byte to.
      * @param value New [Float] value to write.
-     * @return This [DataPage]
+     * @return This [HarePage]
      */
-    override fun putFloat(index: Int, value: Float): DataPage = this.lock.exclusive {
+    override fun putFloat(index: Int, value: Float): HarePage = this.lock.exclusive {
         this.buffer.putFloat(index, value)
         return this
     }
@@ -286,17 +286,17 @@ open class DataPage(override val buffer: ByteBuffer) : Page {
      *
      * @param index Position to write byte to.
      * @param value New [Double] value to write.
-     * @return This [DataPage]
+     * @return This [HarePage]
      */
-    override fun putDouble(index: Int, value: Double): DataPage = this.lock.exclusive {
+    override fun putDouble(index: Int, value: Double): HarePage = this.lock.exclusive {
         this.buffer.putDouble(index, value)
         return this
     }
 
     /**
-     * Clears the data in this [DataPage] effectively setting it to zero.
+     * Clears the data in this [HarePage] effectively setting it to zero.
      */
-    override fun clear(): DataPage = this.lock.exclusive {
+    override fun clear(): HarePage = this.lock.exclusive {
         for (i in 0 until this.buffer.capacity()) {
             this.buffer.put(i, 0)
         }
@@ -304,40 +304,40 @@ open class DataPage(override val buffer: ByteBuffer) : Page {
     }
 
     /**
-     * Reads the content of this [DataPage] from the given [FileChannel].
+     * Reads the content of this [HarePage] from the given [FileChannel].
      *
      * @param channel The [FileChannel] to read from.
      * @param position The position in the [FileChannel] to write to.
      */
-    override fun read(channel: FileChannel, position: Long): DataPage = this.lock.exclusive {
+    override fun read(channel: FileChannel, position: Long): HarePage = this.lock.exclusive {
         channel.read(this.buffer.clear(), position)
         return this
     }
 
     /**
-     * Reads the content of this [DataPage] from the given [FileChannel].
+     * Reads the content of this [HarePage] from the given [FileChannel].
      *
      * @param channel The [FileChannel] to read from.
      * @param position The position in the [FileChannel] to write to.
      */
-    override fun read(channel: FileChannel): DataPage = this.lock.exclusive {
+    override fun read(channel: FileChannel): HarePage = this.lock.exclusive {
         channel.read(this.buffer.clear())
         return this
     }
 
     /**
-     * Writes the content of this [DataPage] to the given [FileChannel].
+     * Writes the content of this [HarePage] to the given [FileChannel].
      *
      * @param channel The [FileChannel] to write to.
      * @param position The position in the [FileChannel] to write to.
      */
-    override fun write(channel: FileChannel, position: Long): DataPage = this.lock.shared {
+    override fun write(channel: FileChannel, position: Long): HarePage = this.lock.shared {
         channel.write(this.buffer.clear(), position)
         return this
     }
 
     /**
-     * Writes the content of this [DataPage] to the given [FileChannel].
+     * Writes the content of this [HarePage] to the given [FileChannel].
      *
      * @param channel The [FileChannel] to write to.
      */

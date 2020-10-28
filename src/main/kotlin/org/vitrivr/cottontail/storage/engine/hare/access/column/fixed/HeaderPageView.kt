@@ -6,13 +6,13 @@ import org.vitrivr.cottontail.model.basics.TupleId
 
 import org.vitrivr.cottontail.storage.engine.hare.DataCorruptionException
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
-import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
 import org.vitrivr.cottontail.storage.engine.hare.views.AbstractPageView
 import org.vitrivr.cottontail.storage.engine.hare.basics.PageConstants
 
 /**
  * The [HeaderPageView] of this [FixedHareColumnFile]. The [HeaderPageView] is located on the first
- * [DataPage] in the [FixedHareColumnFile] file.
+ * [HarePage] in the [FixedHareColumnFile] file.
  *
  * @author Ralph Gasser
  * @version 1.0

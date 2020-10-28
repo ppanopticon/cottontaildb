@@ -1,11 +1,12 @@
 package org.vitrivr.cottontail.storage.engine.hare.disk.wal
 
+import org.slf4j.LoggerFactory
 import org.vitrivr.cottontail.storage.engine.hare.DataCorruptionException
 import org.vitrivr.cottontail.storage.engine.hare.PageId
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
-import org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
-import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectDiskManager
-import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
+import org.vitrivr.cottontail.storage.engine.hare.disk.HareDiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectHareDiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.LongStack
 import org.vitrivr.cottontail.utilities.extensions.exclusive
 import org.vitrivr.cottontail.utilities.extensions.read
@@ -20,19 +21,23 @@ import java.util.concurrent.locks.StampedLock
 import kotlin.math.max
 
 /**
- * The [WALDiskManager] facilitates reading and writing of [Page]s from/to the underlying disk storage. Only one
- * [DiskManager] can be opened per HARE file and it acquires an exclusive [FileLock] once created.
+ * The [WALHareDiskManager] facilitates reading and writing of [Page]s from/to the underlying disk storage. Only one
+ * [HareDiskManager] can be opened per HARE file and it acquires an exclusive [FileLock] once created.
  *
- * As opposed to other [DiskManager] implementations, the [WALDiskManager] uses a write-ahead log (WAL) to make changes
+ * As opposed to other [HareDiskManager] implementations, the [WALHareDiskManager] uses a write-ahead log (WAL) to make changes
  * to the underlying file. Upon commit or rollback, changes to the WAL are atomically transferred to the actual file. This
  * makes this implementation slower but offers some reliability circumstances that involve system crashes.
  *
- * @see DiskManager
+ * @see HareDiskManager
  *
  * @version 1.3.1
  * @author Ralph Gasser
  */
-class WALDiskManager(path: Path, lockTimeout: Long = 5000, private val preAllocatePages: Int = 32) : DiskManager(path, lockTimeout) {
+class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAllocatePages: Int = 32) : HareDiskManager(path, lockTimeout) {
+
+    companion object {
+        private val LOGGER = LoggerFactory.getLogger(WALHareDiskManager::class.java)
+    }
 
     /** Reference to the [WriteAheadLog]. The [WriteAheadLog] is created whenever a write starts and removed on commit or rollback. */
     @Volatile
@@ -47,25 +52,23 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000, private val preAlloca
             if (Files.exists(walFile)) {
                 this.wal = WriteAheadLog(this, this.lockTimeout)
             } else {
-                /*
-                 * This can happen if system crashes between flushing the flag and creating the WAL file. This should
-                 * have no implication on data consistency, hence, we can perform a CRC32 checksum check and set the
-                 * flag to true.
-                 */
-                throw DataCorruptionException("Ongoing transaction was detected but no WAL file found for HARE file ${this.path.fileName}.")
+                LOGGER.warn("HARE file was found in a dirty state but no WAL file could be found (file: ${this.path.fileName}). Validating file...")
+                if (!this.validate()) {
+                    throw DataCorruptionException("CRC32C checksum mismatch (file: ${this.path}, expected:${this.calculateChecksum()}, found: ${this.header.checksum}}).")
+                }
             }
         }
     }
 
     /**
-     * Fetches the data identified by the given [PageId] into the given [DataPage] object thereby replacing the content
-     * of that [DataPage]. [WALDiskManager]s always read directly from the underlying file. Thus, uncommitted changes to
+     * Fetches the data identified by the given [PageId] into the given [HarePage] object thereby replacing the content
+     * of that [HarePage]. [WALHareDiskManager]s always read directly from the underlying file. Thus, uncommitted changes to
      * the file are invisible.
      *
      * @param pageId [PageId] to fetch data for.
      * @param page [Page] to fetch data into. Its content will be updated.
      */
-    override fun read(pageId: PageId, page: DataPage) {
+    override fun read(pageId: PageId, page: HarePage) {
         this.closeLock.shared {
             check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to access data (file: ${this.path})." }
             page.lock.exclusive {
@@ -76,14 +79,14 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000, private val preAlloca
     }
 
     /**
-     * Fetches the data starting from the given [PageId] into the given [DataPage] objects thereby replacing the content
-     * of those [DataPage]s. [WALDiskManager]s always read directly from the underlying file. Thus, uncommitted changes to
+     * Fetches the data starting from the given [PageId] into the given [HarePage] objects thereby replacing the content
+     * of those [HarePage]s. [WALHareDiskManager]s always read directly from the underlying file. Thus, uncommitted changes to
      * the file are invisible.
      *
      * @param pageId [PageId] to start fetching
-     * @param pages [DataPage]s to fetch data into. Their content will be updated.
+     * @param pages [HarePage]s to fetch data into. Their content will be updated.
      */
-    override fun read(pageId: PageId, pages: Array<DataPage>) {
+    override fun read(pageId: PageId, pages: Array<HarePage>) {
         this.closeLock.shared {
             check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to access data (file: ${this.path})." }
             val locks = Array(pages.size) { pages[it].lock.writeLock() }
@@ -98,23 +101,23 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000, private val preAlloca
     }
 
     /**
-     * Updates the page  with the given [PageId] with the content in the [DataPage].
+     * Updates the page  with the given [PageId] with the content in the [HarePage].
      *
      * This change will be written to the [WriteAheadLog].
      *
      * @param pageId [PageId] of the [Page] that should be updated
-     * @param page [DataPage] the data the [Page] should be updated with.
+     * @param page [HarePage] the data the [Page] should be updated with.
      */
-    override fun update(pageId: PageId, page: DataPage) = createOrUseSharedWAL {
+    override fun update(pageId: PageId, page: HarePage) = createOrUseSharedWAL {
         it.update(pageId, page)
     }
 
     /**
-     * Allocates new [DataPage]s in the HARE page file managed by this [DirectDiskManager].
+     * Allocates new [HarePage]s in the HARE page file managed by this [DirectHareDiskManager].
      *
      * The method will first try to return a [PageId] from the [LongStack] for free [PageId]s,
      * if that [LongStack] has run empty, then new pages are physically allocated and the file
-     * will grow by the number of pages specified in [DirectDiskManager.preAllocatePages].
+     * will grow by the number of pages specified in [DirectHareDiskManager.preAllocatePages].
      *
      * This change will be written to the [WriteAheadLog].
      *
@@ -219,7 +222,7 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000, private val preAlloca
     }
 
     /**
-     * Deletes the HARE page file backing this [WALDiskManager] and associated [WriteAheadLog] files.
+     * Deletes the HARE page file backing this [WALHareDiskManager] and associated [WriteAheadLog] files.
      *
      * Calling this method also closes the associated [FileChannel]s.
      */
@@ -229,7 +232,7 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000, private val preAlloca
     }
 
     /**
-     * Closes the [WriteAheadLog] associated with this [WALDiskManager].
+     * Closes the [WriteAheadLog] associated with this [WALHareDiskManager].
      */
     override fun prepareClose() {
         /* Close WAL. */
@@ -248,12 +251,13 @@ class WALDiskManager(path: Path, lockTimeout: Long = 5000, private val preAlloca
             this.writeAheadLock.read {
                 synchronized(this) {
                     if (this.wal == null) {
-                        /* Update the file header to reflect start of logging. */
-                        this.header.isConsistent = false
-                        this.header.write(this.fileChannel, OFFSET_HEADER)
-
                         /* Generate WriteAheadLogFile. */
                         this.wal = WriteAheadLog.create(this)
+
+                        /* Update the file header to reflect start of WAL logging. */
+                        this.header.isConsistent = false
+                        this.header.write(this.fileChannel, OFFSET_HEADER)
+                        this.fileChannel.force(false)
                     }
                 }
                 return action(this.wal!!)

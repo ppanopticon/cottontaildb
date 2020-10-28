@@ -13,8 +13,8 @@ import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.FloatVectorValue
 import org.vitrivr.cottontail.storage.basics.Units
 import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnFile
-import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectDiskManager
-import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
+import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectHareDiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
 import org.vitrivr.cottontail.storage.store.engine.hare.access.AbstractCursorTest
 import java.nio.file.Files
 import java.util.*
@@ -49,7 +49,7 @@ class HareFloatArrayCursorTest : AbstractCursorTest() {
     }
 
     /**
-     * Compares the data stored in this [DirectDiskManager] with the data provided as array of [ByteArray]s
+     * Compares the data stored in this [DirectHareDiskManager] with the data provided as array of [ByteArray]s
      */
     @ExperimentalTime
     private fun compareData(hareFile: FixedHareColumnFile<FloatVectorValue>, dimensions: Int, size: Int) {
@@ -69,9 +69,9 @@ class HareFloatArrayCursorTest : AbstractCursorTest() {
     }
 
     /**
-     * Initializes this [DirectDiskManager] with random data.
+     * Initializes this [DirectHareDiskManager] with random data.
      *
-     * @param size The number of [DataPage]s to write.
+     * @param size The number of [HarePage]s to write.
      */
     @ExperimentalTime
     private fun initWithData(hareFile: FixedHareColumnFile<FloatVectorValue>, dimensions: Int, size: Int) {

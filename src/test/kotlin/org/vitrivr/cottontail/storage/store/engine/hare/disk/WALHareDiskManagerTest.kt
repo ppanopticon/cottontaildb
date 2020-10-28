@@ -10,20 +10,20 @@ import org.vitrivr.cottontail.TestConstants
 import org.vitrivr.cottontail.storage.basics.Units
 import org.vitrivr.cottontail.storage.engine.hare.PageId
 import org.vitrivr.cottontail.storage.engine.hare.basics.PageConstants
-import org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
-import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectDiskManager
-import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
-import org.vitrivr.cottontail.storage.engine.hare.disk.wal.WALDiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.HareDiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectHareDiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
+import org.vitrivr.cottontail.storage.engine.hare.disk.wal.WALHareDiskManager
 import java.nio.ByteBuffer
 import java.util.*
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
 import kotlin.time.measureTime
 
-class WALDiskManagerTest {
+class WALHareDiskManagerTest {
     val path = TestConstants.testDataPath.resolve("test-direct-diskmgr-db.hare")
 
-    var manager: WALDiskManager? = null
+    var manager: WALHareDiskManager? = null
 
     val random = SplittableRandom(System.currentTimeMillis())
 
@@ -33,8 +33,8 @@ class WALDiskManagerTest {
 
     @BeforeEach
     fun beforeEach() {
-        DiskManager.create(this.path, this.pageShift)
-        this.manager = WALDiskManager(this.path)
+        HareDiskManager.create(this.path, this.pageShift)
+        this.manager = WALHareDiskManager(this.path)
     }
 
     @AfterEach
@@ -50,7 +50,7 @@ class WALDiskManagerTest {
     }
 
     /**
-     * Appends [DataPage]s of random bytes and checks, if those [DataPage]s' content remains the same after reading.
+     * Appends [HarePage]s of random bytes and checks, if those [HarePage]s' content remains the same after reading.
      */
     @ExperimentalTime
     @ParameterizedTest(name="WALDiskManager (Append / Commit / Read): pageSize={0}")
@@ -64,7 +64,7 @@ class WALDiskManagerTest {
     }
 
     /**
-     * Appends [DataPage]s of random bytes and checks, if those [DataPage]s' content remains the same after reading.
+     * Appends [HarePage]s of random bytes and checks, if those [HarePage]s' content remains the same after reading.
      */
     @ExperimentalTime
     @ParameterizedTest(name = "WALDiskManager (Append / Commit / Close / Read): pages={0}")
@@ -74,7 +74,7 @@ class WALDiskManagerTest {
 
         /** Close and re-open this DiskManager. */
         this.manager!!.close()
-        this.manager = WALDiskManager(this.path)
+        this.manager = WALHareDiskManager(this.path)
 
         /* Check if data remains the same. */
         this.compareSingleRead(data)
@@ -82,7 +82,7 @@ class WALDiskManagerTest {
     }
 
     /**
-     * Frees [DataPage]s and checks correctness of their content, with a commit in between.
+     * Frees [HarePage]s and checks correctness of their content, with a commit in between.
      */
     @ExperimentalTime
     @ParameterizedTest(name="DirectDiskManager (Append / Free / Commit / Read): pages={0}")
@@ -107,7 +107,7 @@ class WALDiskManagerTest {
         this.manager!!.commit()
 
         /* Check page content. */
-        val page = DataPage(ByteBuffer.allocateDirect(pageSize))
+        val page = HarePage(ByteBuffer.allocateDirect(pageSize))
         for (pageId in pageIds) {
             this.manager!!.read(pageId, page)
             Assertions.assertEquals(PageConstants.PAGE_TYPE_FREED, page.getInt(0))
@@ -115,7 +115,7 @@ class WALDiskManagerTest {
     }
 
     /**
-     * Frees [DataPage]s and checks correctness of page reuse with commit in between.
+     * Frees [HarePage]s and checks correctness of page reuse with commit in between.
      */
     @ExperimentalTime
     @ParameterizedTest(name="DirectDiskManager (Append / Free / Commit / Append): pages={0}")
@@ -147,13 +147,13 @@ class WALDiskManagerTest {
     }
 
     /**
-     * Updates [DataPage]s with random bytes and checks, if those [DataPage]s' content remains the same after reading.
+     * Updates [HarePage]s with random bytes and checks, if those [HarePage]s' content remains the same after reading.
      */
     @ExperimentalTime
     @ParameterizedTest(name = "WALDiskManager (Append / Commit / Update / Commit / Read): pages={0}")
     @ValueSource(ints = [5000, 10000, 20000, 50000, 100000])
     fun testUpdateWithCommit(size: Int) {
-        val page = DataPage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
+        val page = HarePage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
         val data = this.initWithData(size)
 
         val newData = Array(data.size) {
@@ -180,13 +180,13 @@ class WALDiskManagerTest {
     }
 
     /**
-     * Appends [DataPage]s of random bytes and checks, if those [DataPage]s' content remains the same after reading.
+     * Appends [HarePage]s of random bytes and checks, if those [HarePage]s' content remains the same after reading.
      */
     @ExperimentalTime
     @ParameterizedTest(name = "WALDiskManager (Append / Commit / Update / Rollback / Read): pages={0}")
     @ValueSource(ints = [5000, 10000, 20000, 50000, 100000])
     fun testUpdateWithRollback(size: Int) {
-        val page = DataPage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
+        val page = HarePage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
         val data = this.initWithData(size)
 
         val newData = Array(data.size) {
@@ -214,11 +214,11 @@ class WALDiskManagerTest {
     }
 
     /**
-     * Compares the data stored in this [DirectDiskManager] with the data provided as array of [ByteArray]s
+     * Compares the data stored in this [DirectHareDiskManager] with the data provided as array of [ByteArray]s
      */
     @ExperimentalTime
     private fun compareSingleRead(ref: Array<ByteArray>) {
-        val page = DataPage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
+        val page = HarePage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
         var readTime = Duration.ZERO
         for (i in ref.indices) {
             readTime += measureTime {
@@ -230,14 +230,14 @@ class WALDiskManagerTest {
         println("Reading $diskSize (single) took $readTime (${diskSize.value / readTime.inSeconds} MB/s).")    }
 
     /**
-     * Compares the data stored in this [DirectDiskManager] with the data provided as array of [ByteArray]s
+     * Compares the data stored in this [DirectHareDiskManager] with the data provided as array of [ByteArray]s
      */
     @ExperimentalTime
     private fun compareMultiRead(ref: Array<ByteArray>) {
-        val page1 = DataPage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
-        val page2 = DataPage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
-        val page3 = DataPage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
-        val page4 = DataPage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
+        val page1 = HarePage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
+        val page2 = HarePage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
+        val page3 = HarePage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
+        val page4 = HarePage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
 
         var readTime = Duration.ZERO
         for (i in ref.indices step 4) {
@@ -254,13 +254,13 @@ class WALDiskManagerTest {
     }
 
     /**
-     * Initializes this [DirectDiskManager] with random data.
+     * Initializes this [DirectHareDiskManager] with random data.
      *
-     * @param size The number of [DataPage]s to write.
+     * @param size The number of [HarePage]s to write.
      */
     @ExperimentalTime
     private fun initWithData(size: Int) : Array<ByteArray> {
-        val page = DataPage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
+        val page = HarePage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
         var writeTime = Duration.ZERO
 
         val data = Array(size) {

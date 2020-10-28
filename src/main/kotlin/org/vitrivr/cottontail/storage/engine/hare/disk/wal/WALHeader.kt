@@ -86,6 +86,7 @@ class WALHeader : View {
             this.buffer.putLong(HEADER_OFFSET_CHECKSUM, v)
         }
 
+
     /**
      * Initializes a new [WALHeader], which will overwrite its contet.
      *

@@ -6,8 +6,8 @@ import org.vitrivr.cottontail.storage.engine.hare.PageId
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
 import org.vitrivr.cottontail.storage.engine.hare.basics.PageConstants
 import org.vitrivr.cottontail.storage.engine.hare.basics.Resource
-import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
-import org.vitrivr.cottontail.storage.engine.hare.disk.structures.Header
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HareHeader
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.LongStack
 import org.vitrivr.cottontail.utilities.extensions.write
 
@@ -22,14 +22,14 @@ import java.util.concurrent.locks.StampedLock
 import java.util.zip.CRC32C
 
 /**
- * The [DiskManager] facilitates reading and writing of [Page]s from/to the underlying HARE page file
- * usually residing on some form of persistent storage. Only one  [DiskManager] can be opened per HARE
+ * The [HareDiskManager] facilitates reading and writing of [Page]s from/to the underlying HARE page file
+ * usually residing on some form of persistent storage. Only one  [HareDiskManager] can be opened per HARE
  * page fil and it acquires an exclusive [FileLock] once created.
  *
  * @version 1.2.1
  * @author Ralph Gasser
  */
-abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resource {
+abstract class HareDiskManager(val path: Path, val lockTimeout: Long = 5000) : Resource {
 
     companion object {
 
@@ -47,11 +47,11 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
 
         /** Offsets. */
 
-        /** Offset into the [DiskManager] file to access the header.*/
+        /** Offset into the [HareDiskManager] file to access the header.*/
         const val OFFSET_HEADER = 0L
 
-        /** The offset into the [DiskManager] file to get the [LongStack] for free pages. */
-        const val OFFSET_FREE_PAGE_STACK = Header.SIZE.toLong()
+        /** The offset into the [HareDiskManager] file to get the [LongStack] for free pages. */
+        const val OFFSET_FREE_PAGE_STACK = HareHeader.SIZE.toLong()
 
         /**
          * Creates a new page file in the HARE format.
@@ -61,8 +61,8 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
         fun create(path: Path, pageShift: Int = 18) {
             /* Prepare header data for page file in the HARE format. */
             val pageSize = 1 shl pageShift
-            val header = Header(true).init(pageShift)
-            val stack = LongStack(ByteBuffer.allocateDirect(pageSize - Header.SIZE)).init()
+            val header = HareHeader(true).init(pageShift)
+            val stack = LongStack(ByteBuffer.allocateDirect(pageSize - HareHeader.SIZE)).init()
 
             /* Create parent directories. */
             if (Files.notExists(path.parent)) {
@@ -77,38 +77,38 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
         }
     }
 
-    /** The [FileChannel] used to access the file managed by this [DiskManager]. */
-    protected val fileChannel: FileChannel = FileChannel.open(this.path, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.DSYNC, StandardOpenOption.SPARSE)
+    /** The [FileChannel] used to access the file managed by this [HareDiskManager]. */
+    protected val fileChannel: FileChannel = FileChannel.open(this.path, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.SYNC, StandardOpenOption.SPARSE)
 
     /** Acquires an exclusive [FileLock] for file underlying this [FileChannel]. Makes sure, that no other process uses the same HARE file. */
     protected val fileLock = FileUtilities.acquireFileLock(this.fileChannel, this.lockTimeout)
 
-    /** Reference to the [Header] of the HARE file managed by this [DiskManager]. */
-    protected val header = Header(true).read(this.fileChannel, OFFSET_HEADER)
+    /** Reference to the [HareHeader] of the HARE file managed by this [HareDiskManager]. */
+    protected val header = HareHeader(true).read(this.fileChannel, OFFSET_HEADER)
 
-    /** Reference to the [LongStack] of the HARE file managed by this [DiskManager]. */
-    protected val freePageStack: LongStack = LongStack(ByteBuffer.allocateDirect(this.pageSize - Header.SIZE)).read(this.fileChannel, OFFSET_FREE_PAGE_STACK)
+    /** Reference to the [LongStack] of the HARE file managed by this [HareDiskManager]. */
+    protected val freePageStack: LongStack = LongStack(ByteBuffer.allocateDirect(this.pageSize - HareHeader.SIZE)).read(this.fileChannel, OFFSET_FREE_PAGE_STACK)
 
-    /** A [ReentrantReadWriteLock] that mediates access to the closed state of this [DiskManager]. */
+    /** A [ReentrantReadWriteLock] that mediates access to the closed state of this [HareDiskManager]. */
     protected val closeLock = StampedLock()
 
-    /** The bit shift used to determine the [Page] size of the page file managed by this [DiskManager]. */
+    /** The bit shift used to determine the [Page] size of the page file managed by this [HareDiskManager]. */
     val pageShift
         get() = this.header.pageShift
 
-    /** The [Page] size of the page file managed by this [DiskManager]. */
+    /** The [Page] size of the page file managed by this [HareDiskManager]. */
     val pageSize
         get() = this.header.pageSize
 
-    /** Number of [Page]s held by the HARE page file managed by this [DiskManager]. */
+    /** Number of [Page]s held by the HARE page file managed by this [HareDiskManager]. */
     val pages: Long
         get() = this.header.allocatedPages
 
-    /** The maximum [PageId]s held by the HARE page file managed by this [DiskManager]. */
+    /** The maximum [PageId]s held by the HARE page file managed by this [HareDiskManager]. */
     val maximumPageId: PageId
         get() = this.header.maximumPageId
 
-    /** Returns the size of the HARE page file managed by this [DiskManager]. */
+    /** Returns the size of the HARE page file managed by this [HareDiskManager]. */
     val size
         get() = MemorySize(this.fileChannel.size().toDouble(), Units.BYTE)
 
@@ -116,7 +116,7 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
     val freePageIds: List<PageId>
         get() = this.freePageStack.toList()
 
-    /** Return true if this [FileChannel] and thus this [DiskManager] is still open. */
+    /** Return true if this [FileChannel] and thus this [HareDiskManager] is still open. */
     override val isOpen
         get() = this.fileChannel.isOpen
 
@@ -124,9 +124,9 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
      * Fetches the data identified by the given [PageId] into the given [Page] object thereby replacing the content of that [Page].
      *
      * @param pageId [PageId] to fetch data for.
-     * @param page [DataPage] to fetch data into. Its content will be updated.
+     * @param page [HarePage] to fetch data into. Its content will be updated.
      */
-    abstract fun read(pageId: PageId, page: DataPage)
+    abstract fun read(pageId: PageId, page: HarePage)
 
     /**
      * Fetches the data starting from the given [PageId] into the given [Page] objects thereby replacing the content of those [Page].
@@ -134,18 +134,18 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
      * @param pageId [PageId] to start fetching
      * @param pages [Page]s to fetch data into. Their content will be updated.
      */
-    abstract fun read(pageId: PageId, pages: Array<DataPage>)
+    abstract fun read(pageId: PageId, pages: Array<HarePage>)
 
     /**
-     * Updates the [Page] identified by the given [PageId] in the HARE file managed by this [DiskManager].
+     * Updates the [Page] identified by the given [PageId] in the HARE file managed by this [HareDiskManager].
      *
      * @param pageId [PageId] of the [Page] that should be updated
      * @param page [Page] the data the [Page] should be updated with.
      */
-    abstract fun update(pageId: PageId, page: DataPage)
+    abstract fun update(pageId: PageId, page: HarePage)
 
     /**
-     * Allocates new [Page] in the HARE file managed by this [DiskManager].
+     * Allocates new [Page] in the HARE file managed by this [HareDiskManager].
      *
      * @return The [PageId] of the allocated [Page].
      */
@@ -163,17 +163,24 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
     abstract fun free(pageId: PageId)
 
     /**
-     * Commits all changes made through this [DiskManager].
+     * Commits all changes made through this [HareDiskManager].
      */
     abstract fun commit()
 
     /**
-     * Rolls back all changes made through this [DiskManager].
+     * Rolls back all changes made through this [HareDiskManager].
      */
     abstract fun rollback()
 
     /**
-     * Deletes the HARE file backing this [DiskManager]. Calling this method also
+     *
+     */
+    fun sync() {
+       this.fileChannel.force(false)
+    }
+
+    /**
+     * Deletes the HARE file backing this [HareDiskManager]. Calling this method also
      * closes the associated [FileChannel].
      */
     open fun delete() {
@@ -182,9 +189,9 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
     }
 
     /**
-     * Calculates the [CRC32C] checksum for the file managed by this [DiskManager].
+     * Calculates the [CRC32C] checksum for the file managed by this [HareDiskManager].
      *
-     * @return [CRC32C] object for this [DiskManager]
+     * @return [CRC32C] object for this [HareDiskManager]
      */
     fun calculateChecksum(): Long {
         val page = ByteBuffer.allocateDirect(this.header.pageSize)
@@ -197,14 +204,14 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
     }
 
     /**
-     * Validation method. Compares the checksum in the file's [Header] to the actual checksum of the content.
+     * Validation method. Compares the checksum in the file's [HareHeader] to the actual checksum of the content.
      *
      * @return true If and only if checksum in header and of content are identical.
      */
-    fun validate(): Boolean = this.header.checksum == this.calculateChecksum()
+    fun validate(): Boolean = (this.header.checksum == this.calculateChecksum())
 
     /**
-     * Closes this [DiskManager].
+     * Closes this [HareDiskManager].
      */
     final override fun close() = this.closeLock.write {
         if (this.isOpen) {
@@ -215,12 +222,12 @@ abstract class DiskManager(val path: Path, val lockTimeout: Long = 5000) : Resou
     }
 
     /**
-     * Logic that should be executed prior to closing a [DiskManager].
+     * Logic that should be executed prior to closing a [HareDiskManager].
      */
     protected abstract fun prepareClose()
 
     /**
-     * Converts the given [PageId] to an offset into the file managed by this [DiskManager]. Calling this method
+     * Converts the given [PageId] to an offset into the file managed by this [HareDiskManager]. Calling this method
      * also makes necessary sanity checks regarding the file's channel status and pageId bounds.
      *
      * @param pageId The [PageId] to translate to a position.

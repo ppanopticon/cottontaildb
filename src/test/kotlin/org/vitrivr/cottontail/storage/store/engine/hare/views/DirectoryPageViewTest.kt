@@ -5,7 +5,7 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.storage.engine.hare.Address
-import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
 import org.vitrivr.cottontail.storage.engine.hare.views.DirectoryPageView
 import org.vitrivr.cottontail.storage.engine.hare.views.Flags
 import java.nio.ByteBuffer
@@ -31,7 +31,7 @@ class DirectoryPageViewTest {
     @ValueSource(ints = [4096, 8192, 16384, 32768])
     fun testWrapException(pageSize: Int) {
         val buffer = ByteBuffer.allocate(pageSize)
-        val page = DataPage(buffer)
+        val page = HarePage(buffer)
         Assertions.assertThrows(IllegalArgumentException::class.java) {
             DirectoryPageView().wrap(page)
         }
@@ -41,7 +41,7 @@ class DirectoryPageViewTest {
     @ValueSource(ints = [4096, 8192, 16384, 32768])
     fun test(pageSize: Int) {
         val buffer = ByteBuffer.allocate(pageSize)
-        val page = DataPage(buffer)
+        val page = HarePage(buffer)
         val view = DirectoryPageView().initializeAndWrap(page, -1L, 0L)
         val list = mutableListOf<Triple<TupleId, Flags, Address>>()
         var last = -1L

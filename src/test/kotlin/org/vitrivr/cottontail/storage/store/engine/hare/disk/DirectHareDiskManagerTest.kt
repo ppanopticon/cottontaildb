@@ -1,7 +1,6 @@
 package org.vitrivr.cottontail.storage.store.engine.hare.disk
 
 import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -11,9 +10,9 @@ import org.vitrivr.cottontail.TestConstants
 import org.vitrivr.cottontail.storage.basics.Units
 import org.vitrivr.cottontail.storage.engine.hare.PageId
 import org.vitrivr.cottontail.storage.engine.hare.basics.PageConstants
-import org.vitrivr.cottontail.storage.engine.hare.disk.DiskManager
-import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectDiskManager
-import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
+import org.vitrivr.cottontail.storage.engine.hare.disk.HareDiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectHareDiskManager
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
 import java.nio.ByteBuffer
 import java.nio.file.Files
 import java.util.*
@@ -21,10 +20,10 @@ import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
 import kotlin.time.measureTime
 
-class DirectDiskManagerTest {
+class DirectHareDiskManagerTest {
     val path = TestConstants.testDataPath.resolve("test-direct-diskmgr-db.hare")
 
-    var manager: DirectDiskManager? = null
+    var manager: DirectHareDiskManager? = null
 
     val random = SplittableRandom(System.currentTimeMillis())
 
@@ -34,8 +33,8 @@ class DirectDiskManagerTest {
 
     @BeforeEach
     fun beforeEach() {
-        DiskManager.create(this.path, pageShift)
-        this.manager = DirectDiskManager(path = this.path, preAllocatePages = 0)
+        HareDiskManager.create(this.path, pageShift)
+        this.manager = DirectHareDiskManager(path = this.path, preAllocatePages = 0)
     }
 
     @AfterEach
@@ -53,7 +52,7 @@ class DirectDiskManagerTest {
     }
 
     /**
-     * Appends [DataPage]s of random bytes and checks, if those [DataPage]s' content remains the same after reading.
+     * Appends [HarePage]s of random bytes and checks, if those [HarePage]s' content remains the same after reading.
      */
     @ExperimentalTime
     @ParameterizedTest(name="DirectDiskManager (Append / Read): pages={0}")
@@ -67,7 +66,7 @@ class DirectDiskManagerTest {
     }
 
     /**
-     * Appends [DataPage]s of random bytes and checks, if those [DataPage]s' content remains the same after reading.
+     * Appends [HarePage]s of random bytes and checks, if those [HarePage]s' content remains the same after reading.
      */
     @ExperimentalTime
     @ParameterizedTest(name="DirectDiskManager (Append / Close / Read): pages={0}")
@@ -77,7 +76,7 @@ class DirectDiskManagerTest {
 
         /** Close and re-open this DiskManager. */
         this.manager!!.close()
-        this.manager = DirectDiskManager(this.path)
+        this.manager = DirectHareDiskManager(this.path)
         assertTrue(this.manager!!.validate())
 
         /* Check if data remains the same. */
@@ -86,13 +85,13 @@ class DirectDiskManagerTest {
     }
 
     /**
-     * Updates [DataPage]s with random bytes and checks, if those [DataPage]s' content remains the same after reading.
+     * Updates [HarePage]s with random bytes and checks, if those [HarePage]s' content remains the same after reading.
      */
     @ExperimentalTime
     @ParameterizedTest(name="DirectDiskManager (Append / Update / Read): pages={0}")
     @ValueSource(ints = [5000, 10000, 20000, 50000, 100000])
     fun testUpdatePage(size: Int) {
-        val page = DataPage(ByteBuffer.allocateDirect(pageSize))
+        val page = HarePage(ByteBuffer.allocateDirect(pageSize))
         val data = this.initWithData(size)
 
         val newData = Array(data.size) {
@@ -120,7 +119,7 @@ class DirectDiskManagerTest {
     }
 
     /**
-     * Frees [DataPage]s and checks correctness of their content.
+     * Frees [HarePage]s and checks correctness of their content.
      */
     @ExperimentalTime
     @ParameterizedTest(name="DirectDiskManager (Append / Free / Read): pages={0}")
@@ -144,7 +143,7 @@ class DirectDiskManagerTest {
         }
 
         /* Check page content. */
-        val page = DataPage(ByteBuffer.allocateDirect(pageSize))
+        val page = HarePage(ByteBuffer.allocateDirect(pageSize))
         for (pageId in pageIds) {
             this.manager!!.read(pageId, page)
             assertEquals(PageConstants.PAGE_TYPE_FREED, page.getInt(0))
@@ -152,7 +151,7 @@ class DirectDiskManagerTest {
     }
 
     /**
-     * Frees [DataPage]s and checks correctness of page reuse.
+     * Frees [HarePage]s and checks correctness of page reuse.
      */
     @ExperimentalTime
     @ParameterizedTest(name="DirectDiskManager (Append / Free / Append): pages={0}")
@@ -182,11 +181,11 @@ class DirectDiskManagerTest {
     }
 
     /**
-     * Compares the data stored in this [DirectDiskManager] with the data provided as array of [ByteArray]s
+     * Compares the data stored in this [DirectHareDiskManager] with the data provided as array of [ByteArray]s
      */
     @ExperimentalTime
     private fun compareSingleRead(ref: Array<ByteArray>) {
-        val page = DataPage(ByteBuffer.allocateDirect(pageSize))
+        val page = HarePage(ByteBuffer.allocateDirect(pageSize))
 
         var readTime = Duration.ZERO
         for (i in ref.indices) {
@@ -200,14 +199,14 @@ class DirectDiskManagerTest {
     }
 
     /**
-     * Compares the data stored in this [DirectDiskManager] with the data provided as array of [ByteArray]s
+     * Compares the data stored in this [DirectHareDiskManager] with the data provided as array of [ByteArray]s
      */
     @ExperimentalTime
     private fun compareMultiRead(ref: Array<ByteArray>) {
-        val page1 = DataPage(ByteBuffer.allocateDirect(pageSize))
-        val page2 = DataPage(ByteBuffer.allocateDirect(pageSize))
-        val page3 = DataPage(ByteBuffer.allocateDirect(pageSize))
-        val page4 = DataPage(ByteBuffer.allocateDirect(pageSize))
+        val page1 = HarePage(ByteBuffer.allocateDirect(pageSize))
+        val page2 = HarePage(ByteBuffer.allocateDirect(pageSize))
+        val page3 = HarePage(ByteBuffer.allocateDirect(pageSize))
+        val page4 = HarePage(ByteBuffer.allocateDirect(pageSize))
 
         var readTime = Duration.ZERO
         for (i in ref.indices step 4) {
@@ -224,13 +223,13 @@ class DirectDiskManagerTest {
     }
 
     /**
-     * Initializes this [DirectDiskManager] with random data.
+     * Initializes this [DirectHareDiskManager] with random data.
      *
-     * @param size The number of [DataPage]s to write.
+     * @param size The number of [HarePage]s to write.
      */
     @ExperimentalTime
     private fun initWithData(size: Int) : Array<ByteArray> {
-        val page = DataPage(ByteBuffer.allocateDirect(pageSize))
+        val page = HarePage(ByteBuffer.allocateDirect(pageSize))
         var writeTime = Duration.ZERO
         val data = Array(size) {
             val bytes = ByteArray(pageSize)

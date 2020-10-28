@@ -12,6 +12,7 @@ import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.types.Value
 import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnFile
+import org.vitrivr.cottontail.utilities.extensions.read
 import org.vitrivr.cottontail.utilities.extensions.write
 import java.nio.file.Path
 import java.util.*
@@ -95,6 +96,10 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val par
         /** A [StampedLock] local to this [HareColumn.Tx]. It makes sure, that this [HareColumn.Tx] cannot be committed, closed or rolled back while it is being used. */
         private val localLock = StampedLock()
 
+
+        /** */
+        private val cursor = this@HareColumn.column.writableCursor()
+
         /**
          * Commits all changes made through this [Tx] since the last commit or rollback.
          */
@@ -130,20 +135,22 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val par
             }
         }
 
-        override fun count(): Long {
-            TODO("Not yet implemented")
+        override fun count(): Long = this.localLock.read {
+            this.cursor.size
         }
 
-        override fun read(tupleId: Long): T? {
-            TODO("Not yet implemented")
+        override fun read(tupleId: Long): T? = this.localLock.read {
+            this.cursor.seek(tupleId)
+            this.cursor.get()
         }
 
-        override fun insert(record: T?): TupleId {
-            TODO("Not yet implemented")
+        override fun insert(record: T?)= this.localLock.read {
+            this.cursor.append(record)
         }
 
         override fun update(tupleId: TupleId, value: T?) {
-            TODO("Not yet implemented")
+            this.cursor.seek(tupleId)
+            this.cursor.append(tupleId)
         }
 
         override fun compareAndUpdate(tupleId: Long, value: T?, expected: T?): Boolean {

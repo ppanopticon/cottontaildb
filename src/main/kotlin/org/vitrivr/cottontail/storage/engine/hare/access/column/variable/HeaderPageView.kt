@@ -17,7 +17,7 @@ import org.vitrivr.cottontail.storage.engine.hare.basics.PageConstants
  * the first [HarePage] in the [VariableHareColumnFile] file.
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.0.0
  */
 class HeaderPageView : AbstractPageView() {
 

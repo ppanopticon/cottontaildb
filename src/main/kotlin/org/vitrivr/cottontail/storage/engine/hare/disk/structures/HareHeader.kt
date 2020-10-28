@@ -143,7 +143,7 @@ class HareHeader(val direct: Boolean = false) : View {
         this.buffer.putChar(FILE_HEADER_IDENTIFIER[1])             /* 2: Identifier A. */
         this.buffer.putChar(FILE_HEADER_IDENTIFIER[2])             /* 4: Identifier R. */
         this.buffer.putChar(FILE_HEADER_IDENTIFIER[3])             /* 6: Identifier E. */
-        this.buffer.putInt(FileType.PAGE.ordinal)               /* 8: Type of HARE file. */
+        this.buffer.putInt(FileType.PAGE.ordinal)                  /* 8: Type of HARE file. */
         this.buffer.putInt(FILE_HEADER_VERSION)                    /* 12: Version of the HARE format. */
         this.buffer.putInt(pageShift)                              /* 16: Size of a HARE page; stored as bit shift. */
         this.buffer.putLong(HEADER_MASK_CONSISTENCY_OK)            /* 20: Flags used by the HARE page file. */

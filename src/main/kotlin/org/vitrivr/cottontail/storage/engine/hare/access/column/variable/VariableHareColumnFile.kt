@@ -6,9 +6,10 @@ import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.types.Value
 import org.vitrivr.cottontail.storage.engine.hare.PageId
 import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnFile.FixedHareCursor
-import org.vitrivr.cottontail.storage.engine.hare.access.cursor.Cursor
-import org.vitrivr.cottontail.storage.engine.hare.access.cursor.ReadableCursor
-import org.vitrivr.cottontail.storage.engine.hare.access.cursor.WritableCursor
+import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareColumnFile
+import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareColumnReader
+import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareColumnWriter
+import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareCursor
 import org.vitrivr.cottontail.storage.engine.hare.addressFor
 import org.vitrivr.cottontail.storage.engine.hare.basics.PageRef
 import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
@@ -19,8 +20,6 @@ import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectHareDiskMana
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
 import org.vitrivr.cottontail.storage.engine.hare.disk.wal.WALHareDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.serializer.Serializer
-import org.vitrivr.cottontail.storage.engine.hare.toPageId
-import org.vitrivr.cottontail.storage.engine.hare.toSlotId
 import org.vitrivr.cottontail.storage.engine.hare.views.*
 import org.vitrivr.cottontail.utilities.extensions.exclusive
 import org.vitrivr.cottontail.utilities.extensions.shared
@@ -36,7 +35,7 @@ import java.util.concurrent.locks.StampedLock
  * @author Ralph Gasser
  * @param 1.0.1
  */
-class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSize: Int = 5) : AutoCloseable {
+class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSize: Int = 5) : HareColumnFile<T> {
     /** Companion object with important constants. */
     companion object {
 
@@ -129,25 +128,13 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSi
         page.release()
     }
 
-    /**
-     * Creates and returns a [ReadableCursor] for this [VariableHareColumnFile]. The [ReadableCursor] can be
-     * used to access the entries in this [VariableHareColumnFile]
-     *
-     * @param bufferSize The size of the [BufferPool] that backs the new [Cursor].
-     *
-     * @return The [WritableCursor] that can be used to alter the given [TupleId]
-     */
-    fun cursor(bufferSize: Int = 10): ReadableCursor<T> = VariableHareCursor(false, bufferSize)
+    override fun newReader(): HareColumnReader<T> = VariableHareColumnReader(this, Directory(this))
 
-    /**
-     * Creates and returns a [WritableCursor] for this [VariableHareColumnFile]. The [WritableCursor] can be
-     * used to access and manipulate the entries in this [VariableHareColumnFile]
-     *
-     * @param bufferSize The size of the [BufferPool] that backs the new [Cursor].
-     *
-     * @return The [WritableCursor] that can be used to alter the given [TupleId]
-     */
-    fun writableCursor(bufferSize: Int = 10): WritableCursor<T> = VariableHareCursor(true, bufferSize)
+    override fun newWriter(): HareColumnWriter<T> {
+        TODO("Not yet implemented")
+    }
+
+    override fun newCursor(): HareCursor<T> = VariableHareColumnCursor(this, Directory(this))
 
     /**
      * Closes this [VariableHareColumnFile].
@@ -161,7 +148,7 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSi
     }
 
     /**
-     * A [Cursor] for access to the raw entries in a [VariableHareColumnFile].
+     * A [HareCursor] for access to the raw entries in a [VariableHareColumnFile].
      *
      * @author Ralph Gasser
      * @version 1.0.1
@@ -177,13 +164,13 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSi
         /** Local reference to the [Serializer] used for this [VariableHareCursor]. */
         private val serializer = this@VariableHareColumnFile.columnDef.serializer
 
-        /** The [DirectoryCursor] object used by this [VariableHareCursor]. */
-        private val directory = DirectoryCursor(this.bufferPool)
+        /** The [Directory] object used by this [VariableHareCursor]. */
+        private val directoryView = Directory(this.bufferPool)
 
-        /** The [HeaderPageView] used by this [DirectoryCursor]. */
+        /** The [HeaderPageView] used by this [Directory]. */
         private val headerView = HeaderPageView().wrap(this.bufferPool.get(ROOT_PAGE_ID, Priority.HIGH))
 
-        /** The [DirectoryCursor] object used by this [VariableHareCursor]. */
+        /** The [Directory] object used by this [VariableHareCursor]. */
         private val slottedPageView = SlottedPageView()
 
         /** Acquires a latch on the outer [VariableHareColumnFile]. This latch remains active until [VariableHareCursor] is released. */
@@ -192,9 +179,13 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSi
         /** The maximum [TupleId] supported by this [VariableHareCursor]. */
         override val maximum: TupleId
             get() {
-                this.directory.last()
-                return this.directory.lastTupleId
+                this.directoryView.last()
+                return this.directoryView.lastTupleId
             }
+
+        /** The number of elements addressed by this [FixedHareCursor]. */
+        override val size: Long
+            get() = this.headerView.count
 
         /** Internal flag used to indicate, that this [FixedHareCursor] was closed. */
         @Volatile
@@ -215,10 +206,10 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSi
         override fun next(): Boolean = this.closeLock.shared {
             check(!this.closed) { "Cursor has been closed and cannot be used anymore." }
             val newTupleId = this.tupleId + 1
-            if (this.directory.has(newTupleId)) {
+            if (this.directoryView.has(newTupleId)) {
                 this.tupleId = newTupleId
                 return true
-            } else if (this.directory.next() && this.directory.has(newTupleId)) {
+            } else if (this.directoryView.next() && this.directoryView.has(newTupleId)) {
                 this.tupleId = newTupleId
                 return true
             }
@@ -233,10 +224,10 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSi
         override fun previous(): Boolean = this.closeLock.shared {
             check(!this.closed) { "Cursor has been closed and cannot be used anymore." }
             val newTupleId = this.tupleId - 1
-            if (this.directory.has(newTupleId)) {
+            if (this.directoryView.has(newTupleId)) {
                 this.tupleId = newTupleId
                 return true
-            } else if (this.directory.previous() && this.directory.has(newTupleId)) {
+            } else if (this.directoryView.previous() && this.directoryView.has(newTupleId)) {
                 this.tupleId = newTupleId
                 return true
             }
@@ -250,17 +241,17 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSi
          */
         override fun seek(tupleId: TupleId): Boolean = this.closeLock.shared {
             check(!this.closed) { "Cursor has been closed and cannot be used anymore." }
-            if (this.directory.has(tupleId)) {
+            if (this.directoryView.has(tupleId)) {
                 this.tupleId = tupleId
                 return true
             }
             while (true) {
-                if (this.tupleId < this.directory.firstTupleId && this.directory.previous()) {
-                    if (this.directory.has(tupleId)) {
+                if (this.tupleId < this.directoryView.firstTupleId && this.directoryView.previous()) {
+                    if (this.directoryView.has(tupleId)) {
                         return true
                     }
-                } else if (this.tupleId > this.directory.lastTupleId && this.directory.next()) {
-                    if (this.directory.has(tupleId)) {
+                } else if (this.tupleId > this.directoryView.lastTupleId && this.directoryView.next()) {
+                    if (this.directoryView.has(tupleId)) {
                         return true
                     }
                 } else {
@@ -276,7 +267,7 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSi
          * @return true if the entry for the given [TupleId] is null and false otherwise.
          */
         override fun isNull(): Boolean = this.closeLock.shared {
-            this.directory.getFlags(this.tupleId).isNull()
+            this.directoryView.getFlags(this.tupleId).isNull()
         }
 
         /**
@@ -285,11 +276,11 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSi
          * @return true if the entry for the given [TupleId] is null and false otherwise.
          */
         override fun isDeleted(): Boolean = this.closeLock.shared {
-            this.directory.getFlags(this.tupleId).isDeleted()
+            this.directoryView.getFlags(this.tupleId).isDeleted()
         }
 
         override fun get(): T? = this.closeLock.shared {
-            val address = this.directory.getAddress(this.tupleId)
+            val address = this.directoryView.getAddress(this.tupleId)
             val page = this.bufferPool.get(address.toPageId())
             val view = this.slottedPageView.wrap(page)
             val offset = view.offset(address.toSlotId())
@@ -345,7 +336,7 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSi
             } else {
                 0
             }
-            val newTupleId = this.directory.newTupleId(flags, address)
+            val newTupleId = this.directoryView.newTupleId(flags, address)
 
             /* Write data and release pages. */
             if (value != null) {
@@ -367,7 +358,7 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSi
                     headerPage.release()
                 }
 
-                this.directory.close()
+                this.directoryView.close()
                 this.bufferPool.close()
                 this@VariableHareColumnFile.closeLock.unlock(this.outerCloseStamp)
                 this.closed = true

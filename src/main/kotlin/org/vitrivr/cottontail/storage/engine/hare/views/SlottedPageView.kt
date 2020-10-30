@@ -3,6 +3,7 @@ package org.vitrivr.cottontail.storage.engine.hare.views
 import org.vitrivr.cottontail.storage.engine.hare.SlotId
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
 import org.vitrivr.cottontail.storage.engine.hare.basics.PageConstants
+import org.vitrivr.cottontail.storage.engine.hare.basics.PageRef
 
 /**
  * A [AbstractPageView] implementation for a slotted [Page] design.
@@ -27,6 +28,21 @@ class SlottedPageView : AbstractPageView() {
 
         /** The offset into a slotted [Page]'s header to get the free space pointer. */
         private const val HEADER_OFFSET_FREE = 8
+
+        /**
+         * Initializes the given [Page] as [SlottedPageView]. Makes necessary type checks.
+         *
+         * @param page The [PageRef] to be initialized.
+         *
+         * @throws IllegalArgumentException If the provided [Page] is incompatible with this [SlottedPageView]
+         */
+        fun initialize(page: Page) {
+            val type = page.getInt(0)
+            require(type == PageConstants.PAGE_TYPE_UNINITIALIZED) { "Cannot initialize page of type $type as ${DirectoryPageView::class.java.simpleName} (type = ${PageConstants.PAGE_TYPE_DIRECTORY})." }
+            page.putInt(0, PageConstants.PAGE_TYPE_SLOTTED)
+            page.putInt(HEADER_OFFSET_SLOTS, 0)
+            page.putInt(HEADER_OFFSET_FREE, page.size)
+        }
     }
 
     /** The number of slots held by this [SlottedPageView]. */
@@ -57,20 +73,6 @@ class SlottedPageView : AbstractPageView() {
      */
     override fun wrap(page: Page): SlottedPageView {
         super.wrap(page)
-        return this
-    }
-
-    /**
-     * Initializes the given [Page] as [SlottedPageView]. Makes necessary type checks.
-     *
-     * @param page The [Page] to be initialized.
-     * @return This [SlottedPageView]
-     *  @throws IllegalArgumentException If the provided [Page] is incompatible with this [SlottedPageView]
-     */
-    override fun initializeAndWrap(page: Page): SlottedPageView {
-        super.initializeAndWrap(page)
-        page.putInt(HEADER_OFFSET_SLOTS, 0)
-        page.putInt(HEADER_OFFSET_FREE, page.size)
         return this
     }
 

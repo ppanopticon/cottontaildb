@@ -11,7 +11,7 @@ import org.vitrivr.cottontail.storage.engine.hare.access.NullValueNotAllowedExce
  * @author Ralph Gasser
  * @version 1.0.0
  */
-interface HareColumnWriter<T: Value> {
+interface HareColumnWriter<T: Value> : AutoCloseable {
     /**
      * Updates the [Value] for the given [TupleId].
      *

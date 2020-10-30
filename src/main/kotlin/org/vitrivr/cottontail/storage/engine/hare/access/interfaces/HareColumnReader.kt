@@ -10,7 +10,7 @@ import org.vitrivr.cottontail.storage.engine.hare.access.EntryDeletedException
  * @author Ralph Gasser
  * @version 1.0.0
  */
-interface HareColumnReader<T: Value> {
+interface HareColumnReader<T: Value> : AutoCloseable {
     /**
      * Returns the entry for the given [TupleId]
      *

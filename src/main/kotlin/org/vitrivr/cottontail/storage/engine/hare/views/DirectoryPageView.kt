@@ -5,6 +5,7 @@ import org.vitrivr.cottontail.storage.engine.hare.Address
 import org.vitrivr.cottontail.storage.engine.hare.PageId
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
 import org.vitrivr.cottontail.storage.engine.hare.basics.PageConstants
+import org.vitrivr.cottontail.storage.engine.hare.basics.PageRef
 
 /**
  * A [AbstractPageView] implementation for a directory [Page] that maps [TupleId] to [Address].
@@ -47,6 +48,26 @@ open class DirectoryPageView : AbstractPageView() {
 
         /** Constant value for a NO_REF value. */
         const val NO_REF = -1L
+
+        /**
+         * Tries to initialize and wrap the given [Page] as a [DirectoryPageView]. Initializing a [Page]
+         * means preparing it to be used with the current [DirectoryPageView].
+         *
+         * @param page The [Page] that should be wrapped.
+         * @param previous [PageId] of the previous page.
+         * @param first First [TupleId] on on the [DirectoryPageView]
+         *
+         * @throws IllegalArgumentException If the provided [Page] is incompatible with this [AbstractPageView]
+         */
+        fun initialize(page: Page, previous: PageId, first: TupleId) {
+            val type = page.getInt(0)
+            require(type == PageConstants.PAGE_TYPE_UNINITIALIZED) { "Cannot initialize page of type $type as ${DirectoryPageView::class.java.simpleName} (type = ${PageConstants.PAGE_TYPE_DIRECTORY})." }
+            page.putInt(0, PageConstants.PAGE_TYPE_DIRECTORY)
+            page.putLong(HEADER_OFFSET_PREVPTR, previous)
+            page.putLong(HEADER_OFFSET_NEXTPTR, NO_REF)
+            page.putLong(HEADER_OFFSET_TIDSTART, first)
+            page.putLong(HEADER_OFFSET_TIDEND, NO_REF)
+        }
     }
 
     /** The [pageTypeIdentifier] for the [SlottedPageView]. */
@@ -181,7 +202,6 @@ open class DirectoryPageView : AbstractPageView() {
         return tupleId
     }
 
-
     /**
      * Wraps the given [Page] in this [DirectoryPageView] and returns this [DirectoryPageView].
      *
@@ -191,31 +211,5 @@ open class DirectoryPageView : AbstractPageView() {
     override fun wrap(page: Page): DirectoryPageView {
         super.wrap(page)
         return this
-    }
-
-    /**
-     * Initializes and wraps the given [Page] for usage as [DirectoryPageView].
-     *
-     * @param page [Page] that should be wrapped.
-     * @param previous The previous [PageId] to initialize the [Page] with.
-     * @param start The start [TupleId] to initialize the [Page] with.
-     */
-    fun initializeAndWrap(page: Page, previous: PageId, start: TupleId): DirectoryPageView {
-        super.initializeAndWrap(page)
-        this.previousPageId = previous
-        this.nextPageId = NO_REF
-        this.firstTupleId = start
-        this.lastTupleId = NO_REF
-        return this
-    }
-
-    /**
-     * Using this method is prohibited; throws a [UnsupportedOperationException]
-     *
-     * @param page [Page] that should be wrapped.
-     */
-    @Deprecated("Usage of initializeAndWrap() without specifying a previous PageId and start TupleId is prohibited.")
-    override fun initializeAndWrap(page: Page): DirectoryPageView {
-        throw UnsupportedOperationException("Usage of initializeAndWrap() without specifying a previous PageId and start TupleId is prohibited.")
     }
 }

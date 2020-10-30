@@ -2,7 +2,6 @@ package org.vitrivr.cottontail.storage.engine.hare.access.column.variable
 
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.types.Value
-import org.vitrivr.cottontail.storage.engine.hare.PageId
 import org.vitrivr.cottontail.storage.engine.hare.access.EntryDeletedException
 import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnFile
 import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnReader
@@ -20,7 +19,7 @@ import org.vitrivr.cottontail.storage.engine.hare.views.isDeleted
 import org.vitrivr.cottontail.storage.engine.hare.views.isNull
 
 /**
- * A [HareColumnReader] implementation for [FixedHareColumnFile]s.
+ * A [HareColumnReader] implementation for [FixedHareColumnFile]s. This implementation is not thread safe!
  *
  * @author Ralph Gasser
  * @version 1.0.0
@@ -32,6 +31,16 @@ class VariableHareColumnReader<T: Value>(val file: VariableHareColumnFile<T>, va
     /** The [Serializer] used to read data through this [FixedHareColumnReader]. */
     private val serializer: Serializer<T> = this.file.columnDef.serializer
 
+    /** The shared [HeaderPageView] instance for this [VariableHareColumnReader].  */
+    private val headerView = org.vitrivr.cottontail.storage.engine.hare.access.column.variable.HeaderPageView()
+
+    /** The shared [SlottedPageView] instance for this [VariableHareColumnReader].  */
+    private val slottedView = SlottedPageView()
+
+    /** Flag indicating whether this [VariableHareColumnReader] has been closed.  */
+    var closed: Boolean = false
+        private set
+
     /**
      * Returns the entry for the given [TupleId] if such an entry exists.
      *
@@ -40,7 +49,7 @@ class VariableHareColumnReader<T: Value>(val file: VariableHareColumnFile<T>, va
      */
     override fun get(tupleId: TupleId): T? {
         /* Obtain and check flags for entry. */
-        val flags  = this.directory.flags(tupleId)
+        val flags = this.directory.flags(tupleId)
         if (flags.isDeleted()) {
             throw EntryDeletedException("Entry with tuple ID $tupleId has been deleted and cannot be accessed.")
         }
@@ -48,8 +57,10 @@ class VariableHareColumnReader<T: Value>(val file: VariableHareColumnFile<T>, va
         /* Obtain address for entry. */
         val address = this.directory.address(tupleId)
         val slotPage = this.bufferPool.get(address.toPageId(), Priority.LOW)
-        val slotView = SlottedPageView().wrap(slotPage)
-        val offset = slotView.offset(address.toSlotId())
+
+        /* Obtain slotted page and read it. */
+        this.slottedView.wrap(slotPage)
+        val offset = this.slottedView.offset(address.toSlotId())
         val value = this.serializer.deserialize(slotPage, offset)
 
         /* Release page and return value. */
@@ -64,7 +75,7 @@ class VariableHareColumnReader<T: Value>(val file: VariableHareColumnFile<T>, va
      */
     override fun count(): Long {
         val page = this.bufferPool.get(VariableHareColumnFile.ROOT_PAGE_ID, Priority.HIGH)
-        val count = HeaderPageView().wrap(page).count
+        val count = this.headerView.wrap(page).count
         page.release()
         return count
     }
@@ -73,14 +84,23 @@ class VariableHareColumnReader<T: Value>(val file: VariableHareColumnFile<T>, va
      * Returns a boolean indicating whether the entry for the given [TupleId] is null.
      *
      * @param tupleId The [TupleId] to check.
-     * @return true if the entry at the current position of the [FixedHareCursor] is null and false otherwise.
+     * @return true if the entry for the given [TupleId] is null and false otherwise.
      */
     override fun isNull(tupleId: TupleId): Boolean = this.directory.flags(tupleId).isNull()
 
     /**
      * Returns a boolean indicating whether the entry  for the given [TupleId] has been deleted.
      *
-     * @return true if the entry at the current position of the [FixedHareCursor] has been deleted and false otherwise.
+     * @return true if the entry for the given [TupleId] has been deleted and false otherwise.
      */
     override fun isDeleted(tupleId: TupleId): Boolean = this.directory.flags(tupleId).isDeleted()
+
+    /**
+     * Closes this [VariableHareColumnReader].
+     */
+    override fun close() {
+        if (!this.closed) {
+            this.closed = true
+        }
+    }
 }

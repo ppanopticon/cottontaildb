@@ -96,10 +96,6 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val par
         /** A [StampedLock] local to this [HareColumn.Tx]. It makes sure, that this [HareColumn.Tx] cannot be committed, closed or rolled back while it is being used. */
         private val localLock = StampedLock()
 
-
-        /** */
-        private val cursor = this@HareColumn.column.writableCursor()
-
         /**
          * Commits all changes made through this [Tx] since the last commit or rollback.
          */
@@ -136,21 +132,19 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val par
         }
 
         override fun count(): Long = this.localLock.read {
-            this.cursor.size
+            TODO()
         }
 
         override fun read(tupleId: Long): T? = this.localLock.read {
-            this.cursor.seek(tupleId)
-            this.cursor.get()
+            TODO()
         }
 
         override fun insert(record: T?)= this.localLock.read {
-            this.cursor.append(record)
+            TODO()
         }
 
         override fun update(tupleId: TupleId, value: T?) {
-            this.cursor.seek(tupleId)
-            this.cursor.append(tupleId)
+
         }
 
         override fun compareAndUpdate(tupleId: Long, value: T?, expected: T?): Boolean {

@@ -25,6 +25,14 @@ class FixedHareColumnReader<T: Value>(val file: FixedHareColumnFile<T>): HareCol
     /** The [Serializer] used to read data through this [FixedHareColumnReader]. */
     private val serializer: Serializer<T> = this.file.columnDef.serializer
 
+    /** The [HeaderPageView] used by this [FixedHareColumnCursor]. */
+    private val header = HeaderPageView().wrap(this.bufferPool.get(FixedHareColumnFile.ROOT_PAGE_ID, Priority.HIGH))
+
+    /** Flag indicating whether this [FixedHareColumnReader] has been closed.  */
+    @Volatile
+    var closed: Boolean = false
+        private set
+
     /**
      * Returns the entry for the given [TupleId] if such an entry exists.
      *
@@ -57,18 +65,13 @@ class FixedHareColumnReader<T: Value>(val file: FixedHareColumnFile<T>): HareCol
      *
      * @return Number of entries in this [HareColumnFile].
      */
-    override fun count(): Long {
-        val page = this.bufferPool.get(FixedHareColumnFile.ROOT_PAGE_ID, Priority.HIGH)
-        val count = HeaderPageView().wrap(page).count
-        page.release()
-        return count
-    }
+    override fun count(): Long =  this.header.count
 
     /**
      * Returns a boolean indicating whether the entry for the given [TupleId] is null.
      *
      * @param tupleId The [TupleId] to check.
-     * @return true if the entry at the current position of the [FixedHareCursor] is null and false otherwise.
+     * @return true if the entry for the given [TupleId] is null and false otherwise.
      */
     override fun isNull(tupleId: TupleId): Boolean {
         /* Calculate necessary offsets. */
@@ -88,7 +91,7 @@ class FixedHareColumnReader<T: Value>(val file: FixedHareColumnFile<T>): HareCol
     /**
      * Returns a boolean indicating whether the entry  for the given [TupleId] has been deleted.
      *
-     * @return true if the entry at the current position of the [FixedHareCursor] has been deleted and false otherwise.
+     * @return true if the entry for the given [TupleId] has been deleted and false otherwise.
      */
     override fun isDeleted(tupleId: TupleId): Boolean {
         /* Calculate necessary offsets. */
@@ -102,6 +105,15 @@ class FixedHareColumnReader<T: Value>(val file: FixedHareColumnFile<T>): HareCol
             return (page.getInt(entryOffset) and FixedHareColumnFile.MASK_DELETED) > 0L
         } finally {
             page.release()
+        }
+    }
+
+    /**
+     * Closes this [FixedHareColumnReader].
+     */
+    override fun close() {
+        if (!this.closed) {
+            this.closed = true
         }
     }
 }

@@ -9,7 +9,7 @@ import org.vitrivr.cottontail.model.values.types.Value
  * @author Ralph Gasser
  * @version 1.0.1
  */
-interface HareCursor<T : Value>: Iterator<TupleId> {
+interface HareCursor<T : Value>: Iterator<TupleId>, AutoCloseable {
 
     companion object {
         const val CURSOR_BOF: TupleId = -1L

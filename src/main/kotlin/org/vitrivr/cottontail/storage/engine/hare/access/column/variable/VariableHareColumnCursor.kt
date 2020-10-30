@@ -2,8 +2,8 @@ package org.vitrivr.cottontail.storage.engine.hare.access.column.variable
 
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.types.Value
-import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.HeaderPageView
 import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareCursor
+import org.vitrivr.cottontail.storage.engine.hare.basics.PageRef
 import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
 import org.vitrivr.cottontail.storage.engine.hare.buffer.Priority
 import org.vitrivr.cottontail.storage.engine.hare.views.isDeleted
@@ -28,20 +28,24 @@ class VariableHareColumnCursor<T: Value>(val file: VariableHareColumnFile<T>, va
     /** Maximum [TupleId] that can be accessed through this [VariableHareColumnCursor]. */
     override val end: TupleId
 
+    /** Pins the [HeaderPageView] for this [VariableHareColumnCursor]. */
+    private val headerView = HeaderPageView().wrap(this.bufferPool.get(VariableHareColumnFile.ROOT_PAGE_ID, Priority.HIGH))
+
+    /** Flag indicating whether this [VariableHareColumnCursor] has been closed.  */
+    var closed: Boolean = false
+        private set
+
     /** [start] and [end] are initialized once! Hence [VariableHareColumnCursor] won't reflect changes to the file.*/
     init {
-        val headerPage = this.bufferPool.get(VariableHareColumnFile.ROOT_PAGE_ID, Priority.HIGH)
-        val headerView = HeaderPageView().wrap(headerPage)
         if (range != null) {
             require(range.first >= 0L) { "Start tupleId must be greater or equal than zero." }
-            require(range.last <= headerView.maxTupleId) { "End tupleId must be smaller or equal to to maximum tupleId for HARE file." }
+            require(range.last <= this.headerView.maxTupleId) { "End tupleId must be smaller or equal to to maximum tupleId for HARE file." }
             this.start = range.first
             this.end = range.last
         } else {
             this.start = 0L
-            this.end = headerView.maxTupleId
+            this.end = this.headerView.maxTupleId
         }
-        headerPage.release()
     }
 
     override fun hasNext(): Boolean {
@@ -67,8 +71,15 @@ class VariableHareColumnCursor<T: Value>(val file: VariableHareColumnFile<T>, va
      *
      * @return true if the entry at the current position of the [FixedHareCursor] has been deleted and false otherwise.
      */
-    private fun isValid(tupleId: TupleId): Boolean {
-        val flags = this.directory.flags(tupleId)
-        return flags.isDeleted()
+    private fun isValid(tupleId: TupleId): Boolean = !this.directory.flags(tupleId).isDeleted()
+
+    /**
+     * Closes this [VariableHareColumnReader].
+     */
+    override fun close() {
+        if (!this.closed) {
+            this.closed = true
+            (this.headerView.page as PageRef).release()
+        }
     }
 }

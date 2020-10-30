@@ -34,7 +34,8 @@ class SlottedPageViewTest {
     fun testFullAllocation(pageSize: Int) {
         val buffer = ByteBuffer.allocate(pageSize)
         val page = HarePage(buffer)
-        val slotted = SlottedPageView().initializeAndWrap(page)
+        SlottedPageView.initialize(page)
+        val slotted = SlottedPageView().wrap(page)
 
         /** Check vanilla page. */
         Assertions.assertEquals(0, slotted.slots)
@@ -55,7 +56,8 @@ class SlottedPageViewTest {
     fun testOverflowAllocation(pageSize: Int) {
         val buffer = ByteBuffer.allocate(pageSize)
         val page = HarePage(buffer)
-        val slotted = SlottedPageView().initializeAndWrap(page)
+        SlottedPageView.initialize(page)
+        val slotted = SlottedPageView().wrap(page)
         val allocationSize = slotted.freeSpace - SlottedPageView.SIZE_ENTRY + 1
 
         /** Check vanilla page. */
@@ -76,7 +78,8 @@ class SlottedPageViewTest {
     fun testRandomWriteRead(pageSize: Int) {
         val buffer = ByteBuffer.allocate(pageSize)
         val page = HarePage(buffer)
-        val slotted = SlottedPageView().initializeAndWrap(page)
+        SlottedPageView.initialize(page)
+        val slotted = SlottedPageView().wrap(page)
 
         /** Check vanilla page. */
         Assertions.assertEquals(0, slotted.slots)

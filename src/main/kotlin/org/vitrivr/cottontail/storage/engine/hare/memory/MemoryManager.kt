@@ -4,7 +4,7 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.vitrivr.cottontail.storage.engine.hare.basics.ReferenceCounted
-import org.vitrivr.cottontail.storage.engine.hare.disk.structures.DataPage
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
 import org.vitrivr.cottontail.utilities.extensions.convertWriteLock
 import org.vitrivr.cottontail.utilities.extensions.write
 import java.nio.ByteBuffer
@@ -12,7 +12,10 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.locks.StampedLock
 
 /**
+ * This class is used to manage memory used by HARE.
  *
+ * @author Ralph Gasser
+ * @version 1.0.0
  */
 object MemoryManager: AutoCloseable {
 
@@ -32,7 +35,7 @@ object MemoryManager: AutoCloseable {
             (Runtime.getRuntime().maxMemory() / 2)
         }
 
-    /** Array of [DataPage]s that are kept in memory. */
+    /** Array of [HarePage]s that are kept in memory. */
     private val unusedBlocks = mutableSetOf<MemoryBlock>()
 
     /** An internal lock to mediate access to allocation. */
@@ -93,7 +96,7 @@ object MemoryManager: AutoCloseable {
      * A contiguous junk of memory wrapped by a [ByteBuffer].
      *
      * @author Ralph Gasser
-     * @version 1.0
+     * @version 1.0.0
      */
     class MemoryBlock(val size: Int) : ReferenceCounted {
 
@@ -152,7 +155,7 @@ object MemoryManager: AutoCloseable {
 
         /**
          * Explicitly de-allocates this [MemoryBlock]. Usually, this method is called by the [MemoryManager]. However,
-         * a caller may use method to explicitly dispose of a [MemoryBlock]. Calling this method wile [refCount] is
+         * a caller may use this method to explicitly dispose of a [MemoryBlock]. Calling this method while [refCount] is
          * greater than zero, is considered a programmer's error and an [IllegalStateException] will be thrown.
          */
         fun deallocate() {
@@ -162,7 +165,7 @@ object MemoryManager: AutoCloseable {
                     allocatedBytes -= this.size
                 }
             } else {
-                throw IllegalStateException("This MemoryBlock is still retained by some callsite and cannot be deallocated.")
+                throw IllegalStateException("This MemoryBlock is still retained by some call site and cannot be deallocated.")
             }
         }
     }

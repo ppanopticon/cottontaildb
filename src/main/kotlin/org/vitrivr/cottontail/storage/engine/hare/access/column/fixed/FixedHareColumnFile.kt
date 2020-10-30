@@ -59,7 +59,7 @@ class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize:
 
             /** Allocate file header page. */
             val page = HarePage(ByteBuffer.allocate(manager.pageSize))
-            HeaderPageView().initializeAndWrap(page, columnDef)
+            HeaderPageView.initialize(page, columnDef)
 
             /* Allocate header page. */
             manager.update(manager.allocate(), page)
@@ -107,7 +107,7 @@ class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize:
     /** The size of an entry in bytes. */
     val entrySize: Int
 
-    /** The number of slots per [Page]. */
+    /** The number of slots per page. */
     private val slotsPerPage: Int
 
     /** Internal lock to mediate access to closing the [FixedHareCursor]. */

@@ -42,7 +42,8 @@ class DirectoryPageViewTest {
     fun test(pageSize: Int) {
         val buffer = ByteBuffer.allocate(pageSize)
         val page = HarePage(buffer)
-        val view = DirectoryPageView().initializeAndWrap(page, -1L, 0L)
+        DirectoryPageView.initialize(page, -1L, 0L)
+        val view = DirectoryPageView().wrap(page)
         val list = mutableListOf<Triple<TupleId, Flags, Address>>()
         var last = -1L
         while (!view.full) {

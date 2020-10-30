@@ -19,6 +19,11 @@ class FixedHareColumnCursor<T: Value>(val file: FixedHareColumnFile<T>, range: L
     /** [BufferPool] for this [FixedHareColumnWriter] is always the one used by the [FixedHareColumnWriter] (core pool). */
     private val bufferPool = this.file.bufferPool
 
+    /** Flag indicating whether this [FixedHareColumnCursor] has been closed.  */
+    @Volatile
+    var closed: Boolean = false
+        private set
+
     /** The [TupleId] this [FixedHareColumnCursor] is currently pointing to. */
     override var tupleId: TupleId = HareCursor.CURSOR_BOF
 
@@ -30,18 +35,19 @@ class FixedHareColumnCursor<T: Value>(val file: FixedHareColumnFile<T>, range: L
 
     /** [start] and [end] are initialized once! Hence [FixedHareColumnCursor] won't reflect changes to the file.*/
     init {
+
         val page = this.bufferPool.get(FixedHareColumnFile.ROOT_PAGE_ID, Priority.HIGH)
-        val header = HeaderPageView().wrap(page)
+        val pageView = HeaderPageView().wrap(page)
+
         if (range != null) {
             require(range.first >= 0L) { "Start tupleId must be greater or equal than zero."}
-            require(range.last <= header.maxTupleId) { "End tupleId must be smaller or equal to to maximum tupleId for HARE file."}
+            require(range.last <= pageView.maxTupleId) { "End tupleId must be smaller or equal to to maximum tupleId for HARE file."}
             this.start = range.first
             this.end = range.last
         } else {
             this.start = 0L
-            this.end = header.maxTupleId
+            this.end = pageView.maxTupleId
         }
-        page.release()
     }
 
     /**
@@ -84,6 +90,15 @@ class FixedHareColumnCursor<T: Value>(val file: FixedHareColumnFile<T>, range: L
             return (page.getInt(entryOffset) and FixedHareColumnFile.MASK_DELETED.inv()) > 0L
         } finally {
             page.release()
+        }
+    }
+
+    /**
+     * Closes this [FixedHareColumnCursor].
+     */
+    override fun close() {
+        if (!this.closed) {
+            this.closed = true
         }
     }
 }

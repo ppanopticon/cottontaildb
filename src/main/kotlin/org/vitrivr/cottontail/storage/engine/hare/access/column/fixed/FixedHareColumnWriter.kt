@@ -26,6 +26,11 @@ class FixedHareColumnWriter<T: Value> (val file: FixedHareColumnFile<T>): HareCo
     /** The [Serializer] used to read data through this [FixedHareColumnReader]. */
     private val serializer: Serializer<T> = this.file.columnDef.serializer
 
+    /** Flag indicating whether this [FixedHareColumnWriter] has been closed.  */
+    @Volatile
+    var closed: Boolean = false
+        private set
+
     /**
      * Updates the entry for the given [TupleId].
      *
@@ -173,12 +178,12 @@ class FixedHareColumnWriter<T: Value> (val file: FixedHareColumnFile<T>): HareCo
             throw NullValueNotAllowedException("The provided value is null but this HARE column does not support null values.")
         }
 
-        /* Load page header. */
+        /* Fetch header */
         val headerPage = this.bufferPool.get(FixedHareColumnFile.ROOT_PAGE_ID, Priority.HIGH)
-        val header = HeaderPageView().wrap(headerPage)
+        val headerView = HeaderPageView().wrap(headerPage)
 
         /* Calculate necessary offsets. */
-        val tupleId = header.maxTupleId + 1
+        val tupleId = headerView.maxTupleId + 1
         val address = this.file.toAddress(tupleId)
         val pageId = address.toPageId()
         val slotId = address.toSlotId()
@@ -215,11 +220,22 @@ class FixedHareColumnWriter<T: Value> (val file: FixedHareColumnFile<T>): HareCo
         }
 
         /* Update header. */
-        header.maxTupleId = max(tupleId, header.maxTupleId)
-        header.count += 1
+        headerView.maxTupleId = max(tupleId, headerView.maxTupleId)
+        headerView.count += 1
+
+        /* Release header page. */
         headerPage.release()
 
         /* Return TupleId. */
         return tupleId
+    }
+
+    /**
+     * Closes this [FixedHareColumnReader].
+     */
+    override fun close() {
+        if (!this.closed) {
+            this.closed = true
+        }
     }
 }

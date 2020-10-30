@@ -8,7 +8,6 @@ import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
 import org.vitrivr.cottontail.storage.engine.hare.buffer.Priority
 import org.vitrivr.cottontail.storage.engine.hare.views.DirectoryPageView
 import org.vitrivr.cottontail.storage.engine.hare.views.Flags
-import java.lang.Long.max
 
 /**
  * A [Directory] object. It can be used to lookup [TupleId]s in the directory of a [VariableHareColumnFile]
@@ -19,12 +18,18 @@ import java.lang.Long.max
  */
 class Directory(private val file: VariableHareColumnFile<*>) {
 
-    /** The [BufferPool] used by this [Directory]. */
-    val bufferPool: BufferPool = this.file.bufferPool
-
     /** The [PageId] this [Directory] is currently pointing to. */
     var pageId = VariableHareColumnFile.ROOT_DIRECTORY_PAGE_ID
         private set
+
+    /** The [BufferPool] used by this [Directory]. */
+    private val bufferPool: BufferPool = this.file.bufferPool
+
+    /** The [HeaderPageView] used by this [Directory].  */
+    private val headerView = HeaderPageView()
+
+    /** The [DirectoryPageView] used by this [Directory].  */
+    private val directoryView = DirectoryPageView()
 
     /**
      * Seeks the given [TupleId] and returns its [Address], if that [TupleId] was found.
@@ -35,22 +40,25 @@ class Directory(private val file: VariableHareColumnFile<*>) {
      * @throws TupleIdOutOfBoundException If [TupleId] doesn't exist in [VariableHareColumnFile]
      */
     fun flags(tupleId: TupleId): Flags {
-        var pageId = this.pageId
+        /* Fetch header page. */
+        val headerPage = this.bufferPool.get(VariableHareColumnFile.ROOT_PAGE_ID, Priority.HIGH)
+        this.headerView.wrap(headerPage)
+
         while (true) {
-            val page = this.bufferPool.get(pageId, Priority.DEFAULT)
-            val directoryView = DirectoryPageView().wrap(page)
+            val page = this.bufferPool.get(this.pageId, Priority.DEFAULT)
+            this.directoryView.wrap(page)
             if (tupleId in directoryView.firstTupleId..directoryView.lastTupleId) {
-                return directoryView.getFlags(tupleId)
-            } else if (tupleId > directoryView.lastTupleId) {
-                if (directoryView.nextPageId == DirectoryPageView.NO_REF) {
+                return this.directoryView.getFlags(tupleId)
+            } else if (tupleId > this.directoryView.lastTupleId) {
+                if (this.directoryView.nextPageId == DirectoryPageView.NO_REF) {
                     throw TupleIdOutOfBoundException("The tupleId $tupleId is out of bound for variable length HARE column (file: ${this.file.path}).")
                 }
-                pageId = directoryView.nextPageId
+                this.pageId = this.directoryView.nextPageId
             } else {
-                if (directoryView.nextPageId == DirectoryPageView.NO_REF) {
+                if (this.directoryView.nextPageId == DirectoryPageView.NO_REF) {
                     throw TupleIdOutOfBoundException("The tupleId $tupleId is out of bound for variable length HARE column (file: ${this.file.path}).")
                 }
-                pageId = directoryView.previousPageId
+                this.pageId = this.directoryView.nextPageId
             }
         }
     }
@@ -64,22 +72,30 @@ class Directory(private val file: VariableHareColumnFile<*>) {
      * @throws TupleIdOutOfBoundException If [TupleId] doesn't exist in [VariableHareColumnFile]
      */
     fun address(tupleId: TupleId): Address {
-        var pageId = this.pageId
+        /* Fetch header page. */
+        val headerPage = this.bufferPool.get(VariableHareColumnFile.ROOT_PAGE_ID, Priority.HIGH)
+        this.headerView.wrap(headerPage)
+
         while (true) {
-            val page = this.bufferPool.get(pageId, Priority.DEFAULT)
-            val directoryView = DirectoryPageView().wrap(page)
-            if (tupleId in directoryView.firstTupleId..directoryView.lastTupleId) {
-                return directoryView.getAddress(tupleId)
-            } else if (tupleId > directoryView.lastTupleId) {
-                if (directoryView.nextPageId == DirectoryPageView.NO_REF) {
-                    throw TupleIdOutOfBoundException("The tupleId $tupleId is out of bound for variable length HARE column (file: ${this.file.path}).")
+            val page = this.bufferPool.get(this.pageId, Priority.DEFAULT)
+            try {
+                if (tupleId in directoryView.firstTupleId..directoryView.lastTupleId) {
+                    return this.directoryView.getAddress(tupleId)
+                } else if (tupleId > this.directoryView.lastTupleId) {
+                    if (this.directoryView.nextPageId == DirectoryPageView.NO_REF) {
+                        throw TupleIdOutOfBoundException("The tupleId $tupleId is out of bound for variable length HARE column (file: ${this.file.path}).")
+                    }
+                    this.pageId = this.directoryView.nextPageId
+                } else {
+                    if (this.directoryView.nextPageId == DirectoryPageView.NO_REF) {
+                        page.release()
+                        throw TupleIdOutOfBoundException("The tupleId $tupleId is out of bound for variable length HARE column (file: ${this.file.path}).")
+                    }
+                    this.pageId = this.directoryView.previousPageId
                 }
-                pageId = directoryView.nextPageId
-            } else {
-                if (directoryView.nextPageId == DirectoryPageView.NO_REF) {
-                    throw TupleIdOutOfBoundException("The tupleId $tupleId is out of bound for variable length HARE column (file: ${this.file.path}).")
-                }
-                pageId = directoryView.previousPageId
+            } finally {
+                headerPage.release()
+                page.release()
             }
         }
     }
@@ -92,34 +108,38 @@ class Directory(private val file: VariableHareColumnFile<*>) {
      * @return New [TupleId]
      */
     fun append(flags: Flags, address: Address): TupleId {
-        /* Go to last page directory. */
+        /* Fetch header page. */
         val headerPage = this.bufferPool.get(VariableHareColumnFile.ROOT_PAGE_ID, Priority.HIGH)
-        val headerView = HeaderPageView().wrap(headerPage)
-
-        val directoryPage = this.bufferPool.get(headerView.lastDirectoryPageId, Priority.DEFAULT)
-        val directoryView = DirectoryPageView().wrap(directoryPage)
+        this.headerView.wrap(headerPage)
 
         /* Prepare new directory page. */
-        val ret = if (directoryView.full) {
-            val newDirectoryPageId = max(headerView.allocationPageId, headerView.lastDirectoryPageId) + 1L
-            var tupleId = -1L
+        val directoryPage = this.bufferPool.get(this.headerView.lastDirectoryPageId, Priority.DEFAULT)
+        this.directoryView.wrap(directoryPage)
+        val ret = if (this.directoryView.full) {
+            /* Allocate directory page. */
             val newDirectoryPage = this.bufferPool.get(this.bufferPool.append(), Priority.LOW)
-            val newDirectoryPageView = DirectoryPageView().initializeAndWrap(newDirectoryPage, this.pageId, directoryView.lastTupleId + 1)
-            tupleId = newDirectoryPageView.allocate(flags, address)
-            newDirectoryPage.release()
+
+            /* Update previous directory page. */
+            this.directoryView.nextPageId = newDirectoryPage.id
+
+            /* Initialize new directory page and allocate  tuple Id. */
+            DirectoryPageView.initialize(newDirectoryPage, this.pageId, this.directoryView.lastTupleId + 1)
+            this.directoryView.wrap(newDirectoryPage)
+            val tupleId = this.directoryView.allocate(flags, address)
 
             /* Update this page and the header. */
-            directoryView.nextPageId = newDirectoryPageId
-            headerView.lastDirectoryPageId = newDirectoryPageId
+            this.directoryView.nextPageId = newDirectoryPage.id
+            this.headerView.lastDirectoryPageId = newDirectoryPage.id
+
+            /* Release new page. */
+            newDirectoryPage.release()
+
             tupleId
         } else {
-            directoryView.allocate(flags, address)
+            this.directoryView.allocate(flags, address)
         }
-
-        /** Free pages. */
         directoryPage.release()
         headerPage.release()
-
         return ret
     }
 }

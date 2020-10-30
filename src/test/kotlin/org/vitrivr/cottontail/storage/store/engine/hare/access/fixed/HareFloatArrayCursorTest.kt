@@ -12,7 +12,10 @@ import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.FloatVectorValue
 import org.vitrivr.cottontail.storage.basics.Units
+import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnCursor
 import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnFile
+import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnReader
+import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnWriter
 import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectHareDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
 import org.vitrivr.cottontail.storage.store.engine.hare.access.AbstractCursorTest
@@ -53,17 +56,16 @@ class HareFloatArrayCursorTest : AbstractCursorTest() {
      */
     @ExperimentalTime
     private fun compareData(hareFile: FixedHareColumnFile<FloatVectorValue>, dimensions: Int, size: Int) {
-        val cursor = hareFile.cursor()
-        val query = FloatVectorValue.random(dimensions)
-        val knn = MinHeapSelection<ComparablePair<TupleId, Double>>(500)
+        val cursor = FixedHareColumnCursor(hareFile)
+        val reader = FixedHareColumnReader(hareFile)
         val random = SplittableRandom(this.seed)
         val readTime = measureTime {
-            while (cursor.next()) {
-                val floatVectorValue = cursor.get()
+            for (tupleId in cursor) {
+                val floatVectorValue = reader.get(tupleId)
                 Assertions.assertArrayEquals(FloatVectorValue.random(dimensions, random).data, floatVectorValue?.data)
+
             }
         }
-        cursor.close()
         val physSize = (hareFile.bufferPool.diskSize `in` Units.MEGABYTE)
         println("Reading $size doubles vectors (d=$dimensions) to a total of $physSize took $readTime (${physSize.value / readTime.inSeconds} MB/s).")
     }
@@ -76,14 +78,13 @@ class HareFloatArrayCursorTest : AbstractCursorTest() {
     @ExperimentalTime
     private fun initWithData(hareFile: FixedHareColumnFile<FloatVectorValue>, dimensions: Int, size: Int) {
         var writeTime = Duration.ZERO
-        val cursor = hareFile.writableCursor()
+        val writer = FixedHareColumnWriter(hareFile)
         val random = SplittableRandom(this.seed)
         for (d in 0 until size) {
             writeTime += measureTime {
-                cursor.append(FloatVectorValue.random(dimensions, random))
+                writer.append(FloatVectorValue.random(dimensions, random))
             }
         }
-        cursor.close()
         val physSize = (hareFile.bufferPool.diskSize `in` Units.MEGABYTE)
         println("Writing $size doubles vectors (d=$dimensions) to a total of $physSize took $writeTime (${physSize.value / writeTime.inSeconds} MB/s).")
     }

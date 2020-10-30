@@ -209,13 +209,14 @@ class Recordset(val columns: Array<ColumnDef<*>>, capacity: Long = 250L) : Scana
         /** Obtains a stamped read lock from the surrounding [Recordset]. */
         private val stamp = this@Recordset.lock.readLock()
 
-        /** Flag indicating whether this [CloseableIterator] has been closed.*/
-        @Volatile
-        private var closed = false
-
         /** Internal pointer kept as reference to the next [Record]. */
         @Volatile
         private var pointer = 0L
+
+        /** Flag indicating whether this [CloseableIterator] is open and ready for use. */
+        @Volatile
+        override var isOpen = true
+            private set
 
         /**
          * Returns true if the next invocation of [CloseableIterator#next()] returns a value and false otherwise.
@@ -223,7 +224,7 @@ class Recordset(val columns: Array<ColumnDef<*>>, capacity: Long = 250L) : Scana
          * @return Boolean indicating, whether this [CloseableIterator] will return a value.
          */
         override fun hasNext(): Boolean {
-            if (this.closed) throw IllegalStateException("Illegal invocation of hasNext(): This CloseableIterator has been closed.")
+            check(this.isOpen) { "Illegal invocation of hasNext(): This CloseableIterator has been closed." }
             return this.pointer < this@Recordset.list.size64()
         }
 
@@ -233,7 +234,7 @@ class Recordset(val columns: Array<ColumnDef<*>>, capacity: Long = 250L) : Scana
          * @return Next [Record] of this [CloseableIterator].
          */
         override fun next(): Record {
-            if (this.closed) throw IllegalStateException("Illegal invocation of next(): This CloseableIterator has been closed.")
+            check(this.isOpen) { "Illegal invocation of next(): This CloseableIterator has been closed." }
             val record = this@Recordset.list[this.pointer]
             this.pointer += 1
             return record
@@ -243,8 +244,8 @@ class Recordset(val columns: Array<ColumnDef<*>>, capacity: Long = 250L) : Scana
          * Closes this [CloseableIterator].
          */
         override fun close() {
-            if (!this.closed) {
-                this.closed = true
+            if (this.isOpen) {
+                this.isOpen = false
                 this@Recordset.lock.unlockRead(this.stamp)
             }
         }

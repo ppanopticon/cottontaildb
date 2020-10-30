@@ -241,18 +241,19 @@ class NonUniqueHashIndex(override val name: Name.IndexName, override val parent:
             /** Generates a shared lock on the enclosing [Tx]. This lock is kept until the [CloseableIterator] is closed. */
             private val lock = this@Tx.localLock.readLock()
 
-            /** Flag indicating whether this [CloseableIterator] has been closed. */
-            @Volatile
-            private var closed = false
-
             /** Pre-fetched [Record]s that match the [Predicate]. */
             private val results = this.prepare()
+
+            /** Flag indicating whether this [CloseableIterator] is open and ready for use. */
+            @Volatile
+            override var isOpen = true
+                private set
 
             /**
              * Returns `true` if the iteration has more elements.
              */
             override fun hasNext(): Boolean {
-                check(!this.closed) { "Illegal invocation of hasNext(): This CloseableIterator has been closed." }
+                check(this.isOpen) { "Illegal invocation of hasNext(): This CloseableIterator has been closed." }
                 return this.results.isNotEmpty()
             }
 
@@ -260,7 +261,7 @@ class NonUniqueHashIndex(override val name: Name.IndexName, override val parent:
              * Returns the next element in the iteration.
              */
             override fun next(): Record {
-                check(!this.closed) { "Illegal invocation of next(): This CloseableIterator has been closed." }
+                check(this.isOpen) { "Illegal invocation of next(): This CloseableIterator has been closed." }
                 return this.results.removeFirst()
             }
 
@@ -268,9 +269,9 @@ class NonUniqueHashIndex(override val name: Name.IndexName, override val parent:
              * Closes this [CloseableIterator] and releases all locks and resources associated with it.
              */
             override fun close() {
-                if (!this.closed) {
+                if (this.isOpen) {
                     this@Tx.localLock.unlock(this.lock)
-                    this.closed = true
+                    this.isOpen = false
                 }
             }
 

@@ -253,11 +253,7 @@ class LuceneIndex(override val name: Name.IndexName, override val parent: Entity
             @Volatile
             private var returned = 0
 
-            /** Flag indicating whether this [CloseableIterator] has been closed. */
-            @Volatile
-            private var closed = false
-
-            /* Lucene query. */
+            /** Lucene query. */
             private val query = when (this.predicate) {
                 is AtomicBooleanPredicate<*> -> this.predicate.toLuceneQuery()
                 is CompoundBooleanPredicate -> this.predicate.toLuceneQuery()
@@ -266,14 +262,19 @@ class LuceneIndex(override val name: Name.IndexName, override val parent: Entity
             /** [IndexSearcher] instance used for lookup. */
             private val searcher = IndexSearcher(this@LuceneIndex.indexReader)
 
-            /* Execute query and add results. */
+            /** Execute query and add results. */
             private val results = this.searcher.search(this.query, Integer.MAX_VALUE)
+
+            /** Flag indicating whether this [CloseableIterator] is open and ready for use. */
+            @Volatile
+            override var isOpen = true
+                private set
 
             /**
              * Returns `true` if the iteration has more elements.
              */
             override fun hasNext(): Boolean {
-                check(!this.closed) { "Illegal invocation of next(): This CloseableIterator has been closed." }
+                check(this.isOpen) { "Illegal invocation of next(): This CloseableIterator has been closed." }
                 return this.returned < this.results.totalHits
             }
 
@@ -281,7 +282,7 @@ class LuceneIndex(override val name: Name.IndexName, override val parent: Entity
              * Returns the next element in the iteration.
              */
             override fun next(): Record {
-                check(!this.closed) { "Illegal invocation of next(): This CloseableIterator has been closed." }
+                check(this.isOpen) { "Illegal invocation of next(): This CloseableIterator has been closed." }
                 val scores = this.results.scoreDocs[this.returned++]
                 val doc = this.searcher.doc(scores.doc)
                 return StandaloneRecord(doc[TID_COLUMN].toLong(), this@LuceneIndex.produces, arrayOf(FloatValue(scores.score)))
@@ -291,9 +292,9 @@ class LuceneIndex(override val name: Name.IndexName, override val parent: Entity
              * Closes this [CloseableIterator] and releases all locks and resources associated with it.
              */
             override fun close() {
-                if (!this.closed) {
+                if (this.isOpen) {
                     this@Tx.localLock.unlock(this.stamp)
-                    this.closed = true
+                    this.isOpen = false
                 }
             }
         }

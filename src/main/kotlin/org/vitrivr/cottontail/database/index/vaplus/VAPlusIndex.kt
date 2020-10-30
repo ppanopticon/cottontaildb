@@ -227,10 +227,6 @@ class VAPlusIndex(override val name: Name.IndexName, override val parent: Entity
             /** Generates a shared lock on the enclosing [Tx]. This lock is kept until the [CloseableIterator] is closed. */
             private val stamp = this@Tx.localLock.readLock()
 
-            /** Flag indicating whether this [CloseableIterator] has been closed. */
-            @Volatile
-            private var closed = false
-
             /** [VAPlus] instance . */
             private val vaPlus = VAPlus()
 
@@ -265,20 +261,25 @@ class VAPlusIndex(override val name: Name.IndexName, override val parent: Entity
                 Pair(Pair(lbIndex, lbBounds), Pair(ubIndex, ubBounds))
             }
 
+            /** Flag indicating whether this [CloseableIterator] is open and ready for use. */
+            @Volatile
+            override var isOpen = true
+                private set
+
             override fun hasNext(): Boolean {
-                check(!this.closed) { "Illegal invocation of hasNext(): This CloseableIterator has been closed." }
+                check(this.isOpen) { "Illegal invocation of hasNext(): This CloseableIterator has been closed." }
                 TODO("Not yet implemented")
             }
 
             override fun next(): Record {
-                check(!this.closed) { "Illegal invocation of next(): This CloseableIterator has been closed." }
+                check(this.isOpen) { "Illegal invocation of next(): This CloseableIterator has been closed." }
                 TODO("Not yet implemented")
             }
 
             override fun close() {
-                if (!this.closed) {
+                if (!this.isOpen) {
                     this@Tx.localLock.unlock(this.stamp)
-                    this.closed = true
+                    this.isOpen = false
                 }
             }
         }

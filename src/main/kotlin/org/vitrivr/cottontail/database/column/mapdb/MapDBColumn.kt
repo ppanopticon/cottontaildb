@@ -270,13 +270,14 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val pa
 
             /** Flag indicating whether this [CloseableIterator] has been closed. */
             @Volatile
-            private var closed = false
+            override var isOpen = true
+                private set
 
             /**
              * Returns the next element in the iteration.
              */
             override fun next(): TupleId {
-                check(!this.closed) { "Illegal invocation of next(): This CloseableIterator has been closed." }
+                check(this.isOpen) { "Illegal invocation of next(): This CloseableIterator has been closed." }
                 return this.wrapped.next()
             }
 
@@ -284,7 +285,7 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val pa
              * Returns `true` if the iteration has more elements.
              */
             override fun hasNext(): Boolean {
-                check(!this.closed) { "Illegal invocation of hasNext(): This CloseableIterator has been closed." }
+                check(this.isOpen) { "Illegal invocation of hasNext(): This CloseableIterator has been closed." }
                 return this.wrapped.hasNext()
             }
 
@@ -292,9 +293,9 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val pa
              * Closes this [CloseableIterator] and releases all locks associated with it.
              */
             override fun close() {
-                if (!this.closed) {
+                if (this.isOpen) {
                     this@Tx.localLock.unlock(this.lock)
-                    this.closed = true
+                    this.isOpen = false
                 }
             }
         }

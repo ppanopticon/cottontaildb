@@ -170,10 +170,6 @@ class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, parent: Entity,
             /** Generates a shared lock on the enclosing [Tx]. This lock is kept until the [CloseableIterator] is closed. */
             private val stamp = this@Tx.localLock.readLock()
 
-            /** Flag indicating whether this [CloseableIterator] has been closed. */
-            @Volatile
-            private var closed = false
-
             /** [SuperBitLSH] data structure to calculate the bucket index. */
             private val lsh = SuperBitLSH(this@SuperBitLSHIndex.config.get().stages, this@SuperBitLSHIndex.config.get().buckets, this@SuperBitLSHIndex.columns.first().logicalSize, this@SuperBitLSHIndex.config.get().seed, this.predicate.query.first())
 
@@ -184,20 +180,25 @@ class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, parent: Entity,
                 it.asIterable()
             }.toMutableList()
 
+            /** Flag indicating whether this [CloseableIterator] is open and ready for use. */
+            @Volatile
+            override var isOpen = true
+                private set
+
             override fun hasNext(): Boolean {
-                check(!this.closed) { "Illegal invocation of hasNext(): This CloseableIterator has been closed." }
+                check(this.isOpen) { "Illegal invocation of hasNext(): This CloseableIterator has been closed." }
                 return this.tupleIds.isNotEmpty()
             }
 
             override fun next(): Record {
-                check(!this.closed) { "Illegal invocation of next(): This CloseableIterator has been closed." }
+                check(this.isOpen) { "Illegal invocation of next(): This CloseableIterator has been closed." }
                 return StandaloneRecord(this.tupleIds.removeFirst(), this@SuperBitLSHIndex.columns, emptyArray())
             }
 
             override fun close() {
-                if (!this.closed) {
+                if (this.isOpen) {
                     this@Tx.localLock.unlock(this.stamp)
-                    this.closed = true
+                    this.isOpen = false
                 }
             }
         }

@@ -464,22 +464,22 @@ class Entity(override val name: Name.EntityName, override val parent: Schema) : 
                 checkValidForRead()
             }
 
-
             /** Acquires a read lock for the surrounding [Entity.Tx]*/
             private val lock = this@Tx.localLock.readLock()
 
             /** The wrapped [CloseableIterator] of the first (primary) column. */
             private val wrapped = this@Tx.colTxs.entries.first().value.scan(range)
 
-            /** Flag indicating whether this [CloseableIterator] has been closed. */
+            /** Flag indicating whether this [CloseableIterator] is open and ready for use. */
             @Volatile
-            private var closed = false
+            override var isOpen = true
+                private set
 
             /**
              * Returns the next element in the iteration.
              */
             override fun next(): Record {
-                check(!this.closed) { "Illegal invocation of next(): This CloseableIterator has been closed." }
+                check(this.isOpen) { "Illegal invocation of next(): This CloseableIterator has been closed." }
                 return this@Tx.read(this.wrapped.next(), columns)
             }
 
@@ -487,7 +487,7 @@ class Entity(override val name: Name.EntityName, override val parent: Schema) : 
              * Returns `true` if the iteration has more elements.
              */
             override fun hasNext(): Boolean {
-                check(!this.closed) { "Illegal invocation of hasNext(): This CloseableIterator has been closed." }
+                check(this.isOpen) { "Illegal invocation of hasNext(): This CloseableIterator has been closed." }
                 return this.wrapped.hasNext()
             }
 
@@ -495,10 +495,10 @@ class Entity(override val name: Name.EntityName, override val parent: Schema) : 
              * Closes this [CloseableIterator] and releases all locks and resources associated with it.
              */
             override fun close() {
-                if (!this.closed) {
+                if (this.isOpen) {
                     this.wrapped.close()
                     this@Tx.localLock.unlock(this.lock)
-                    this.closed = true
+                    this.isOpen = false
                 }
             }
         }

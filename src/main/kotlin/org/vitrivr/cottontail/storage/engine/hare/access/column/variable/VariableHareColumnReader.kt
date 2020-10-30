@@ -16,6 +16,9 @@ import org.vitrivr.cottontail.storage.engine.hare.toSlotId
 import org.vitrivr.cottontail.storage.engine.hare.views.SlottedPageView
 import org.vitrivr.cottontail.storage.engine.hare.views.isDeleted
 import org.vitrivr.cottontail.storage.engine.hare.views.isNull
+import org.vitrivr.cottontail.utilities.extensions.exclusive
+import org.vitrivr.cottontail.utilities.extensions.shared
+import java.util.concurrent.locks.StampedLock
 
 /**
  * A [HareColumnReader] implementation for [FixedHareColumnFile]s.
@@ -33,9 +36,21 @@ class VariableHareColumnReader<T : Value>(val file: VariableHareColumnFile<T>, p
         private set
 
     /** The [BufferPool] instance used by this [VariableHareColumnReader] is always shared with the [Directory]. */
-    internal val bufferPool: BufferPool = this.directory.bufferPool
+    private val bufferPool: BufferPool = this.directory.bufferPool
+
+    /** Flag indicating whether this [VariableHareColumnWriter] is open.  */
+    @Volatile
+    override var isOpen: Boolean = true
+        private set
+
+    /** A [StampedLock] that mediates access to methods of this [VariableHareColumnWriter]. */
+    private val localLock = StampedLock()
+
+    /** Obtains a lock on the [FixedHareColumnFile]. */
+    private val lockHandle = this.file.obtainLock()
 
     init {
+        require(this.file.isOpen) { "VariableHareColumnFile has been closed (file = ${this.file.path})." }
         require(this.file.disk == this.bufferPool.disk) { "VariableHareColumnFile and provided BufferPool do not share the same HareDiskManager." }
     }
 
@@ -45,7 +60,7 @@ class VariableHareColumnReader<T : Value>(val file: VariableHareColumnFile<T>, p
      * @param tupleId The [TupleId] to retrieve the entry for.
      * @return Entry [T] for the given [TupleId].
      */
-    override fun get(tupleId: TupleId): T? {
+    override fun get(tupleId: TupleId): T? = this.localLock.shared {
         /* Obtain and check flags for entry. */
         val flagsAndAddress = this.directory.flagsAndAddress(tupleId)
         if (flagsAndAddress.first.isDeleted()) {
@@ -70,7 +85,7 @@ class VariableHareColumnReader<T : Value>(val file: VariableHareColumnFile<T>, p
      *
      * @return Number of entries in this [HareColumnFile].
      */
-    override fun count(): Long {
+    override fun count(): Long = this.localLock.shared {
         val page = this.bufferPool.get(VariableHareColumnFile.ROOT_PAGE_ID, Priority.HIGH)
         val count = HeaderPageView(page).validate().count
         page.release()
@@ -83,21 +98,26 @@ class VariableHareColumnReader<T : Value>(val file: VariableHareColumnFile<T>, p
      * @param tupleId The [TupleId] to check.
      * @return true if the entry for the given [TupleId] is null and false otherwise.
      */
-    override fun isNull(tupleId: TupleId): Boolean = this.directory.flags(tupleId).isNull()
+    override fun isNull(tupleId: TupleId): Boolean = this.localLock.shared {
+        this.directory.flags(tupleId).isNull()
+    }
 
     /**
      * Returns a boolean indicating whether the entry  for the given [TupleId] has been deleted.
      *
      * @return true if the entry for the given [TupleId] has been deleted and false otherwise.
      */
-    override fun isDeleted(tupleId: TupleId): Boolean = this.directory.flags(tupleId).isDeleted()
+    override fun isDeleted(tupleId: TupleId): Boolean = this.localLock.shared {
+        this.directory.flags(tupleId).isDeleted()
+    }
 
     /**
-     * Closes this [VariableHareColumnReader].
+     * Closes this [VariableHareColumnWriter].
      */
-    override fun close() {
-        if (!this.closed) {
-            this.closed = true
+    override fun close() = this.localLock.exclusive {
+        if (this.isOpen) {
+            this.isOpen = false
+            this.file.releaseLock(this.lockHandle)
         }
     }
 }

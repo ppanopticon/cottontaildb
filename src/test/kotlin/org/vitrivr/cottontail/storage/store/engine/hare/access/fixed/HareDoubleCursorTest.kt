@@ -79,6 +79,10 @@ class HareDoubleCursorTest {
             }
         }
         val diskSize = this.hareFile!!.disk.size `in` Units.MEGABYTE
+
+        /* Close writer. */
+        writer.close()
+
         println("Writing $written doubles ($diskSize) took $writeTime (${diskSize.value / writeTime.inSeconds} MB/s).")
     }
 
@@ -101,6 +105,11 @@ class HareDoubleCursorTest {
             assertEquals(reader.count(), read)
         }
         val diskSize = this.hareFile!!.disk.size `in` Units.MEGABYTE
+
+        /* Close reader and cursor. */
+        reader.close()
+        cursor.close()
+
         println("Reading $read doubles ($diskSize) took $readTime (${diskSize.value / readTime.inSeconds} MB/s).")
     }
 }

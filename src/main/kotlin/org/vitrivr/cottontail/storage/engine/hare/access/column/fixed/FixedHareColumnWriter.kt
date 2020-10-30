@@ -10,8 +10,11 @@ import org.vitrivr.cottontail.storage.engine.hare.buffer.Priority
 import org.vitrivr.cottontail.storage.engine.hare.serializer.Serializer
 import org.vitrivr.cottontail.storage.engine.hare.toPageId
 import org.vitrivr.cottontail.storage.engine.hare.toSlotId
+import org.vitrivr.cottontail.utilities.extensions.exclusive
+import org.vitrivr.cottontail.utilities.extensions.shared
 
 import java.lang.Long.max
+import java.util.concurrent.locks.StampedLock
 
 /**
  * A [HareColumnWriter] implementation for [FixedHareColumnFile]s.
@@ -23,12 +26,19 @@ class FixedHareColumnWriter<T : Value>(val file: FixedHareColumnFile<T>, private
     /** The [Serializer] used to read data through this [FixedHareColumnReader]. */
     private val serializer: Serializer<T> = this.file.columnDef.serializer
 
-    /** Flag indicating whether this [FixedHareColumnWriter] has been closed.  */
+    /** Flag indicating whether this [FixedHareColumnWriter] is open.  */
     @Volatile
-    var closed: Boolean = false
+    override var isOpen: Boolean = true
         private set
 
+    /** A [StampedLock] that mediates access to methods of this [FixedHareColumnWriter]. */
+    private val localLock = StampedLock()
+
+    /** Obtains a lock on the [FixedHareColumnFile]. */
+    private val lockHandle = this.file.obtainLock()
+
     init {
+        require(this.file.isOpen) { "FixedHareColumnFile has been closed (file = ${this.file.path})." }
         require(this.file.disk == this.bufferPool.disk) { "FixedHareColumnFile and provided BufferPool do not share the same HareDiskManager." }
     }
 
@@ -38,7 +48,7 @@ class FixedHareColumnWriter<T : Value>(val file: FixedHareColumnFile<T>, private
      * @param tupleId The [TupleId] to update the entry for.
      * @param value The new value [T] the updated entry should contain or null.
      */
-    override fun update(tupleId: TupleId, value: T?) {
+    override fun update(tupleId: TupleId, value: T?) = this.localLock.shared {
         /* Check nullability constraint. */
         if (value == null && !this.file.columnDef.nullable) {
             throw NullValueNotAllowedException("The provided value is null but this HARE column does not support null values.")
@@ -77,7 +87,8 @@ class FixedHareColumnWriter<T : Value>(val file: FixedHareColumnFile<T>, private
      * @param newValue The new value [T] the updated entry should contain or null.
      * @return true if update was successful.
      */
-    override fun compareAndUpdate(tupleId: TupleId, expectedValue: T?, newValue: T?): Boolean {
+    @Synchronized
+    override fun compareAndUpdate(tupleId: TupleId, expectedValue: T?, newValue: T?): Boolean = this.localLock.shared {
         /* Check nullability constraint. */
         if (newValue == null && !this.file.columnDef.nullable) {
             throw NullValueNotAllowedException("The provided value is null but this HARE column does not support null values.")
@@ -125,7 +136,7 @@ class FixedHareColumnWriter<T : Value>(val file: FixedHareColumnFile<T>, private
      *
      * @throws EntryDeletedException If entry identified by [TupleId] has been deleted.
      */
-    override fun delete(tupleId: TupleId): T? {
+    override fun delete(tupleId: TupleId): T? = this.localLock.shared {
         /* Load page header. */
         val headerPage = this.bufferPool.get(FixedHareColumnFile.ROOT_PAGE_ID, Priority.HIGH)
         val header = HeaderPageView(headerPage)
@@ -173,7 +184,7 @@ class FixedHareColumnWriter<T : Value>(val file: FixedHareColumnFile<T>, private
      *
      * @throws NullValueNotAllowedException If [value] is null but the underlying data structure does not support null values.
      */
-    override fun append(value: T?): TupleId {
+    override fun append(value: T?): TupleId = this.localLock.shared {
         /* Check nullability constraint. */
         if (value == null && !this.file.columnDef.nullable) {
             throw NullValueNotAllowedException("The provided value is null but this HARE column does not support null values.")
@@ -232,19 +243,9 @@ class FixedHareColumnWriter<T : Value>(val file: FixedHareColumnFile<T>, private
     }
 
     /**
-     * Closes this [FixedHareColumnReader].
-     */
-    override fun close() {
-        if (!this.closed) {
-            this.closed = true
-        }
-    }
-
-    /**
      * Commits all changes made through this [HareColumnWriter].
      */
-    @Synchronized
-    override fun commit() {
+    override fun commit() = this.localLock.exclusive {
         this.bufferPool.flush()
         this.file.disk.commit()
     }
@@ -252,9 +253,18 @@ class FixedHareColumnWriter<T : Value>(val file: FixedHareColumnFile<T>, private
     /**
      * Performs a rollback on all changes made through this [HareColumnWriter].
      */
-    @Synchronized
-    override fun rollback() {
+    override fun rollback() = this.localLock.exclusive {
         this.bufferPool.synchronize()
         this.file.disk.rollback()
+    }
+
+    /**
+     * Closes this [FixedHareColumnReader].
+     */
+    override fun close() = this.localLock.exclusive {
+        if (this.isOpen) {
+            this.isOpen = false
+            this.file.releaseLock(this.lockHandle)
+        }
     }
 }

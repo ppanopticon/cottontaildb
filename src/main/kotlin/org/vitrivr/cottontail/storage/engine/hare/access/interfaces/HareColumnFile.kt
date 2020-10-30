@@ -21,4 +21,18 @@ interface HareColumnFile<T : Value> : Resource {
 
     /** The [ColumnDef] describing the column managed by this [HareColumnFile]. */
     val columnDef: ColumnDef<T>
+
+    /**
+     * Obtains a lock handle on this [HareColumnFile], which will prevent it from being closed.
+     * Resources such as [HareColumnWriter], [HareColumnReader] or [HareCursor] are required to
+     * obtain such a lock.
+     */
+    fun obtainLock(): Long
+
+    /**
+     * Releases a lock on this [HareColumnFile] that has previously been obtained through [obtainLock].
+     *
+     * @param handle The lock handle to release.
+     */
+    fun releaseLock(handle: Long)
 }

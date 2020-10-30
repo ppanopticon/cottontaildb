@@ -3,6 +3,7 @@ package org.vitrivr.cottontail.storage.engine.hare.access.interfaces
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.types.Value
 import org.vitrivr.cottontail.storage.engine.hare.access.EntryDeletedException
+import org.vitrivr.cottontail.storage.engine.hare.basics.Resource
 
 /**
  * A data structure that allow for read access to a [HareColumnFile].
@@ -10,7 +11,7 @@ import org.vitrivr.cottontail.storage.engine.hare.access.EntryDeletedException
  * @author Ralph Gasser
  * @version 1.0.0
  */
-interface HareColumnReader<T: Value> : AutoCloseable {
+interface HareColumnReader<T : Value> : Resource {
     /**
      * Returns the entry for the given [TupleId]
      *

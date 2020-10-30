@@ -10,6 +10,9 @@ import org.vitrivr.cottontail.storage.engine.hare.buffer.Priority
 import org.vitrivr.cottontail.storage.engine.hare.serializer.Serializer
 import org.vitrivr.cottontail.storage.engine.hare.toPageId
 import org.vitrivr.cottontail.storage.engine.hare.toSlotId
+import org.vitrivr.cottontail.utilities.extensions.exclusive
+import org.vitrivr.cottontail.utilities.extensions.shared
+import java.util.concurrent.locks.StampedLock
 
 /**
  * A [HareColumnReader] implementation for [FixedHareColumnFile]s.
@@ -21,12 +24,19 @@ class FixedHareColumnReader<T : Value>(val file: FixedHareColumnFile<T>, private
     /** The [Serializer] used to read data through this [FixedHareColumnReader]. */
     private val serializer: Serializer<T> = this.file.columnDef.serializer
 
-    /** Flag indicating whether this [FixedHareColumnReader] has been closed.  */
+    /** Flag indicating whether this [FixedHareColumnReader] is open.  */
     @Volatile
-    var closed: Boolean = false
+    override var isOpen: Boolean = true
         private set
 
+    /** A [StampedLock] that mediates access to methods of this [FixedHareColumnReader]. */
+    private val localLock = StampedLock()
+
+    /** Obtains a lock on the [FixedHareColumnFile]. */
+    private val lockHandle = this.file.obtainLock()
+
     init {
+        require(this.file.isOpen) { "FixedHareColumnFile has been closed (file = ${this.file.path})." }
         require(this.file.disk == this.bufferPool.disk) { "FixedHareColumnFile and provided BufferPool do not share the same HareDiskManager." }
     }
 
@@ -36,7 +46,7 @@ class FixedHareColumnReader<T : Value>(val file: FixedHareColumnFile<T>, private
      * @param tupleId The [TupleId] to retrieve the entry for.
      * @return Entry [T] for the given [TupleId].
      */
-    override fun get(tupleId: TupleId): T? {
+    override fun get(tupleId: TupleId): T? = this.localLock.shared {
         /* Calculate necessary offsets. */
         val address = file.toAddress(tupleId)
         val pageId = address.toPageId()
@@ -62,7 +72,7 @@ class FixedHareColumnReader<T : Value>(val file: FixedHareColumnFile<T>, private
      *
      * @return Number of entries in this [HareColumnFile].
      */
-    override fun count(): Long {
+    override fun count(): Long = this.localLock.shared {
         val headerPage = this.bufferPool.get(FixedHareColumnFile.ROOT_PAGE_ID, Priority.HIGH)
         val ret = HeaderPageView(headerPage).validate().count
         headerPage.release()
@@ -75,7 +85,7 @@ class FixedHareColumnReader<T : Value>(val file: FixedHareColumnFile<T>, private
      * @param tupleId The [TupleId] to check.
      * @return true if the entry for the given [TupleId] is null and false otherwise.
      */
-    override fun isNull(tupleId: TupleId): Boolean {
+    override fun isNull(tupleId: TupleId): Boolean = this.localLock.shared {
         /* Calculate necessary offsets. */
         val address = this.file.toAddress(tupleId)
         val pageId = address.toPageId()
@@ -95,7 +105,7 @@ class FixedHareColumnReader<T : Value>(val file: FixedHareColumnFile<T>, private
      *
      * @return true if the entry for the given [TupleId] has been deleted and false otherwise.
      */
-    override fun isDeleted(tupleId: TupleId): Boolean {
+    override fun isDeleted(tupleId: TupleId): Boolean = this.localLock.shared {
         /* Calculate necessary offsets. */
         val address = this.file.toAddress(tupleId)
         val pageId = address.toPageId()
@@ -113,9 +123,11 @@ class FixedHareColumnReader<T : Value>(val file: FixedHareColumnFile<T>, private
     /**
      * Closes this [FixedHareColumnReader].
      */
-    override fun close() {
-        if (!this.closed) {
-            this.closed = true
+    @Synchronized
+    override fun close() = this.localLock.exclusive {
+        if (this.isOpen) {
+            this.isOpen = false
+            this.file.releaseLock(this.lockHandle)
         }
     }
 }

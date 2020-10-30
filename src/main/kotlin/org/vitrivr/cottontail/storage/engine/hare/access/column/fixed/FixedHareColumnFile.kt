@@ -11,11 +11,13 @@ import org.vitrivr.cottontail.storage.engine.hare.disk.HareDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectHareDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
 import org.vitrivr.cottontail.storage.engine.hare.disk.wal.WALHareDiskManager
+import org.vitrivr.cottontail.utilities.extensions.exclusive
 import org.vitrivr.cottontail.utilities.math.BitUtil
 import java.lang.StrictMath.floorDiv
 import java.lang.StrictMath.max
 import java.nio.ByteBuffer
 import java.nio.file.Path
+import java.util.concurrent.locks.StampedLock
 
 /**
  * A HARE column file where each entry has a fixed size and can be directly addressed by a [TupleId].
@@ -102,6 +104,9 @@ class FixedHareColumnFile<T : Value>(val path: Path, withWal: Boolean) : HareCol
     /** The size of an individual entry in bytes. */
     val entrySize: Int
 
+    /** A [StampedLock] used to prevent this [FixedHareColumnFile] from closing, when it is being used by other [Resources]. */
+    private val closeLock = StampedLock()
+
     /** The number of slots per page. */
     private val slotsPerPage: Int
 
@@ -123,11 +128,27 @@ class FixedHareColumnFile<T : Value>(val path: Path, withWal: Boolean) : HareCol
     fun toAddress(tupleId: TupleId): Address = (((tupleId / this@FixedHareColumnFile.slotsPerPage) + 2L) shl 16) or ((tupleId % slotsPerPage) and Short.MAX_VALUE.toLong())
 
     /**
-     * Closes this [FixedHareColumnFile].
+     * Closes this [FixedHareColumnFile]. This close is propagated to the underlying [HareDiskManager].
      */
-    override fun close() {
+    override fun close() = this.closeLock.exclusive {
         if (this.disk.isOpen) {
             this.disk.close()
         }
+    }
+
+    /**
+     * Tries to obtain a close lock on this [FixedHareColumnFile].
+     *
+     * @return Close lock handle
+     */
+    override fun obtainLock(): Long = this.closeLock.readLock()
+
+    /**
+     * Releases the given close lock handle.
+     *
+     * @param handle Close lock handle to release.
+     */
+    override fun releaseLock(handle: Long) {
+        this.closeLock.unlockRead(handle)
     }
 }

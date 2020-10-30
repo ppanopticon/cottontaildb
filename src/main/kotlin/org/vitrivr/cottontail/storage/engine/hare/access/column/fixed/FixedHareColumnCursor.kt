@@ -9,17 +9,12 @@ import org.vitrivr.cottontail.storage.engine.hare.toPageId
 import org.vitrivr.cottontail.storage.engine.hare.toSlotId
 
 /**
- * A [HareCursor] implementation for [FixedHareColumnFile]s.
+ * A [HareCursor] implementation for [FixedHareColumnFile]s. This implementation is not thread safe!
  *
  * @author Ralph Gasser
  * @version 1.0.0
  */
 class FixedHareColumnCursor<T : Value>(val file: FixedHareColumnFile<T>, private val bufferPool: BufferPool, range: LongRange? = null) : HareCursor<T> {
-
-    /** Flag indicating whether this [FixedHareColumnCursor] has been closed.  */
-    @Volatile
-    var closed: Boolean = false
-        private set
 
     /** The [TupleId] this [FixedHareColumnCursor] is currently pointing to. */
     override var tupleId: TupleId = HareCursor.CURSOR_BOF
@@ -30,8 +25,17 @@ class FixedHareColumnCursor<T : Value>(val file: FixedHareColumnFile<T>, private
     /** Maximum [TupleId] that can be accessed through this [FixedHareColumnCursor]. */
     override val end: TupleId
 
+    /** Flag indicating whether this [FixedHareColumnCursor] is open.  */
+    @Volatile
+    override var isOpen: Boolean = true
+        private set
+
+    /** Obtains a lock on the [FixedHareColumnFile]. */
+    private val lockHandle = this.file.obtainLock()
+
     /** [start] and [end] are initialized once! Hence [FixedHareColumnCursor] won't reflect changes to the file.*/
     init {
+        require(this.file.isOpen) { "FixedHareColumnFile has been closed (file = ${this.file.path})." }
         require(this.file.disk == this.bufferPool.disk) { "FixedHareColumnFile and provided BufferPool do not share the same HareDiskManager." }
 
         val page = this.bufferPool.get(FixedHareColumnFile.ROOT_PAGE_ID, Priority.HIGH)
@@ -93,8 +97,9 @@ class FixedHareColumnCursor<T : Value>(val file: FixedHareColumnFile<T>, private
      * Closes this [FixedHareColumnCursor].
      */
     override fun close() {
-        if (!this.closed) {
-            this.closed = true
+        if (this.isOpen) {
+            this.isOpen = false
+            this.file.releaseLock(this.lockHandle)
         }
     }
 }

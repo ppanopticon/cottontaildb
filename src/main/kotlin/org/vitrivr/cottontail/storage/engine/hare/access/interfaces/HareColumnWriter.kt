@@ -4,6 +4,7 @@ import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.types.Value
 import org.vitrivr.cottontail.storage.engine.hare.access.EntryDeletedException
 import org.vitrivr.cottontail.storage.engine.hare.access.NullValueNotAllowedException
+import org.vitrivr.cottontail.storage.engine.hare.basics.Resource
 
 /**
  * A data structure that allow for write access to a [HareColumnFile].
@@ -11,7 +12,7 @@ import org.vitrivr.cottontail.storage.engine.hare.access.NullValueNotAllowedExce
  * @author Ralph Gasser
  * @version 1.0.0
  */
-interface HareColumnWriter<T: Value> : AutoCloseable {
+interface HareColumnWriter<T : Value> : Resource {
     /**
      * Updates the [Value] for the given [TupleId].
      *

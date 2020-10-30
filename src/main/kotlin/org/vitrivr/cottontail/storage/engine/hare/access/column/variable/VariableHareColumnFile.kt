@@ -13,9 +13,11 @@ import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectHareDiskMana
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
 import org.vitrivr.cottontail.storage.engine.hare.disk.wal.WALHareDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.views.SlottedPageView
+import org.vitrivr.cottontail.utilities.extensions.exclusive
 import org.vitrivr.cottontail.utilities.math.BitUtil
 import java.nio.ByteBuffer
 import java.nio.file.Path
+import java.util.concurrent.locks.StampedLock
 
 /**
  * A HARE column file where each entry has a fixed size and can be addressed by a [TupleId].
@@ -102,6 +104,9 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean) : HareColu
     override val isOpen: Boolean
         get() = this.disk.isOpen
 
+    /** A [StampedLock] used to prevent this [VariableHareColumnFile] from closing, when it is being used by other resources. */
+    private val closeLock = StampedLock()
+
     /* Initialize important fields. */
     init {
         val page = HarePage(ByteBuffer.allocateDirect(this.disk.pageSize))
@@ -113,9 +118,25 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean) : HareColu
     /**
      * Closes this [VariableHareColumnFile].
      */
-    override fun close() {
+    override fun close() = this.closeLock.exclusive {
         if (!this.disk.isOpen) {
             this.disk.close()
         }
+    }
+
+    /**
+     * Tries to obtain a close lock on this [VariableHareColumnFile].
+     *
+     * @return Close lock handle
+     */
+    override fun obtainLock(): Long = this.closeLock.readLock()
+
+    /**
+     * Releases the given close lock handle.
+     *
+     * @param handle Close lock handle to release.
+     */
+    override fun releaseLock(handle: Long) {
+        this.closeLock.unlockRead(handle)
     }
 }

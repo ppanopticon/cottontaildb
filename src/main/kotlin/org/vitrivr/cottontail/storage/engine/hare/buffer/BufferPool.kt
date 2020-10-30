@@ -32,10 +32,10 @@ import java.util.concurrent.locks.StampedLock
  *
  * @see EvictionQueue
  *
- * @version 1.2.0
+ * @version 1.2.1
  * @author Ralph Gasser
  */
-class BufferPool(private val disk: HareDiskManager, val size: Int = 25, val evictionPolicy: EvictionPolicy) : Resource {
+class BufferPool(val disk: HareDiskManager, val size: Int = 25, val evictionPolicy: EvictionPolicy) : Resource {
 
     companion object {
         val METER_REGISTRY: MeterRegistry = JmxMeterRegistry(JmxConfig.DEFAULT, Clock.SYSTEM)

@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.storage.engine.hare.access.column.variable
 
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.types.Value
+import org.vitrivr.cottontail.storage.engine.hare.access.column.directory.Directory
 import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareColumnWriter
 import org.vitrivr.cottontail.storage.engine.hare.addressFor
 import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
@@ -12,30 +13,25 @@ import org.vitrivr.cottontail.storage.engine.hare.views.VARIABLE_FLAGS_MASK_NULL
 import java.lang.Long.max
 
 /**
- * A [HareColumnWriter] implementation for [VariableHareColumnFile]s. This implementation is not thread safe!
+ * A [HareColumnWriter] implementation for [VariableHareColumnFile]s.
  *
  * @author Ralph Gasser
  * @version 1.0.0
  */
-class VariableHareColumnWriter<T: Value> (val file: VariableHareColumnFile<T>): HareColumnWriter<T> {
-    /** [BufferPool] for this [FixedHareColumnWriter] is always the one used by the [FixedHareColumnFile] (core pool). */
-    private val bufferPool = this.file.bufferPool
-
-    /** The [Serializer] used to read data through this [FixedHareColumnReader]. */
+class VariableHareColumnWriter<T : Value>(val file: VariableHareColumnFile<T>, private val directory: Directory) : HareColumnWriter<T> {
+    /** The [Serializer] used to read data through this [VariableHareColumnFile]. */
     private val serializer: Serializer<T> = this.file.columnDef.serializer
-
-    /** The shared [HeaderPageView] instance for this [VariableHareColumnWriter].  */
-    private val headerView = HeaderPageView()
-
-    /** The shared [SlottedPageView] instance for this [VariableHareColumnWriter].  */
-    private val slottedView = SlottedPageView()
-
-    /** The shared [Directory] instance for this [VariableHareColumnWriter].  */
-    private val directory = Directory(this.file)
 
     /** Flag indicating whether this [VariableHareColumnWriter] has been closed.  */
     var closed: Boolean = false
         private set
+
+    /** The [BufferPool] instance used by this [VariableHareColumnWriter] is always shared with the [Directory]. */
+    internal val bufferPool: BufferPool = this.directory.bufferPool
+
+    init {
+        require(this.file.disk == this.bufferPool.disk) { "VariableHareColumnFile and provided BufferPool do not share the same HareDiskManager." }
+    }
 
     override fun update(tupleId: TupleId, value: T?) {
         TODO("Not yet implemented")
@@ -65,44 +61,63 @@ class VariableHareColumnWriter<T: Value> (val file: VariableHareColumnFile<T>): 
 
         /** Get header page. */
         val headerPage = this.bufferPool.get(VariableHareColumnFile.ROOT_PAGE_ID)
-        this.headerView.wrap(headerPage)
+        val headerView = HeaderPageView(headerPage).validate()
 
         /* Get allocation page. */
         var allocationPage = this.bufferPool.get(headerView.allocationPageId, Priority.LOW)
-        this.slottedView.wrap(allocationPage)
-        var slotId = this.slottedView.allocate(allocationSize) // TODO: Make dynamic
+        var allocationPageView = SlottedPageView(allocationPage).validate()
+        var slotId = allocationPageView.allocate(allocationSize) // TODO: Make dynamic
 
         /** If allocation page is full, create new one and store data there */
         if (slotId == null) {
             allocationPage.release()
-            var allocationPageId = max(this.headerView.allocationPageId, this.headerView.lastDirectoryPageId) + 1L
-            if (allocationPageId >= this.bufferPool.totalPages) {
-                allocationPageId = this.bufferPool.append()
-            }
-            allocationPage = this.bufferPool.get(allocationPageId)
+            headerView.allocationPageId = this.bufferPool.append()
+            allocationPage = this.bufferPool.get(headerView.allocationPageId)
             SlottedPageView.initialize(allocationPage)
-            slotId = this.slottedView.wrap(allocationPage).allocate(allocationSize) ?: TODO("Data that does not fit a single page.")
-            this.headerView.allocationPageId = allocationPageId
+            allocationPageView = SlottedPageView(allocationPage).validate()
+            slotId = allocationPageView.allocate(allocationSize)
+                    ?: TODO("Data that does not fit a single page.")
         }
 
         /** Generate address and tupleId. */
-        val address = addressFor(this.headerView.allocationPageId, slotId)
+        val address = addressFor(headerView.allocationPageId, slotId)
         val flags = if (value == null) {
             (0 or VARIABLE_FLAGS_MASK_NULL)
         } else {
             0
         }
         val newTupleId = this.directory.append(flags, address)
-        this.headerView.maxTupleId = max(newTupleId, this.headerView.maxTupleId)
+
+        /* Update header. */
+        headerView.maxTupleId = max(newTupleId, headerView.maxTupleId)
+        headerView.count += 1
 
         /* Write data and release pages. */
         if (value != null) {
-            this.serializer.serialize(allocationPage, this.slottedView.offset(slotId), value)
+            this.serializer.serialize(allocationPage, allocationPageView.offset(slotId), value)
         }
+
+        /* Release all pages. */
         allocationPage.release()
         headerPage.release()
 
-       return newTupleId
+        return newTupleId
+    }
+
+    /**
+     * Commits all changes made through this [HareColumnWriter].
+     */
+    override fun commit() {
+        this.bufferPool.flush()
+        this.file.disk.commit()
+    }
+
+    /**
+     * Performs a rollback on all changes made through this [HareColumnWriter].
+     */
+    override fun rollback() {
+        this.bufferPool.synchronize()
+        this.file.disk.rollback()
     }
 
     /**

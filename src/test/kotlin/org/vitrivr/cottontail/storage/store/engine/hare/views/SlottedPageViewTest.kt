@@ -25,7 +25,7 @@ class SlottedPageViewTest {
         val buffer = ByteBuffer.allocate(pageSize)
         val page = HarePage(buffer)
         Assertions.assertThrows(IllegalArgumentException::class.java) {
-            SlottedPageView().wrap(page)
+            SlottedPageView(page).validate()
         }
     }
 
@@ -35,7 +35,7 @@ class SlottedPageViewTest {
         val buffer = ByteBuffer.allocate(pageSize)
         val page = HarePage(buffer)
         SlottedPageView.initialize(page)
-        val slotted = SlottedPageView().wrap(page)
+        val slotted = SlottedPageView(page).validate()
 
         /** Check vanilla page. */
         Assertions.assertEquals(0, slotted.slots)
@@ -57,7 +57,7 @@ class SlottedPageViewTest {
         val buffer = ByteBuffer.allocate(pageSize)
         val page = HarePage(buffer)
         SlottedPageView.initialize(page)
-        val slotted = SlottedPageView().wrap(page)
+        val slotted = SlottedPageView(page).validate()
         val allocationSize = slotted.freeSpace - SlottedPageView.SIZE_ENTRY + 1
 
         /** Check vanilla page. */
@@ -79,7 +79,7 @@ class SlottedPageViewTest {
         val buffer = ByteBuffer.allocate(pageSize)
         val page = HarePage(buffer)
         SlottedPageView.initialize(page)
-        val slotted = SlottedPageView().wrap(page)
+        val slotted = SlottedPageView(page).validate()
 
         /** Check vanilla page. */
         Assertions.assertEquals(0, slotted.slots)
@@ -99,7 +99,7 @@ class SlottedPageViewTest {
             val slotId = slotted.allocate(allocate) ?: break
             val offset = slotted.offset(slotId)
             val data: ByteArray = this.random.nextBytes(allocate)
-            slotted.page!!.putBytes(offset, data)
+            slotted.page.putBytes(offset, data)
             list.add(Pair(slotId, data))
 
             Assertions.assertEquals(++i, slotted.slots)
@@ -109,7 +109,7 @@ class SlottedPageViewTest {
         /** Check data that was written. */
         for (entry in list) {
             val offset = slotted.offset(entry.first)
-            val read = slotted.page!!.getBytes(offset, offset + entry.second.size)
+            val read = slotted.page.getBytes(offset, offset + entry.second.size)
             Assertions.assertArrayEquals(entry.second, read)
         }
     }

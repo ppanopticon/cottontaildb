@@ -5,24 +5,17 @@ import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.types.Value
 import org.vitrivr.cottontail.storage.engine.hare.PageId
+import org.vitrivr.cottontail.storage.engine.hare.access.column.directory.DirectoryPageView
+import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnFile
 import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareColumnFile
-import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareColumnReader
-import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareColumnWriter
-import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareCursor
-import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
-import org.vitrivr.cottontail.storage.engine.hare.buffer.Priority
-import org.vitrivr.cottontail.storage.engine.hare.buffer.eviction.EvictionPolicy
 import org.vitrivr.cottontail.storage.engine.hare.disk.HareDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectHareDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
 import org.vitrivr.cottontail.storage.engine.hare.disk.wal.WALHareDiskManager
-import org.vitrivr.cottontail.storage.engine.hare.views.*
-import org.vitrivr.cottontail.utilities.extensions.exclusive
+import org.vitrivr.cottontail.storage.engine.hare.views.SlottedPageView
 import org.vitrivr.cottontail.utilities.math.BitUtil
-
 import java.nio.ByteBuffer
 import java.nio.file.Path
-import java.util.concurrent.locks.StampedLock
 
 /**
  * A HARE column file where each entry has a fixed size and can be addressed by a [TupleId].
@@ -30,7 +23,7 @@ import java.util.concurrent.locks.StampedLock
  * @author Ralph Gasser
  * @param 1.0.1
  */
-class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSize: Int = 5) : HareColumnFile<T> {
+class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean) : HareColumnFile<T> {
     /** Companion object with important constants. */
     companion object {
 
@@ -93,52 +86,36 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean, corePoolSi
     }
 
     /** Initializes the [HareDiskManager] based on the `wal` property. */
-    val disk = if (wal) {
+    override val disk = if (wal) {
         WALHareDiskManager(this.path)
     } else {
         DirectHareDiskManager(this.path)
     }
 
-    /** Initializes the [BufferPool]. */
-    val bufferPool = BufferPool(disk = this.disk, size = corePoolSize, evictionPolicy = EvictionPolicy.LRU)
-
     /** The [Name] of this [VariableHareColumnFile]. */
-    val name = Name.ColumnName(this.path.fileName.toString().replace(".db", ""))
+    override val name = Name.ColumnName(this.path.fileName.toString().replace(".db", ""))
 
     /** The [ColumnDef] describing the column managed by this [VariableHareColumnFile]. */
-    val columnDef: ColumnDef<T>
+    override val columnDef: ColumnDef<T>
 
-    /** Internal lock to mediate access to closing the [FixedHareCursor]. */
-    private val closeLock = StampedLock()
-
-    /** Internal flag used to indicate, that this [FixedHareCursor] was closed. */
-    @Volatile
-    private var closed: Boolean = false
+    /** Flag indicating, whether this [VariableHareColumnFile] is still open and safe for use. */
+    override val isOpen: Boolean
+        get() = this.disk.isOpen
 
     /* Initialize important fields. */
     init {
-        val page = this.bufferPool.get(ROOT_PAGE_ID, Priority.HIGH)
-        val header = HeaderPageView().wrap(page)
+        val page = HarePage(ByteBuffer.allocateDirect(this.disk.pageSize))
+        this.disk.read(FixedHareColumnFile.ROOT_PAGE_ID, page)
+        val header = HeaderPageView(page).validate()
         this.columnDef = ColumnDef(this.name, header.type, header.size, header.nullable) as ColumnDef<T>
-        page.release()
     }
-
-    override fun newReader(): HareColumnReader<T> = VariableHareColumnReader(this, Directory(this))
-
-    override fun newWriter(): HareColumnWriter<T> {
-        TODO("Not yet implemented")
-    }
-
-    override fun newCursor(): HareCursor<T> = VariableHareColumnCursor(this, Directory(this))
 
     /**
      * Closes this [VariableHareColumnFile].
      */
-    override fun close() = this.closeLock.exclusive {
+    override fun close() {
         if (!this.disk.isOpen) {
-            this.bufferPool.close()
             this.disk.close()
-            this.closed = true
         }
     }
 }

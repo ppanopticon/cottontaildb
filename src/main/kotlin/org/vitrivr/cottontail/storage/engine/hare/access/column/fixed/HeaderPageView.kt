@@ -3,23 +3,21 @@ package org.vitrivr.cottontail.storage.engine.hare.access.column.fixed
 import org.vitrivr.cottontail.database.column.ColumnType
 import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.TupleId
-
 import org.vitrivr.cottontail.storage.engine.hare.DataCorruptionException
+import org.vitrivr.cottontail.storage.engine.hare.access.column.directory.DirectoryPageView
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
-import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
-import org.vitrivr.cottontail.storage.engine.hare.views.AbstractPageView
 import org.vitrivr.cottontail.storage.engine.hare.basics.PageConstants
-import org.vitrivr.cottontail.storage.engine.hare.basics.PageRef
-import org.vitrivr.cottontail.storage.engine.hare.views.DirectoryPageView
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
+import org.vitrivr.cottontail.storage.engine.hare.views.PageView
 
 /**
  * The [HeaderPageView] of this [FixedHareColumnFile]. The [HeaderPageView] is located on the first
  * [HarePage] in the [FixedHareColumnFile] file.
  *
  * @author Ralph Gasser
- * @version 1.0.1
+ * @version 1.1.0
  */
-class HeaderPageView : AbstractPageView() {
+inline class HeaderPageView(override val page: Page) : PageView {
 
     companion object {
         /** The offset into the [HeaderPageView]'s header to obtain the type of column. */
@@ -73,29 +71,21 @@ class HeaderPageView : AbstractPageView() {
         }
     }
 
-    /** The [pageTypeIdentifier] for the [HeaderPageView]. */
-    override val pageTypeIdentifier: Int
-        get() = PageConstants.PAGE_TYPE_HEADER_FIXED_COLUMN
-
     /** The [ColumnType] held by this [FixedHareColumnFile]. */
     val type: ColumnType<*>
-        get() = ColumnType.forOrdinal(this.page?.getInt(HEADER_OFFSET_TYPE)
-                ?: throw IllegalStateException("This HeaderPageView is not wrapping any page and can therefore not be used for interaction."))
+        get() = ColumnType.forOrdinal(this.page.getInt(HEADER_OFFSET_TYPE))
 
     /** The logical size of the [ColumnDef] held by this [FixedHareColumnFile]. */
     val size: Int
-        get() = this.page?.getInt(HEADER_OFFSET_LSIZE)
-                ?: throw IllegalStateException("This HeaderPageView is not wrapping any page and can therefore not be used for interaction.")
+        get() = this.page.getInt(HEADER_OFFSET_LSIZE)
 
     /** The physical size of an entry in bytes. */
     val entrySize: Int
-        get() = this.page?.getInt(HEADER_OFFSET_PSIZE)
-                ?: throw IllegalStateException("This HeaderPageView is not wrapping any page and can therefore not be used for interaction.")
+        get() = this.page.getInt(HEADER_OFFSET_PSIZE)
 
     /** Special flags set for this [FixedHareColumnFile], such as, nullability. */
     val flags: Long
-        get() = this.page?.getLong(HEADER_OFFSET_FLAGS)
-                ?: throw IllegalStateException("This HeaderPageView is not wrapping any page and can therefore not be used for interaction.")
+        get() = this.page.getLong(HEADER_OFFSET_FLAGS)
 
     /** True if this [FixedHareColumnFile] supports null values. */
     val nullable: Boolean
@@ -103,38 +93,32 @@ class HeaderPageView : AbstractPageView() {
 
     /** The total number of entries in this [FixedHareColumnFile]. */
     var count: Long
-        get() = this.page?.getLong(HEADER_OFFSET_COUNT)
-                ?: throw IllegalStateException("This HeaderPageView is not wrapping any page and can therefore not be used for interaction.")
+        get() = this.page.getLong(HEADER_OFFSET_COUNT)
         set(v) {
-            check(this.page != null) { "This HeaderPageView is not wrapping any page and can therefore not be used for interaction." }
-            this.page!!.putLong(HEADER_OFFSET_COUNT, v)
+            this.page.putLong(HEADER_OFFSET_COUNT, v)
         }
 
     /** The number of deleted entries in this [FixedHareColumnFile]. */
     var deleted: Long
-        get() = this.page?.getLong(HEADER_OFFSET_DELETED)
-                ?: throw IllegalStateException("This HeaderPageView is not wrapping any page and can therefore not be used for interaction.")
+        get() = this.page.getLong(HEADER_OFFSET_DELETED)
         set(v) {
-            check(this.page != null) { "This HeaderPageView is not wrapping any page and can therefore not be used for interaction." }
-            this.page!!.putLong(HEADER_OFFSET_DELETED, v)
+            this.page.putLong(HEADER_OFFSET_DELETED, v)
         }
 
     /** The maximum [TupleId] for this [FixedHareColumnFile]. */
     var maxTupleId: TupleId
-        get() = this.page?.getLong(HEADER_OFFSET_MAXTID)
-                ?: throw IllegalStateException("This HeaderPageView is not wrapping any page and can therefore not be used for interaction.")
+        get() = this.page.getLong(HEADER_OFFSET_MAXTID)
         set(v) {
-            check(this.page != null) { "This HeaderPageView is not wrapping any page and can therefore not be used for interaction." }
-            this.page!!.putLong(HEADER_OFFSET_MAXTID, v)
+            this.page.putLong(HEADER_OFFSET_MAXTID, v)
         }
 
     /**
-     * Wraps a [Page] for usage as a [HeaderPageView].
+     * Validates this [HeaderPageView] and returns it.
      *
-     * @param page [Page] that should be wrapped.
+     * @return this.
      */
-    override fun wrap(page: Page): HeaderPageView {
-        super.wrap(page)
+    override fun validate(): HeaderPageView {
+        require(this.page.getInt(0) == PageConstants.PAGE_TYPE_HEADER_FIXED_COLUMN) { IllegalStateException("Page identifier mismatch (expected = ${PageConstants.PAGE_TYPE_HEADER_FIXED_COLUMN}, actual = ${this.page.getInt(0)}).") }
         require(this.count >= 0) { DataCorruptionException("Negative number of entries in HARE variable length column file.") }
         require(this.deleted >= 0) { DataCorruptionException("Negative number of deleted entries in HARE variable length column file.") }
         return this

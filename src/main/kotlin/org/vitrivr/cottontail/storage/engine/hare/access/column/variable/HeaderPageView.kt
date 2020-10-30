@@ -5,23 +5,22 @@ import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.storage.engine.hare.DataCorruptionException
 import org.vitrivr.cottontail.storage.engine.hare.PageId
+import org.vitrivr.cottontail.storage.engine.hare.access.column.directory.DirectoryPageView
 import org.vitrivr.cottontail.storage.engine.hare.access.column.variable.VariableHareColumnFile.Companion.ROOT_ALLOCATION_PAGE_ID
 import org.vitrivr.cottontail.storage.engine.hare.access.column.variable.VariableHareColumnFile.Companion.ROOT_DIRECTORY_PAGE_ID
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
-import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
-import org.vitrivr.cottontail.storage.engine.hare.views.AbstractPageView
-import org.vitrivr.cottontail.storage.engine.hare.views.DirectoryPageView
 import org.vitrivr.cottontail.storage.engine.hare.basics.PageConstants
-import org.vitrivr.cottontail.storage.engine.hare.basics.PageRef
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
+import org.vitrivr.cottontail.storage.engine.hare.views.PageView
 
 /**
  * The [HeaderPageView] of a [VariableHareColumnFile]. The [HeaderPageView] is usually located on
  * the first [HarePage] in the [VariableHareColumnFile] file.
  *
  * @author Ralph Gasser
- * @version 1.0.1
+ * @version 1.1.0
  */
-class HeaderPageView : AbstractPageView() {
+inline class HeaderPageView(override val page: Page) : PageView {
 
     companion object {
         /** The offset into the [HeaderPageView]'s header to obtain type of column. */
@@ -42,10 +41,10 @@ class HeaderPageView : AbstractPageView() {
         /** The offset into the [HeaderPageView]'s header to obtain the maximum [TupleId]. */
         const val HEADER_OFFSET_MAXTID = 36
 
-        /** The offset into the [HeaderPageView]'s header to get pointer to the last [DirectoryPageView]. */
+        /** The offset into the [HeaderPageView]'s header to get pointer to the last directory page. */
         const val HEADER_OFFSET_LDIRPTR = 44
 
-        /** The offset into the [HeaderPageView]'s header to get pointer to the last [SlottedPageView] (allocation page). */
+        /** The offset into the [HeaderPageView]'s header to get pointer to the last slotted page (allocation page). */
         const val HEADER_OFFSET_ALLOCPTR = 52
 
         /** Bit Masks (for flags) */
@@ -78,24 +77,17 @@ class HeaderPageView : AbstractPageView() {
         }
     }
 
-    /** The [pageTypeIdentifier] for the [HeaderPageView]. */
-    override val pageTypeIdentifier: Int
-        get() = PageConstants.PAGE_TYPE_HEADER_VARIABLE_COLUMN
-
     /** The [ColumnType] held by this [VariableHareColumnFile]. */
     val type: ColumnType<*>
-        get() = ColumnType.forOrdinal(this.page?.getInt(HEADER_OFFSET_TYPE)
-                ?: throw IllegalStateException("This HeaderPageView is not wrapping any page and can therefore not be used for interaction."))
+        get() = ColumnType.forOrdinal(this.page.getInt(HEADER_OFFSET_TYPE))
 
     /** The logical size of the [ColumnDef] held by this [VariableHareColumnFile]. */
     val size: Int
-        get() = this.page?.getInt(HEADER_OFFSET_LSIZE)
-                ?: throw IllegalStateException("This HeaderView is not wrapping any page and can therefore not be used for interaction.")
+        get() = this.page.getInt(HEADER_OFFSET_LSIZE)
 
     /** Special flags set for this [VariableHareColumnFile], such as, nullability. */
     val flags: Long
-        get() = this.page?.getLong(HEADER_OFFSET_FLAGS)
-                ?: throw IllegalStateException("This HeaderView is not wrapping any page and can therefore not be used for interaction.")
+        get() = this.page.getLong(HEADER_OFFSET_FLAGS)
 
     /** True if this [VariableHareColumnFile] supports null values. */
     val nullable: Boolean
@@ -103,56 +95,46 @@ class HeaderPageView : AbstractPageView() {
 
     /** The total number of entries in this [VariableHareColumnFile]. */
     var count: Long
-        get() = this.page?.getLong(HEADER_OFFSET_COUNT)
-                ?: throw IllegalStateException("This HeaderView is not wrapping any page and can therefore not be used for interaction.")
+        get() = this.page.getLong(HEADER_OFFSET_COUNT)
         set(v) {
-            check(this.page != null) { "This HeaderView is not wrapping any page and can therefore not be used for interaction." }
-            this.page!!.putLong(HEADER_OFFSET_COUNT, v)
+            this.page.putLong(HEADER_OFFSET_COUNT, v)
         }
 
     /** The maximum [TupleId] for this [VariableHareColumnFile]. */
     var maxTupleId: TupleId
-        get() = this.page?.getLong(HEADER_OFFSET_MAXTID)
-                ?: throw IllegalStateException("This HeaderView is not wrapping any page and can therefore not be used for interaction.")
+        get() = this.page.getLong(HEADER_OFFSET_MAXTID)
         set(v) {
-            check(this.page != null) { "This HeaderView is not wrapping any page and can therefore not be used for interaction." }
-            this.page!!.putLong(HEADER_OFFSET_MAXTID, v)
+            this.page.putLong(HEADER_OFFSET_MAXTID, v)
         }
 
     /** The number of deleted entries in this [VariableHareColumnFile]. */
     var deleted: Long
-        get() = this.page?.getLong(HEADER_OFFSET_DELETED)
-                ?: throw IllegalStateException("This HeaderView is not wrapping any page and can therefore not be used for interaction.")
+        get() = this.page.getLong(HEADER_OFFSET_DELETED)
         set(v) {
-            check(this.page != null) { "This HeaderView is not wrapping any page and can therefore not be used for interaction." }
-            this.page!!.putLong(HEADER_OFFSET_DELETED, v)
+            this.page.putLong(HEADER_OFFSET_DELETED, v)
         }
 
     /** The [PageId] of the last directory [Page]. */
     var lastDirectoryPageId: PageId
-        get() = this.page?.getLong(HEADER_OFFSET_LDIRPTR)
-                ?: throw IllegalStateException("This HeaderView is not wrapping any page and can therefore not be used for interaction.")
+        get() = this.page.getLong(HEADER_OFFSET_LDIRPTR)
         set(v) {
-            check(this.page != null) { "This HeaderView is not wrapping any page and can therefore not be used for interaction." }
-            this.page!!.putLong(HEADER_OFFSET_LDIRPTR, v)
+            this.page.putLong(HEADER_OFFSET_LDIRPTR, v)
         }
 
     /** The [PageId] in allocation [Page]. */
     var allocationPageId: PageId
-        get() = this.page?.getLong(HEADER_OFFSET_ALLOCPTR)
-                ?: throw IllegalStateException("This HeaderView is not wrapping any page and can therefore not be used for interaction.")
+        get() = this.page.getLong(HEADER_OFFSET_ALLOCPTR)
         set(v) {
-            check(this.page != null) { "This HeaderView is not wrapping any page and can therefore not be used for interaction." }
-            this.page!!.putLong(HEADER_OFFSET_ALLOCPTR, v)
+            this.page.putLong(HEADER_OFFSET_ALLOCPTR, v)
         }
 
     /**
-     * Wraps a [Page] for usage as a [HeaderPageView].
+     * Validates this [HeaderPageView] and returns it.
      *
-     * @param page [Page] that should be wrapped.
+     * @return this.
      */
-    override fun wrap(page: Page): HeaderPageView {
-        super.wrap(page)
+    override fun validate(): HeaderPageView {
+        require(this.page.getInt(0) == PageConstants.PAGE_TYPE_HEADER_VARIABLE_COLUMN) { IllegalStateException("Page identifier mismatch (expected = ${PageConstants.PAGE_TYPE_HEADER_VARIABLE_COLUMN}, actual = ${this.page.getInt(0)}).") }
         require(this.count >= 0) { DataCorruptionException("Negative number of entries in HARE variable length column file.") }
         require(this.deleted >= 0) { DataCorruptionException("Negative number of deleted entries in HARE variable length column file.") }
         require(this.lastDirectoryPageId >= ROOT_DIRECTORY_PAGE_ID) { DataCorruptionException("Illegal page ID for last directory page.") }

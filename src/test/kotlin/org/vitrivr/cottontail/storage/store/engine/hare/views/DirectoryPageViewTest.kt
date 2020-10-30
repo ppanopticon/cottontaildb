@@ -5,18 +5,14 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.storage.engine.hare.Address
+import org.vitrivr.cottontail.storage.engine.hare.access.column.directory.DirectoryPageView
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
-import org.vitrivr.cottontail.storage.engine.hare.views.DirectoryPageView
 import org.vitrivr.cottontail.storage.engine.hare.views.Flags
 import java.nio.ByteBuffer
 import kotlin.random.Random
 
 /**
- *
- * @author Ralph Gasser
- * @version 1.0
- */
-/**
+ * Unit tests for [DirectoryPageView].
  *
  * @author Ralph Gasser
  * @version 1.0
@@ -33,7 +29,7 @@ class DirectoryPageViewTest {
         val buffer = ByteBuffer.allocate(pageSize)
         val page = HarePage(buffer)
         Assertions.assertThrows(IllegalArgumentException::class.java) {
-            DirectoryPageView().wrap(page)
+            DirectoryPageView(page).validate()
         }
     }
 
@@ -43,7 +39,7 @@ class DirectoryPageViewTest {
         val buffer = ByteBuffer.allocate(pageSize)
         val page = HarePage(buffer)
         DirectoryPageView.initialize(page, -1L, 0L)
-        val view = DirectoryPageView().wrap(page)
+        val view = DirectoryPageView(page).validate()
         val list = mutableListOf<Triple<TupleId, Flags, Address>>()
         var last = -1L
         while (!view.full) {

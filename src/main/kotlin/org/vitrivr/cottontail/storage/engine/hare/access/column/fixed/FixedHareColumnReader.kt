@@ -17,21 +17,18 @@ import org.vitrivr.cottontail.storage.engine.hare.toSlotId
  * @author Ralph Gasser
  * @version 1.0.0
  */
-class FixedHareColumnReader<T: Value>(val file: FixedHareColumnFile<T>): HareColumnReader<T> {
-    /** [BufferPool] for this [FixedHareColumnWriter] is always the one used by the [FixedHareColumnWriter] (core pool). */
-    private val bufferPool
-        get() = this.file.bufferPool
-
+class FixedHareColumnReader<T : Value>(val file: FixedHareColumnFile<T>, private val bufferPool: BufferPool) : HareColumnReader<T> {
     /** The [Serializer] used to read data through this [FixedHareColumnReader]. */
     private val serializer: Serializer<T> = this.file.columnDef.serializer
-
-    /** The [HeaderPageView] used by this [FixedHareColumnCursor]. */
-    private val header = HeaderPageView().wrap(this.bufferPool.get(FixedHareColumnFile.ROOT_PAGE_ID, Priority.HIGH))
 
     /** Flag indicating whether this [FixedHareColumnReader] has been closed.  */
     @Volatile
     var closed: Boolean = false
         private set
+
+    init {
+        require(this.file.disk == this.bufferPool.disk) { "FixedHareColumnFile and provided BufferPool do not share the same HareDiskManager." }
+    }
 
     /**
      * Returns the entry for the given [TupleId] if such an entry exists.
@@ -65,7 +62,12 @@ class FixedHareColumnReader<T: Value>(val file: FixedHareColumnFile<T>): HareCol
      *
      * @return Number of entries in this [HareColumnFile].
      */
-    override fun count(): Long =  this.header.count
+    override fun count(): Long {
+        val headerPage = this.bufferPool.get(FixedHareColumnFile.ROOT_PAGE_ID, Priority.HIGH)
+        val ret = HeaderPageView(headerPage).validate().count
+        headerPage.release()
+        return ret
+    }
 
     /**
      * Returns a boolean indicating whether the entry for the given [TupleId] is null.
@@ -75,7 +77,7 @@ class FixedHareColumnReader<T: Value>(val file: FixedHareColumnFile<T>): HareCol
      */
     override fun isNull(tupleId: TupleId): Boolean {
         /* Calculate necessary offsets. */
-        val address = file.toAddress(tupleId)
+        val address = this.file.toAddress(tupleId)
         val pageId = address.toPageId()
         val slotId = address.toSlotId()
         val entryOffset: Int = slotId * this.file.entrySize
@@ -95,7 +97,7 @@ class FixedHareColumnReader<T: Value>(val file: FixedHareColumnFile<T>): HareCol
      */
     override fun isDeleted(tupleId: TupleId): Boolean {
         /* Calculate necessary offsets. */
-        val address = file.toAddress(tupleId)
+        val address = this.file.toAddress(tupleId)
         val pageId = address.toPageId()
         val slotId = address.toSlotId()
         val entryOffset: Int = slotId * this.file.entrySize

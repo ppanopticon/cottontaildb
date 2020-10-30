@@ -14,6 +14,8 @@ import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareC
 import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnFile
 import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnReader
 import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnWriter
+import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
+import org.vitrivr.cottontail.storage.engine.hare.buffer.eviction.EvictionPolicy
 import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectHareDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
 import org.vitrivr.cottontail.storage.store.engine.hare.access.AbstractCursorTest
@@ -36,7 +38,7 @@ class HareDoubleArrayCursorTest : AbstractCursorTest() {
     }
 
     /**
-     *
+     * Populates a [FixedHareColumnFile] with [DoubleVectorValue]s and then reads and compares them.
      */
     @ExperimentalTime
     @ParameterizedTest
@@ -45,31 +47,13 @@ class HareDoubleArrayCursorTest : AbstractCursorTest() {
         val columnDef = ColumnDef(Name.ColumnName("test"), DoubleVectorColumnType, logicalSize = dimensions)
         FixedHareColumnFile.createDirect(this.path, columnDef)
         val hareFile: FixedHareColumnFile<DoubleVectorValue> = FixedHareColumnFile(this.path, false)
+        val bufferPool = BufferPool(hareFile.disk, 25, EvictionPolicy.LRU)
 
-        this.initWithData(hareFile, dimensions, TestConstants.collectionSize)
-        this.compareData(hareFile, dimensions, TestConstants.collectionSize)
+        this.initWithData(hareFile, bufferPool, dimensions)
+        this.compareData(hareFile, bufferPool, dimensions)
 
         /** Cleanup. */
         hareFile.close()
-    }
-
-    /**
-     * Compares the data stored in this [DirectHareDiskManager] with the data provided as array of [ByteArray]s
-     */
-    @ExperimentalTime
-    private fun compareData(hareFile: FixedHareColumnFile<DoubleVectorValue>, dimensions: Int, size: Int) {
-        val cursor = FixedHareColumnCursor(hareFile)
-        val reader = FixedHareColumnReader(hareFile)
-        val random = SplittableRandom(this.seed)
-        val readTime = measureTime {
-            for (tupleId in cursor) {
-                val doubleVectorValue = reader.get(tupleId)
-                Assertions.assertArrayEquals(DoubleVectorValue.random(dimensions, random).data, doubleVectorValue?.data)
-
-            }
-        }
-        val physSize = (hareFile.bufferPool.diskSize `in` Units.MEGABYTE)
-        println("Reading $size doubles vectors (d=$dimensions) to a total of $physSize took $readTime (${physSize.value / readTime.inSeconds} MB/s).")
     }
 
     /**
@@ -78,16 +62,37 @@ class HareDoubleArrayCursorTest : AbstractCursorTest() {
      * @param size The number of [HarePage]s to write.
      */
     @ExperimentalTime
-    private fun initWithData(hareFile: FixedHareColumnFile<DoubleVectorValue>, dimensions: Int, size: Int) {
+    private fun initWithData(hareFile: FixedHareColumnFile<DoubleVectorValue>, bufferPool: BufferPool, dimensions: Int) {
         var writeTime = Duration.ZERO
         val random = SplittableRandom(this.seed)
-        val writer = FixedHareColumnWriter(hareFile)
-        for (d in 0 until size) {
+        val writer = FixedHareColumnWriter(hareFile, bufferPool)
+        for (d in 0 until TestConstants.collectionSize) {
             writeTime += measureTime {
                 writer.append(DoubleVectorValue.random(dimensions, random))
             }
         }
-        val physSize = (hareFile.bufferPool.diskSize `in` Units.MEGABYTE)
-        println("Writing $size doubles vectors (d=$dimensions) to a total of $physSize took $writeTime (${physSize.value / writeTime.inSeconds} MB/s).")
+        val physSize = (bufferPool.diskSize `in` Units.MEGABYTE)
+        println("Writing ${TestConstants.collectionSize} doubles vectors (d=$dimensions) to a total of $physSize took $writeTime (${physSize.value / writeTime.inSeconds} MB/s).")
+    }
+
+    /**
+     * Compares the data stored in this [DirectHareDiskManager] with the data provided as array of [ByteArray]s
+     */
+    @ExperimentalTime
+    private fun compareData(hareFile: FixedHareColumnFile<DoubleVectorValue>, bufferPool: BufferPool, dimensions: Int) {
+        val cursor = FixedHareColumnCursor(hareFile, bufferPool)
+        val reader = FixedHareColumnReader(hareFile, bufferPool)
+        val random = SplittableRandom(this.seed)
+        var read = 0L
+        val readTime = measureTime {
+            for (tupleId in cursor) {
+                val doubleVectorValue = reader.get(tupleId)
+                Assertions.assertArrayEquals(DoubleVectorValue.random(dimensions, random).data, doubleVectorValue?.data)
+                read++
+            }
+            Assertions.assertEquals(reader.count(), read)
+        }
+        val physSize = (bufferPool.diskSize `in` Units.MEGABYTE)
+        println("Reading ${TestConstants.collectionSize} doubles vectors (d=$dimensions) to a total of $physSize took $readTime (${physSize.value / readTime.inSeconds} MB/s).")
     }
 }

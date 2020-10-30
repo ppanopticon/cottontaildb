@@ -36,7 +36,7 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val par
     override val path: Path = this.parent.path.resolve("col_${name.simple}.hare")
 
     /** The [FixedHareColumnFile] that backs this [HareColumn]. */
-    private val column = FixedHareColumnFile<T>(this.path, true, this.parent.parent.parent.config.lockTimeout.toInt())
+    private val column = FixedHareColumnFile<T>(this.path, true)
 
     /** This [HareColumn]'s [ColumnDef]. */
     override val columnDef: ColumnDef<T>

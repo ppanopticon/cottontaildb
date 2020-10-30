@@ -19,10 +19,7 @@ import java.lang.Long.max
  * @author Ralph Gasser
  * @version 1.0.0
  */
-class FixedHareColumnWriter<T: Value> (val file: FixedHareColumnFile<T>): HareColumnWriter<T> {
-    /** [BufferPool] for this [FixedHareColumnWriter] is always the one used by the [FixedHareColumnFile] (core pool). */
-    private val bufferPool = this.file.bufferPool
-
+class FixedHareColumnWriter<T : Value>(val file: FixedHareColumnFile<T>, private val bufferPool: BufferPool) : HareColumnWriter<T> {
     /** The [Serializer] used to read data through this [FixedHareColumnReader]. */
     private val serializer: Serializer<T> = this.file.columnDef.serializer
 
@@ -30,6 +27,10 @@ class FixedHareColumnWriter<T: Value> (val file: FixedHareColumnFile<T>): HareCo
     @Volatile
     var closed: Boolean = false
         private set
+
+    init {
+        require(this.file.disk == this.bufferPool.disk) { "FixedHareColumnFile and provided BufferPool do not share the same HareDiskManager." }
+    }
 
     /**
      * Updates the entry for the given [TupleId].
@@ -127,7 +128,7 @@ class FixedHareColumnWriter<T: Value> (val file: FixedHareColumnFile<T>): HareCo
     override fun delete(tupleId: TupleId): T? {
         /* Load page header. */
         val headerPage = this.bufferPool.get(FixedHareColumnFile.ROOT_PAGE_ID, Priority.HIGH)
-        val header = HeaderPageView().wrap(headerPage)
+        val header = HeaderPageView(headerPage)
 
         /* Calculate necessary offsets. */
         val address = this.file.toAddress(tupleId)
@@ -178,9 +179,9 @@ class FixedHareColumnWriter<T: Value> (val file: FixedHareColumnFile<T>): HareCo
             throw NullValueNotAllowedException("The provided value is null but this HARE column does not support null values.")
         }
 
-        /* Fetch header */
+        /* Fetch & wrap header */
         val headerPage = this.bufferPool.get(FixedHareColumnFile.ROOT_PAGE_ID, Priority.HIGH)
-        val headerView = HeaderPageView().wrap(headerPage)
+        val headerView = HeaderPageView(headerPage).validate()
 
         /* Calculate necessary offsets. */
         val tupleId = headerView.maxTupleId + 1
@@ -237,5 +238,23 @@ class FixedHareColumnWriter<T: Value> (val file: FixedHareColumnFile<T>): HareCo
         if (!this.closed) {
             this.closed = true
         }
+    }
+
+    /**
+     * Commits all changes made through this [HareColumnWriter].
+     */
+    @Synchronized
+    override fun commit() {
+        this.bufferPool.flush()
+        this.file.disk.commit()
+    }
+
+    /**
+     * Performs a rollback on all changes made through this [HareColumnWriter].
+     */
+    @Synchronized
+    override fun rollback() {
+        this.bufferPool.synchronize()
+        this.file.disk.rollback()
     }
 }

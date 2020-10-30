@@ -14,10 +14,7 @@ import org.vitrivr.cottontail.storage.engine.hare.toSlotId
  * @author Ralph Gasser
  * @version 1.0.0
  */
-class FixedHareColumnCursor<T: Value>(val file: FixedHareColumnFile<T>, range: LongRange? = null): HareCursor<T> {
-
-    /** [BufferPool] for this [FixedHareColumnWriter] is always the one used by the [FixedHareColumnWriter] (core pool). */
-    private val bufferPool = this.file.bufferPool
+class FixedHareColumnCursor<T : Value>(val file: FixedHareColumnFile<T>, private val bufferPool: BufferPool, range: LongRange? = null) : HareCursor<T> {
 
     /** Flag indicating whether this [FixedHareColumnCursor] has been closed.  */
     @Volatile
@@ -35,9 +32,10 @@ class FixedHareColumnCursor<T: Value>(val file: FixedHareColumnFile<T>, range: L
 
     /** [start] and [end] are initialized once! Hence [FixedHareColumnCursor] won't reflect changes to the file.*/
     init {
+        require(this.file.disk == this.bufferPool.disk) { "FixedHareColumnFile and provided BufferPool do not share the same HareDiskManager." }
 
         val page = this.bufferPool.get(FixedHareColumnFile.ROOT_PAGE_ID, Priority.HIGH)
-        val pageView = HeaderPageView().wrap(page)
+        val pageView = HeaderPageView(page).validate()
 
         if (range != null) {
             require(range.first >= 0L) { "Start tupleId must be greater or equal than zero."}
@@ -86,11 +84,9 @@ class FixedHareColumnCursor<T: Value>(val file: FixedHareColumnFile<T>, range: L
         val entryOffset: Int = slotId * this.file.entrySize
 
         val page = this.bufferPool.get(pageId, Priority.DEFAULT)
-        try {
-            return (page.getInt(entryOffset) and FixedHareColumnFile.MASK_DELETED.inv()) > 0L
-        } finally {
-            page.release()
-        }
+        val ret = (page.getInt(entryOffset) and FixedHareColumnFile.MASK_DELETED) == 0
+        page.release()
+        return ret
     }
 
     /**

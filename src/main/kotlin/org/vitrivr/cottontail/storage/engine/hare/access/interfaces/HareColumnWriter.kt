@@ -55,4 +55,14 @@ interface HareColumnWriter<T: Value> : AutoCloseable {
      * @throws NullValueNotAllowedException If [value] is null but the underlying data structure does not support null values.
      */
     fun append(value: T?): TupleId
+
+    /**
+     * Commits all changes made through this [HareColumnWriter].
+     */
+    fun commit()
+
+    /**
+     * Performs a rollback on all changes made through this [HareColumnWriter].
+     */
+    fun rollback()
 }

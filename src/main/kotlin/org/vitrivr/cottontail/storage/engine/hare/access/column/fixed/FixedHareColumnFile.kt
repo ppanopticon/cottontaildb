@@ -4,30 +4,26 @@ import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.types.Value
-import org.vitrivr.cottontail.storage.engine.hare.*
-import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.*
-import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
-import org.vitrivr.cottontail.storage.engine.hare.buffer.Priority
-import org.vitrivr.cottontail.storage.engine.hare.buffer.eviction.EvictionPolicy
+import org.vitrivr.cottontail.storage.engine.hare.Address
+import org.vitrivr.cottontail.storage.engine.hare.PageId
+import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareColumnFile
 import org.vitrivr.cottontail.storage.engine.hare.disk.HareDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectHareDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
 import org.vitrivr.cottontail.storage.engine.hare.disk.wal.WALHareDiskManager
-import org.vitrivr.cottontail.utilities.extensions.exclusive
 import org.vitrivr.cottontail.utilities.math.BitUtil
 import java.lang.StrictMath.floorDiv
 import java.lang.StrictMath.max
 import java.nio.ByteBuffer
 import java.nio.file.Path
-import java.util.concurrent.locks.StampedLock
 
 /**
  * A HARE column file where each entry has a fixed size and can be directly addressed by a [TupleId].
  *
  * @author Ralph Gasser
- * @param 1.0.1
+ * @param 1.1.0
  */
-class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize: Int = 5) : HareColumnFile<T> {
+class FixedHareColumnFile<T : Value>(val path: Path, withWal: Boolean) : HareColumnFile<T> {
 
     /** Companion object with important constants. */
     companion object {
@@ -48,7 +44,6 @@ class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize:
          *
          * @param path [Path] to the directory in which to create the [FixedHareColumnFile].
          * @param columnDef The [ColumnDef] that describes this [FixedHareColumnFile].
-         * @param desiredFillFactor The desired number of entries per page (fill factor = (entrySize / pageSize)). Used to determine the size of a page.
          */
         fun createDirect(path: Path, columnDef: ColumnDef<*>) {
             val entrySize = columnDef.serializer.physicalSize + ENTRY_HEADER_SIZE
@@ -89,64 +84,36 @@ class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize:
     }
 
     /** Initializes the [HareDiskManager] based on the `wal` property. */
-    val disk = if (wal) {
+    override val disk = if (withWal) {
         WALHareDiskManager(this.path)
     } else {
         DirectHareDiskManager(this.path)
     }
 
-    /** Initializes the [BufferPool]. */
-    val bufferPool = BufferPool(disk = this.disk, size = corePoolSize, evictionPolicy = EvictionPolicy.LRU)
-
     /** The [Name] of this [FixedHareColumnFile]. */
-    val name = Name.ColumnName(this.path.fileName.toString().replace(".db", ""))
+    override val name = Name.ColumnName(this.path.fileName.toString().replace(".db", ""))
 
     /** The [ColumnDef] describing the column managed by this [FixedHareColumnFile]. */
-    val columnDef: ColumnDef<T>
+    override val columnDef: ColumnDef<T>
 
-    /** The size of an entry in bytes. */
+    override val isOpen: Boolean
+        get() = this.disk.isOpen
+
+    /** The size of an individual entry in bytes. */
     val entrySize: Int
 
     /** The number of slots per page. */
     private val slotsPerPage: Int
 
-    /** Internal lock to mediate access to closing the [FixedHareCursor]. */
-    private val closeLock = StampedLock()
-
-    /** Internal flag used to indicate, that this [FixedHareCursor] was closed. */
-    @Volatile
-    private var closed: Boolean = false
-
     /* Initialize important fields. */
     init {
-        val page = this.bufferPool.get(ROOT_PAGE_ID, Priority.HIGH)
-        val header = HeaderPageView().wrap(page)
+        val page = HarePage(ByteBuffer.allocateDirect(this.disk.pageSize))
+        this.disk.read(ROOT_PAGE_ID, page)
+        val header = HeaderPageView(page).validate()
         this.columnDef = ColumnDef(this.name, header.type, header.size, header.nullable) as ColumnDef<T>
         this.entrySize = header.entrySize
         this.slotsPerPage = floorDiv(1 shl this@FixedHareColumnFile.disk.pageShift, (header.entrySize + ENTRY_HEADER_SIZE))
-        page.release()
     }
-
-    /**
-     * Creates a new [FixedHareColumnReader] and returns it.
-     *
-     * @return [FixedHareColumnReader]
-     */
-    override fun newReader() = FixedHareColumnReader(this)
-
-    /**
-     * Creates a new [FixedHareColumnWriter] and returns it.
-     *
-     * @return [FixedHareColumnWriter]
-     */
-    override fun newWriter() = FixedHareColumnWriter(this)
-
-    /**
-     * Creates a new [FixedHareColumnCursor] and returns it.
-     *
-     * @return [FixedHareColumnWriter]
-     */
-    override fun newCursor() = FixedHareColumnCursor(this)
 
     /**
      * Converts a [TupleId] to an [Address] given the number of slots per [org.vitrivr.cottontail.storage.engine.hare.basics.Page].
@@ -158,11 +125,9 @@ class FixedHareColumnFile <T: Value>(val path: Path, wal: Boolean, corePoolSize:
     /**
      * Closes this [FixedHareColumnFile].
      */
-    override fun close() = this.closeLock.exclusive {
-        if (!this.closed) {
-            this.bufferPool.close()
+    override fun close() {
+        if (this.disk.isOpen) {
             this.disk.close()
-            this.closed = true
         }
     }
 }

@@ -14,8 +14,9 @@ import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareC
 import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnFile
 import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnReader
 import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnWriter
+import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
+import org.vitrivr.cottontail.storage.engine.hare.buffer.eviction.EvictionPolicy
 import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectHareDiskManager
-import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
 import java.nio.file.Files
 import java.util.*
 import kotlin.time.Duration
@@ -25,15 +26,24 @@ import kotlin.time.measureTime
 class HareDoubleCursorTest {
     val path = TestConstants.testDataPath.resolve("test-double-cursor-db.hare")
 
+    /** [ColumnDef] for test. */
     var columnDef = ColumnDef(Name.ColumnName("test"), DoubleColumnType)
 
+    /** [FixedHareColumnFile] for test. */
     var hareFile: FixedHareColumnFile<DoubleValue>? = null
+
+    /** [BufferPool] for test. */
+    var bufferPool: BufferPool? = null
+
+    /** Seed for random number generator. */
+    val seed = System.currentTimeMillis()
 
 
     @BeforeEach
     fun beforeEach() {
         FixedHareColumnFile.createDirect(this.path, this.columnDef)
         this.hareFile = FixedHareColumnFile(this.path, false)
+        this.bufferPool = BufferPool(this.hareFile!!.disk, 25, EvictionPolicy.LRU)
     }
 
     @AfterEach
@@ -43,49 +53,25 @@ class HareDoubleCursorTest {
     }
 
     /**
-     *
+     * Populates a [FixedHareColumnFile] with [DoubleValue]s and then reads and compares them.
      */
     @Test
     @ExperimentalTime
     fun test() {
-        val seed = System.currentTimeMillis()
-        this.initWithData(TestConstants.collectionSize, seed)
-        this.compareData(seed)
-    }
-
-    /**
-    * Compares the data stored in this [DirectHareDiskManager] with the data provided as array of [ByteArray]s
-    */
-    @ExperimentalTime
-    private fun compareData(seed: Long) {
-        val random = SplittableRandom(seed)
-        val cursor = FixedHareColumnCursor(this.hareFile!!)
-        val reader = FixedHareColumnReader(this.hareFile!!)
-
-        var read = 0
-        val readTime = measureTime {
-            for (tupleId in cursor) {
-                val doubleValue = reader.get(tupleId)
-                assertEquals(DoubleValue(random.nextDouble()), doubleValue)
-                read++
-            }
-        }
-        val diskSize = this.hareFile!!.disk.size `in` Units.MEGABYTE
-        println("Reading $read doubles ($diskSize) took $readTime (${diskSize.value / readTime.inSeconds} MB/s).")
+        this.initWithData()
+        this.compareData()
     }
 
     /**
      * Initializes this [DirectHareDiskManager] with random data.
-     *
-     * @param size The number of [HarePage]s to write.
      */
     @ExperimentalTime
-    private fun initWithData(size: Int, seed: Long) {
+    private fun initWithData() {
         var writeTime = Duration.ZERO
-        val random = SplittableRandom(seed)
-        val writer = FixedHareColumnWriter(this.hareFile!!)
+        val random = SplittableRandom(this.seed)
+        val writer = FixedHareColumnWriter(this.hareFile!!, this.bufferPool!!)
         var written = 0
-        repeat(size) {
+        repeat(TestConstants.collectionSize) {
             val d = DoubleValue(random.nextDouble())
             writeTime += measureTime {
                 writer.append(d)
@@ -94,5 +80,27 @@ class HareDoubleCursorTest {
         }
         val diskSize = this.hareFile!!.disk.size `in` Units.MEGABYTE
         println("Writing $written doubles ($diskSize) took $writeTime (${diskSize.value / writeTime.inSeconds} MB/s).")
+    }
+
+    /**
+     * Compares the data stored in this [DirectHareDiskManager] with the data provided as array of [ByteArray]s
+     */
+    @ExperimentalTime
+    private fun compareData() {
+        val random = SplittableRandom(this.seed)
+        val cursor = FixedHareColumnCursor(this.hareFile!!, this.bufferPool!!)
+        val reader = FixedHareColumnReader(this.hareFile!!, this.bufferPool!!)
+
+        var read = 0L
+        val readTime = measureTime {
+            for (tupleId in cursor) {
+                val doubleValue = reader.get(tupleId)
+                assertEquals(DoubleValue(random.nextDouble()), doubleValue)
+                read++
+            }
+            assertEquals(reader.count(), read)
+        }
+        val diskSize = this.hareFile!!.disk.size `in` Units.MEGABYTE
+        println("Reading $read doubles ($diskSize) took $readTime (${diskSize.value / readTime.inSeconds} MB/s).")
     }
 }

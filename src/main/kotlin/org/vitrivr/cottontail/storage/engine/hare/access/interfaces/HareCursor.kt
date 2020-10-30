@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.storage.engine.hare.access.interfaces
 
+import org.vitrivr.cottontail.model.basics.CloseableIterator
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.types.Value
 
@@ -9,7 +10,7 @@ import org.vitrivr.cottontail.model.values.types.Value
  * @author Ralph Gasser
  * @version 1.0.1
  */
-interface HareCursor<T : Value>: Iterator<TupleId>, AutoCloseable {
+interface HareCursor<T : Value> : CloseableIterator<TupleId> {
 
     companion object {
         const val CURSOR_BOF: TupleId = -1L

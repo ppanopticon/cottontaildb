@@ -24,7 +24,7 @@ import java.util.concurrent.locks.StampedLock
  */
 class VariableHareColumnWriter<T : Value>(val file: VariableHareColumnFile<T>, private val directory: Directory) : HareColumnWriter<T> {
     /** The [Serializer] used to read data through this [VariableHareColumnFile]. */
-    private val serializer: Serializer<T> = this.file.columnDef.serializer
+    private val serializer: Serializer<T> = this.file.columnType.serializer(this.file.logicalSize)
 
     /** The [BufferPool] instance used by this [VariableHareColumnWriter] is always shared with the [Directory]. */
     private val bufferPool: BufferPool = this.directory.bufferPool

@@ -24,7 +24,7 @@ import java.util.concurrent.locks.StampedLock
  */
 class FixedHareColumnWriter<T : Value>(val file: FixedHareColumnFile<T>, private val bufferPool: BufferPool) : HareColumnWriter<T> {
     /** The [Serializer] used to read data through this [FixedHareColumnReader]. */
-    private val serializer: Serializer<T> = this.file.columnDef.serializer
+    private val serializer: Serializer<T> = this.file.columnType.serializer(this.file.logicalSize)
 
     /** Flag indicating whether this [FixedHareColumnWriter] is open.  */
     @Volatile
@@ -50,7 +50,7 @@ class FixedHareColumnWriter<T : Value>(val file: FixedHareColumnFile<T>, private
      */
     override fun update(tupleId: TupleId, value: T?) = this.localLock.shared {
         /* Check nullability constraint. */
-        if (value == null && !this.file.columnDef.nullable) {
+        if (value == null && !this.file.nullable) {
             throw NullValueNotAllowedException("The provided value is null but this HARE column does not support null values.")
         }
 
@@ -90,7 +90,7 @@ class FixedHareColumnWriter<T : Value>(val file: FixedHareColumnFile<T>, private
     @Synchronized
     override fun compareAndUpdate(tupleId: TupleId, expectedValue: T?, newValue: T?): Boolean = this.localLock.shared {
         /* Check nullability constraint. */
-        if (newValue == null && !this.file.columnDef.nullable) {
+        if (newValue == null && !this.file.nullable) {
             throw NullValueNotAllowedException("The provided value is null but this HARE column does not support null values.")
         }
 
@@ -186,7 +186,7 @@ class FixedHareColumnWriter<T : Value>(val file: FixedHareColumnFile<T>, private
      */
     override fun append(value: T?): TupleId = this.localLock.shared {
         /* Check nullability constraint. */
-        if (value == null && !this.file.columnDef.nullable) {
+        if (value == null && !this.file.nullable) {
             throw NullValueNotAllowedException("The provided value is null but this HARE column does not support null values.")
         }
 

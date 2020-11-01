@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.storage.engine.hare.access.column.fixed
 
+import org.vitrivr.cottontail.database.column.ColumnType
 import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.TupleId
@@ -93,10 +94,17 @@ class FixedHareColumnFile<T : Value>(val path: Path, withWal: Boolean) : HareCol
     }
 
     /** The [Name] of this [FixedHareColumnFile]. */
-    override val name = Name.ColumnName(this.path.fileName.toString().replace(".db", ""))
+    override val name: String
+        get() = this.path.fileName.toString().replace(".${HareColumnFile.SUFFIX}", "")
 
-    /** The [ColumnDef] describing the column managed by this [FixedHareColumnFile]. */
-    override val columnDef: ColumnDef<T>
+    /** The [ColumnType] describing the column managed by this [FixedHareColumnFile]. */
+    override val columnType: ColumnType<T>
+
+    /** The logical size of the values contained in this [FixedHareColumnFile]. */
+    override val logicalSize: Int
+
+    /** Flag indicating whether this [FixedHareColumnFile] supports null entries or not. */
+    override val nullable: Boolean
 
     override val isOpen: Boolean
         get() = this.disk.isOpen
@@ -115,7 +123,9 @@ class FixedHareColumnFile<T : Value>(val path: Path, withWal: Boolean) : HareCol
         val page = HarePage(ByteBuffer.allocateDirect(this.disk.pageSize))
         this.disk.read(ROOT_PAGE_ID, page)
         val header = HeaderPageView(page).validate()
-        this.columnDef = ColumnDef(this.name, header.type, header.size, header.nullable) as ColumnDef<T>
+        this.columnType = header.type as ColumnType<T>
+        this.logicalSize = header.size
+        this.nullable = header.nullable
         this.entrySize = header.entrySize
         this.slotsPerPage = floorDiv(1 shl this@FixedHareColumnFile.disk.pageShift, (header.entrySize + ENTRY_HEADER_SIZE))
     }

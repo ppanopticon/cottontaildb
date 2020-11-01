@@ -29,7 +29,7 @@ import java.util.concurrent.locks.StampedLock
 class VariableHareColumnReader<T : Value>(val file: VariableHareColumnFile<T>, private val directory: Directory) : HareColumnReader<T> {
 
     /** The [Serializer] used to read data through this [FixedHareColumnReader]. */
-    private val serializer: Serializer<T> = this.file.columnDef.serializer
+    private val serializer: Serializer<T> = this.file.columnType.serializer(this.file.logicalSize)
 
     /** Flag indicating whether this [VariableHareColumnReader] has been closed.  */
     var closed: Boolean = false

@@ -9,7 +9,7 @@ import org.vitrivr.cottontail.storage.engine.hare.basics.Resource
  * A data structure that allow for read access to a [HareColumnFile].
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.0.1
  */
 interface HareColumnReader<T : Value> : Resource {
     /**
@@ -28,6 +28,13 @@ interface HareColumnReader<T : Value> : Resource {
      * @return Number of entries in this [HareColumnFile].
      */
     fun count(): Long
+
+    /**
+     * The maximum [TupleId] used by the [HareColumnFile] backing this [HareColumnReader].
+     *
+     * @return The maximum [TupleId].
+     */
+    fun maxTupleId(): TupleId
 
     /**
      * Returns a boolean indicating whether the entry for the given [TupleId] is null.

@@ -24,7 +24,7 @@ import java.util.concurrent.locks.StampedLock
  * A [HareColumnReader] implementation for [FixedHareColumnFile]s.
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.0.1
  */
 class VariableHareColumnReader<T : Value>(val file: VariableHareColumnFile<T>, private val directory: Directory) : HareColumnReader<T> {
 
@@ -87,9 +87,21 @@ class VariableHareColumnReader<T : Value>(val file: VariableHareColumnFile<T>, p
      */
     override fun count(): Long = this.localLock.shared {
         val page = this.bufferPool.get(VariableHareColumnFile.ROOT_PAGE_ID, Priority.HIGH)
-        val count = HeaderPageView(page).validate().count
+        val ret = HeaderPageView(page).validate().count
         page.release()
-        return count
+        return ret
+    }
+
+    /**
+     * Returns the maximum [TupleId] for the [HareColumnFile] backing this [HareColumnReader].
+     *
+     * @return The maximum [TupleId].
+     */
+    override fun maxTupleId(): TupleId = this.localLock.shared {
+        val page = this.bufferPool.get(VariableHareColumnFile.ROOT_PAGE_ID, Priority.HIGH)
+        val ret = HeaderPageView(page).validate().maxTupleId
+        page.release()
+        return ret
     }
 
     /**

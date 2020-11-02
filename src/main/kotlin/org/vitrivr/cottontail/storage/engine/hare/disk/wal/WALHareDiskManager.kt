@@ -47,8 +47,9 @@ class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAl
     private val writeAheadLock = StampedLock()
 
     init {
-        if (!this.header.isConsistent) {
+        if (!this.header.properlyClosed) {
             val walFile = this.path.parent.resolve("${this.path.fileName}.wal")
+            this.header.isDirty = true
             if (Files.exists(walFile)) {
                 this.wal = WriteAheadLog(this, this.lockTimeout)
             } else {
@@ -58,6 +59,10 @@ class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAl
                 }
             }
         }
+
+        /* Updates properly closed flag in header. */
+        this.header.properlyClosed = false
+        this.header.write(this.fileChannel, OFFSET_HEADER)
     }
 
     /**
@@ -195,7 +200,7 @@ class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAl
         }
 
         /* Update file header and force all data to disk. */
-        this.header.isConsistent = true
+        this.header.isDirty = false
         this.header.checksum = this.calculateChecksum()
         this.header.write(this.fileChannel, OFFSET_HEADER)
         this.fileChannel.force(true)
@@ -211,7 +216,7 @@ class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAl
      */
     override fun rollback() = useExclusiveWAL {
         /* Update file header. */
-        this.header.isConsistent = true
+        this.header.isDirty = false
         this.header.write(this.fileChannel, OFFSET_HEADER)
         this.fileChannel.force(true)
 
@@ -235,8 +240,12 @@ class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAl
      * Closes the [WriteAheadLog] associated with this [WALHareDiskManager].
      */
     override fun prepareClose() {
-        /* Close WAL. */
+        /* Closes WAL. */
         this.wal?.close()
+
+        /* Sets properly closed flag. */
+        this.header.properlyClosed = true
+        this.header.write(this.fileChannel, OFFSET_HEADER)
     }
 
     /**
@@ -255,9 +264,8 @@ class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAl
                         this.wal = WriteAheadLog.create(this)
 
                         /* Update the file header to reflect start of WAL logging. */
-                        this.header.isConsistent = false
+                        this.header.isDirty = true
                         this.header.write(this.fileChannel, OFFSET_HEADER)
-                        this.fileChannel.force(false)
                     }
                 }
                 return action(this.wal!!)

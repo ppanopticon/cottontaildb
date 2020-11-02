@@ -6,11 +6,10 @@ import org.vitrivr.cottontail.storage.engine.hare.PageId
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
 import org.vitrivr.cottontail.storage.engine.hare.basics.PageConstants
 import org.vitrivr.cottontail.storage.engine.hare.basics.Resource
-import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HareHeader
+import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.LongStack
 import org.vitrivr.cottontail.utilities.extensions.write
-
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.channels.FileLock
@@ -216,6 +215,7 @@ abstract class HareDiskManager(val path: Path, val lockTimeout: Long = 5000) : R
     final override fun close() = this.closeLock.write {
         if (this.isOpen) {
             this.prepareClose()
+            this.fileChannel.force(true)
             this.fileLock.release()
             this.fileChannel.close()
         }

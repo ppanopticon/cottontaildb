@@ -60,7 +60,10 @@ class HareHeader(val direct: Boolean = false) : View {
         /** Masks. */
 
         /** Mask for consistency flag in in this [HareHeader]. */
-        const val HEADER_MASK_CONSISTENCY_OK = 1L shl 0
+        const val HEADER_MASK_PROPERLY_CLOSED = 1L shl 0
+
+        /** Mask for consistency flag in in this [HareHeader]. */
+        const val HEADER_MASK_DIRTY = 1L shl 1
     }
 
     /** The [ByteBuffer] that backs this [HareHeader]. */
@@ -93,14 +96,25 @@ class HareHeader(val direct: Boolean = false) : View {
             this.buffer.putLong(HEADER_OFFSET_FLAGS, v)
         }
 
-    /** Sets file sanity byte according to consistency status. */
-    var isConsistent: Boolean
-        get() = (this.flags and HEADER_MASK_CONSISTENCY_OK) == HEADER_MASK_CONSISTENCY_OK
+    /** Sets consistency flag in [HareHeader]. */
+    var isDirty: Boolean
+        get() = (this.flags and HEADER_MASK_DIRTY) == HEADER_MASK_DIRTY
         set(v) {
             if (v) {
-                this.flags = this.flags or HEADER_MASK_CONSISTENCY_OK
+                this.flags = this.flags or HEADER_MASK_DIRTY
             } else {
-                this.flags = this.flags and HEADER_MASK_CONSISTENCY_OK.inv()
+                this.flags = this.flags and HEADER_MASK_DIRTY.inv()
+            }
+        }
+
+    /** Sets properly closed flag in [HareHeader]. */
+    var properlyClosed: Boolean
+        get() = (this.flags and HEADER_MASK_PROPERLY_CLOSED) == HEADER_MASK_PROPERLY_CLOSED
+        set(v) {
+            if (v) {
+                this.flags = this.flags or HEADER_MASK_PROPERLY_CLOSED
+            } else {
+                this.flags = this.flags and HEADER_MASK_PROPERLY_CLOSED.inv()
             }
         }
 
@@ -146,7 +160,7 @@ class HareHeader(val direct: Boolean = false) : View {
         this.buffer.putInt(FileType.PAGE.ordinal)                  /* 8: Type of HARE file. */
         this.buffer.putInt(FILE_HEADER_VERSION)                    /* 12: Version of the HARE format. */
         this.buffer.putInt(pageShift)                              /* 16: Size of a HARE page; stored as bit shift. */
-        this.buffer.putLong(HEADER_MASK_CONSISTENCY_OK)            /* 20: Flags used by the HARE page file. */
+        this.buffer.putLong(HEADER_MASK_PROPERLY_CLOSED)           /* 20: Flags used by the HARE page file. */
         this.buffer.putLong(0L)                              /* 28: Allocated page counter; number of allocated pages. */
         this.buffer.putLong(0L)                              /* 36: Dangling page counter; number of dangling pages. */
         this.buffer.putLong(0L)                              /* 44: Maximum page ID known by this HARE file. */

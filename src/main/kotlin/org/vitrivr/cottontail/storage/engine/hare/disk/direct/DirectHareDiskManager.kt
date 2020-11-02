@@ -31,15 +31,16 @@ class DirectHareDiskManager(path: Path, lockTimeout: Long = 5000, private val pr
     }
 
     init {
-        if (!this.header.isConsistent) {
-            LOGGER.warn("HARE file was found in a dirty state (file: ${this.path.fileName}). Validating file...")
+        if (!this.header.properlyClosed) {
+            LOGGER.warn("HARE file was not properly closed (file: ${this.path.fileName}). Validating file...")
             if (!this.validate()) {
-                throw DataCorruptionException("CRC32C checksum mismatch (file: ${this.path}, expected:${this.calculateChecksum()}, found: ${this.header.checksum}}).")
+                throw DataCorruptionException("CRC32 checksum mismatch (file: ${this.path}, expected:${this.calculateChecksum()}, found: ${this.header.checksum}}).")
             }
         }
 
         /* Updates sanity flag in header. */
-        this.header.isConsistent = false
+        this.header.properlyClosed = false
+        this.header.isDirty = false
         this.header.write(this.fileChannel, OFFSET_HEADER)
     }
 
@@ -86,6 +87,10 @@ class DirectHareDiskManager(path: Path, lockTimeout: Long = 5000, private val pr
     override fun update(pageId: PageId, page: HarePage) {
         this.closeLock.read {
             check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to write data (file: ${this.path})." }
+
+            /* Write all changes to disk. */
+            this.header.isDirty = true
+            this.header.write(this.fileChannel, OFFSET_HEADER)
             page.write(this.fileChannel, this.pageIdToOffset(pageId))
         }
     }
@@ -112,12 +117,13 @@ class DirectHareDiskManager(path: Path, lockTimeout: Long = 5000, private val pr
             }
         }
 
-        /* Allocate PageId. */
+        /* Allocate PageId and adjust header. */
         val newPageId = this.freePageStack.pop()
         this.header.allocatedPages += 1
         this.header.maximumPageId = max(this.header.maximumPageId, newPageId)
+        this.header.isDirty = true
 
-        /* Flush Header and LongStack. */
+        /* Write all changes to disk. */
         this.header.write(this.fileChannel, OFFSET_HEADER)
         this.freePageStack.write(this.fileChannel, OFFSET_FREE_PAGE_STACK)
 
@@ -147,8 +153,9 @@ class DirectHareDiskManager(path: Path, lockTimeout: Long = 5000, private val pr
 
             /* Decrement number of allocated pages. */
             this.header.allocatedPages -= 1
+            this.header.isDirty = true
 
-            /* Flush Header and LongStack. */
+            /* Write all changes to disk. */
             this.header.write(this.fileChannel, OFFSET_HEADER)
             this.freePageStack.write(this.fileChannel, OFFSET_FREE_PAGE_STACK)
             this.fileChannel.write(FREED.flip(), offset)
@@ -156,27 +163,28 @@ class DirectHareDiskManager(path: Path, lockTimeout: Long = 5000, private val pr
     }
 
     /**
-     * Commits all changes made through this [DirectHareDiskManager].
+     * Performs a pseudo-commit, by updating file checksum and setting consistency flag to true.
      */
     override fun commit() {
-        /* No Op. */
+        if (this.header.isDirty) {
+            this.header.checksum = this.calculateChecksum()
+            this.header.isDirty = false
+            this.header.write(this.fileChannel, OFFSET_HEADER)
+        }
     }
 
     /**
-     * Rolls back all changes made through this [DirectHareDiskManager].
+     * Rollbacks are not supported by [DirectHareDiskManager]
      */
     override fun rollback() {
         /* No Op. */
     }
 
     /**
-     * Re-calculates the file checksum and updates the consistency flag in the header, which
-     * indicates that the file was properly closed.
+     * Sets the properly closed flag to true and flushes the header.
      */
     override fun prepareClose() {
-        /* Update consistency information in the header. */
-        this.header.checksum = this.calculateChecksum()
-        this.header.isConsistent = true
+        this.header.properlyClosed = true
         this.header.write(this.fileChannel, OFFSET_HEADER)
     }
 }

@@ -249,6 +249,9 @@ class DirectHareDiskManagerTest {
             assertEquals(i + 1L, this.manager!!.pages)
         }
 
+        /* Commit changes. */
+        this.manager!!.commit()
+
         val diskSize = this.manager!!.size `in` Units.MEGABYTE
         println("Appending $diskSize took $writeTime (${diskSize.value / writeTime.inSeconds} MB/s).")
         return data

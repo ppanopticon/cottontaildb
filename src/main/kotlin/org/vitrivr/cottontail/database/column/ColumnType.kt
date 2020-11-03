@@ -1,6 +1,5 @@
 package org.vitrivr.cottontail.database.column
 
-import ch.unibas.dmi.dbis.cottontail.database.serializers.FixedStringValueSerializer
 import org.vitrivr.cottontail.database.serializers.*
 import org.vitrivr.cottontail.model.values.*
 import org.vitrivr.cottontail.model.values.types.Value
@@ -15,7 +14,7 @@ import kotlin.reflect.safeCast
  * @see Column
  *
  * @author Ralph Gasser
- * @version 1.3
+ * @version 1.3.0
  */
 sealed class ColumnType<T : Value> {
 

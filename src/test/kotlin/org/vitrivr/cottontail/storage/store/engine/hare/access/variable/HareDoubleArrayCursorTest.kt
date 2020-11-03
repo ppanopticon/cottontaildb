@@ -81,7 +81,12 @@ class HareDoubleArrayCursorTest : AbstractCursorTest() {
             }
             Assertions.assertEquals(reader.count(), read)
         }
-        val physSize = (hareFile.bufferPool.diskSize `in` Units.MEGABYTE)
+
+        /* Close reader and cursor. */
+        reader.close()
+        cursor.close()
+
+        val physSize = (bufferPool.diskSize `in` Units.MEGABYTE)
         println("Reading ${TestConstants.collectionSize} doubles vectors (d=$dimensions) to a total of $physSize took $readTime (${physSize.value / readTime.inSeconds} MB/s).")
     }
 
@@ -100,7 +105,11 @@ class HareDoubleArrayCursorTest : AbstractCursorTest() {
                 writer.append(DoubleVectorValue.random(dimensions, random))
             }
         }
-        val physSize = (hareFile.bufferPool.diskSize `in` Units.MEGABYTE)
+        val physSize = (bufferPool.diskSize `in` Units.MEGABYTE)
+
+        /* Close writer. */
+        writer.close()
+
         println("Writing ${TestConstants.collectionSize} doubles vectors (d=$dimensions) to a total of $physSize took $writeTime (${physSize.value / writeTime.inSeconds} MB/s).")
     }
 }

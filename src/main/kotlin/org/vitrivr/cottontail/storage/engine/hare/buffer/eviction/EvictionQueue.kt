@@ -12,7 +12,7 @@ import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
  * usage of the [BufferPool.PageReference] it is associated to.
  *
  * @author Ralph Gasser
- * @version 1.1
+ * @version 1.1.0
  */
 interface EvictionQueue<T : EvictionQueueToken> {
     /**

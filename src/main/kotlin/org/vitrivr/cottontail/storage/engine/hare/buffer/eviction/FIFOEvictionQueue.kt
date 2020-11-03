@@ -9,7 +9,7 @@ import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
  * prioritisation. This is a good fit e.g. for linear table scans.
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.0.0
  */
 class FIFOEvictionQueue(size: Int) : AbstractEvictionQueue<FIFOEvictionToken>() {
     override val queue: PriorityQueue<BufferPool.PageReference> = ObjectArrayFIFOQueue(size)
@@ -21,7 +21,7 @@ class FIFOEvictionQueue(size: Int) : AbstractEvictionQueue<FIFOEvictionToken>() 
  * All [FIFOEvictionToken] tokens are equal.
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.0.0
  */
 object FIFOEvictionToken : EvictionQueueToken {
     override fun touch() {}

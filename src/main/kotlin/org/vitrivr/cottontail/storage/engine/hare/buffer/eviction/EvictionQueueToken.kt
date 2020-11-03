@@ -12,7 +12,7 @@ import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
  * @see EvictionQueue
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.0.0
  *
  */
 interface EvictionQueueToken : Comparable<EvictionQueueToken> {

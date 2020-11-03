@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicLong
  * used i.e. the one with the smallest timestamp of the last use.
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.0.0
  */
 class LRUEvictionQueue(size: Int) : AbstractEvictionQueue<LRUEvictionToken>() {
 
@@ -34,6 +34,9 @@ class LRUEvictionQueue(size: Int) : AbstractEvictionQueue<LRUEvictionToken>() {
 
 /**
  * [EvictionQueueToken] that tracks the time of the last access.
+ *
+ * @author Ralph Gasser
+ * @version 1.0.0
  */
 inline class LRUEvictionToken(private val _lastAccess: AtomicLong = AtomicLong(System.currentTimeMillis())) : EvictionQueueToken {
     val lastAccess

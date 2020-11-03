@@ -4,7 +4,7 @@ package org.vitrivr.cottontail.storage.engine.hare.buffer.eviction
  * Enumeration of all [EvictionPolicy]'s supported by Cottontail DB HARE.
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.0.0
  */
 enum class EvictionPolicy {
     FIFO, LRU;

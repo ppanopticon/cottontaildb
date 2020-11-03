@@ -11,7 +11,7 @@ import kotlin.concurrent.withLock
  * An abstract [EvictionQueue] implementation that acts as a foundation for concrete implementations.
  *
  * @author Ralph Gasser
- * @version 1.1
+ * @version 1.1.1
  */
 abstract class AbstractEvictionQueue<T : EvictionQueueToken> : EvictionQueue<T> {
 

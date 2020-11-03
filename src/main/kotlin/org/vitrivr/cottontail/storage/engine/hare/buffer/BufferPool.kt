@@ -53,7 +53,7 @@ class BufferPool(val disk: HareDiskManager, val size: Int = 25, val evictionPoli
     private val pageDirectory = Long2ObjectOpenHashMap<PageReference>()
 
     /** [EvictionQueue] that keeps track of [PageReference] that can be reused. */
-    private val evictionQueue = evictionPolicy.evictionQueue(this.size)
+    private val evictionQueue = this.evictionPolicy.evictionQueue(this.size)
 
     /** An internal lock that mediates access to the [BufferPool.pageDirectory]. */
     private val directoryLock = StampedLock()
@@ -103,7 +103,13 @@ class BufferPool(val disk: HareDiskManager, val size: Int = 25, val evictionPoli
         try {
             return this.pageDirectory.getOrElse(pageId) {
                 PAGE_MISS_COUNTER.increment()
-                directoryStamp = this.directoryLock.tryConvertToWriteLock(directoryStamp) /* Upgrade to exclusive lock */
+                val upgradedLock = this.directoryLock.tryConvertToWriteLock(directoryStamp)
+                if (upgradedLock == 0L) {
+                    this.directoryLock.unlockRead(directoryStamp)
+                    directoryStamp = this.directoryLock.writeLock() /* Upgrade to exclusive lock */
+                } else {
+                    directoryStamp = upgradedLock
+                }
 
                 /* Detach new PageRef. */
                 val newRef = evictPage(pageId, priority)

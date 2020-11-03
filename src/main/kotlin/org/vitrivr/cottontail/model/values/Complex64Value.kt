@@ -10,7 +10,7 @@ import kotlin.math.atan2
 /**
  * Represents a complex number backed by double-precision (64bit) [Double]s
  *
- * @version 1.1.1
+ * @version 1.3.1
  * @author Ralph Gasser
  */
 inline class Complex64Value(val data: DoubleArray): ComplexValue<Double> {
@@ -25,8 +25,9 @@ inline class Complex64Value(val data: DoubleArray): ComplexValue<Double> {
          * Generates a [Complex32VectorValue] initialized with random numbers.
          *
          * @param rnd A [SplittableRandom] to generate the random numbers.
+         * @return Random [Complex64Value]
          */
-        fun random(rnd: SplittableRandom = SplittableRandom(System.currentTimeMillis())) = Complex64Value(DoubleArray(2) {
+        fun random(rnd: SplittableRandom = Value.RANDOM) = Complex64Value(DoubleArray(2) {
             rnd.nextDouble()
         })
     }

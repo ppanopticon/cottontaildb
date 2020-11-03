@@ -69,6 +69,11 @@ class UniqueHashIndex(override val name: Name.IndexName, override val parent: En
     /** Map structure used for [UniqueHashIndex]. */
     private val map: HTreeMap<out Value, TupleId> = this.db.hashMap(MAP_FIELD_NAME, this.columns.first().type.serializer(this.columns.size), Serializer.LONG_PACKED).counterEnable().createOrOpen()
 
+    init {
+        /* Initial commit. */
+        this.db.commit()
+    }
+
     /**
      * Flag indicating if this [UniqueHashIndex] has been closed.
      */
@@ -98,7 +103,7 @@ class UniqueHashIndex(override val name: Name.IndexName, override val parent: En
     override fun cost(predicate: Predicate): Cost = when {
         predicate !is AtomicBooleanPredicate<*> || predicate.columns.first() != this.columns[0] -> Cost.INVALID
         predicate.operator == ComparisonOperator.EQUAL -> Cost(Cost.COST_DISK_ACCESS_READ, Cost.COST_MEMORY_ACCESS_READ, predicate.columns.map { it.physicalSize }.sum().toFloat())
-        predicate.operator == ComparisonOperator.IN -> Cost(Cost.COST_DISK_ACCESS_READ, Cost.COST_MEMORY_ACCESS_READ, predicate.columns.map { it.physicalSize }.sum().toFloat()) * predicate.values.size
+        predicate.operator == ComparisonOperator.IN -> Cost(Cost.COST_DISK_ACCESS_READ * predicate.values.size, Cost.COST_MEMORY_ACCESS_READ * predicate.values.size, predicate.columns.map { it.physicalSize }.sum().toFloat())
         else -> Cost.INVALID
     }
 

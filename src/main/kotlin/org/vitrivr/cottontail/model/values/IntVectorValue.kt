@@ -11,7 +11,7 @@ import kotlin.math.pow
  * This is an abstraction over an [IntArray] and it represents a vector of [Int]s.
  *
  * @author Ralph Gasser
- * @version 1.3
+ * @version 1.3.1
  */
 inline class IntVectorValue(val data: IntArray) : RealVectorValue<Int> {
 
@@ -22,7 +22,7 @@ inline class IntVectorValue(val data: IntArray) : RealVectorValue<Int> {
          * @param size Size of the new [IntVectorValue]
          * @param rnd A [SplittableRandom] to generate the random numbers.
          */
-        fun random(size: Int, rnd: SplittableRandom = SplittableRandom(System.currentTimeMillis())) = IntVectorValue(IntArray(size) { rnd.nextInt() })
+        fun random(size: Int, rnd: SplittableRandom = Value.RANDOM) = IntVectorValue(IntArray(size) { rnd.nextInt() })
 
         /**
          * Generates a [IntVectorValue] of the given size initialized with ones.

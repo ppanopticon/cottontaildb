@@ -48,12 +48,30 @@ abstract class PhysicalNodeExpression : NodeExpression() {
             cost
         }
 
+    /** True, if this [PhysicalNodeExpression] can be partitioned, false otherwise. */
+    abstract val canBePartitioned: Boolean
+
     /**
      * Creates and returns a copy of this [PhysicalNodeExpression] without any children or parents.
      *
      * @return Copy of this [PhysicalNodeExpression].
      */
     abstract override fun copy(): PhysicalNodeExpression
+
+    /**
+     * Tries to create [p] partitions of this [PhysicalNodeExpression] if possible. If the implementing
+     * [PhysicalNodeExpression] returns true for [canBePartitioned], then this method is expected
+     * to return a result, even if the number of partitions returned my be lower than [p] or even one (which
+     * means that no partitioning took place).
+     *
+     * If [canBePartitioned] returns false, this method is expected to throw a [IllegalStateException].
+     *
+     * @param p The desired number of partitions.
+     * @return Array of [PhysicalNodeExpression]s.
+     *
+     * @throws IllegalStateException If this [PhysicalNodeExpression] cannot be partitioned.
+     */
+    abstract fun partition(p: Int): List<PhysicalNodeExpression>
 
     /**
      * Converts this [PhysicalNodeExpression] to the corresponding [ExecutionStage].

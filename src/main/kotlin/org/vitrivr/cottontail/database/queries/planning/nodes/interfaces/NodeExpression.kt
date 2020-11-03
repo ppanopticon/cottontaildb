@@ -1,6 +1,6 @@
 package org.vitrivr.cottontail.database.queries.planning.nodes.interfaces
 
-import org.vitrivr.cottontail.database.queries.planning.RuleShuttle
+import org.vitrivr.cottontail.database.queries.planning.RuleGroup
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.NullaryPhysicalNodeExpression
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.UnaryPhysicalNodeExpression
 
@@ -12,7 +12,7 @@ import org.vitrivr.cottontail.database.queries.planning.nodes.physical.UnaryPhys
  * [NodeExpression]s allow for reasoning and transformation of the execution plan during query optimization.
  *
  * @author Ralph Gasser
- * @version 1.1
+ * @version 1.1.1
  */
 abstract class NodeExpression {
 
@@ -58,24 +58,8 @@ abstract class NodeExpression {
     /** The [NodeExpression] provides the inputs for this [NodeExpression]. */
     val inputs: MutableList<NodeExpression> = mutableListOf()
 
-    /** The [RuleShuttle] that last visited this [NodeExpression] */
-    var lastVisitor: RuleShuttle? = null
-
-    /**
-     * Applies the [RewriteRule]s contained in the given [RuleShuttle] to this [NodeExpression]
-     * and, if a transformation can take place, adds the resulting [NodeExpression] to the list
-     * of candidates. Then passes the [RuleShuttle] up the tree.
-     *
-     * @param shuttle The [RuleShuttle] to apply.
-     * @param candidates The list of candidates.
-     */
-    fun apply(shuttle: RuleShuttle, candidates: MutableList<NodeExpression>) {
-        if (this.lastVisitor != shuttle) {
-            shuttle.apply(this, candidates)
-            this.inputs.forEach { it.apply(shuttle, candidates) }
-            this.lastVisitor = shuttle
-        }
-    }
+    /** The [RuleGroup] that last visited this [NodeExpression] */
+    var lastVisitor: RuleGroup? = null
 
     /**
      * Updates the [NodeExpression.output] of this [NodeExpression] to the given [NodeExpression].

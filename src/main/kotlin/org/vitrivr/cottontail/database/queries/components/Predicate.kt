@@ -151,8 +151,7 @@ data class KnnPredicate<T : VectorValue<*>>(val column: ColumnDef<T>, val k: Int
     override val columns: Set<ColumnDef<*>> = setOf(column)
 
     /** Cost required for applying this [KnnPredicate] to a single record. */
-    override val cost: Float = Cost.COST_MEMORY_ACCESS_READ * this.distance.cost * (this.query.size + (this.weights?.size
-            ?: 0))
+    override val cost: Float = this.distance.cost * (this.query.size + (this.weights?.size ?: 0))
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

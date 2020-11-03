@@ -3,11 +3,27 @@ package org.vitrivr.cottontail.model.values
 import org.vitrivr.cottontail.model.values.types.NumericValue
 import org.vitrivr.cottontail.model.values.types.RealValue
 import org.vitrivr.cottontail.model.values.types.Value
+import java.util.*
 
+/**
+ * This is an abstraction over a [Long].
+ *
+ * @author Ralph Gasser
+ * @version 1.3.1
+ */
 inline class LongValue(override val value: Long): RealValue<Long> {
 
     companion object {
         val ZERO = LongValue(0L)
+        val ONE = LongValue(1L)
+
+        /**
+         * Generates a random [LongValue].
+         *
+         * @param rnd A [SplittableRandom] to generate the random numbers.
+         * @return Random [LongValue]
+         */
+        fun random(rnd: SplittableRandom = Value.RANDOM) = LongValue(rnd.nextLong())
     }
 
     /**

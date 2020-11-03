@@ -3,12 +3,27 @@ package org.vitrivr.cottontail.model.values
 import org.vitrivr.cottontail.model.values.types.NumericValue
 import org.vitrivr.cottontail.model.values.types.RealValue
 import org.vitrivr.cottontail.model.values.types.Value
+import java.util.*
 
+/**
+ * This is an abstraction over an [Int].
+ *
+ * @author Ralph Gasser
+ * @version 1.3.1
+ */
 inline class IntValue(override val value: Int): RealValue<Int> {
 
     companion object {
         val ZERO = IntValue(0)
         val ONE = IntValue(1)
+
+        /**
+         * Generates a random [IntValue].
+         *
+         * @param rnd A [SplittableRandom] to generate the random numbers.
+         * @return Random [IntValue]
+         */
+        fun random(rnd: SplittableRandom = Value.RANDOM) = IntValue(rnd.nextInt())
     }
 
     /**

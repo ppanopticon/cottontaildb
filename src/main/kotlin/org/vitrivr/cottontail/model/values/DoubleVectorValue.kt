@@ -1,6 +1,7 @@
 package org.vitrivr.cottontail.model.values
 
 import org.vitrivr.cottontail.model.values.types.*
+import org.vitrivr.cottontail.model.values.types.Value.Companion.RANDOM
 import java.util.*
 import kotlin.math.absoluteValue
 import kotlin.math.pow
@@ -9,7 +10,7 @@ import kotlin.math.pow
  * This is an abstraction over a [DoubleArray] and it represents a vector of [Double]s.
  *
  * @author Ralph Gasser
- * @version 1.3
+ * @version 1.3.1
  */
 inline class DoubleVectorValue(val data: DoubleArray) : RealVectorValue<Double> {
 
@@ -20,7 +21,7 @@ inline class DoubleVectorValue(val data: DoubleArray) : RealVectorValue<Double> 
          * @param size Size of the new [DoubleVectorValue]
          * @param rnd A [SplittableRandom] to generate the random numbers.
          */
-        fun random(size: Int, rnd: SplittableRandom = SplittableRandom(System.currentTimeMillis())) = DoubleVectorValue(DoubleArray(size) { rnd.nextDouble() })
+        fun random(size: Int, rnd: SplittableRandom = RANDOM) = DoubleVectorValue(DoubleArray(size) { rnd.nextDouble() })
 
         /**
          * Generates a [Complex32VectorValue] of the given size initialized with ones.

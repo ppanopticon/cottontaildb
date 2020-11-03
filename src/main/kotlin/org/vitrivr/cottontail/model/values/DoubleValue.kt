@@ -3,8 +3,15 @@ package org.vitrivr.cottontail.model.values
 import org.vitrivr.cottontail.model.values.types.NumericValue
 import org.vitrivr.cottontail.model.values.types.RealValue
 import org.vitrivr.cottontail.model.values.types.Value
+import java.util.*
 import kotlin.math.pow
 
+/**
+ * This is an abstraction over a [Double].
+ *
+ * @author Ralph Gasser
+ * @version 1.3.1
+ */
 inline class DoubleValue(override val value: Double): RealValue<Double> {
 
     companion object {
@@ -12,6 +19,14 @@ inline class DoubleValue(override val value: Double): RealValue<Double> {
         val ONE = DoubleValue(1.0)
         val NaN = DoubleValue(Double.NaN)
         val INF = DoubleValue(Double.POSITIVE_INFINITY)
+
+        /**
+         * Generates a random [DoubleValue].
+         *
+         * @param rnd A [SplittableRandom] to generate the random numbers.
+         * @return Random [FloatValue]
+         */
+        fun random(rnd: SplittableRandom = Value.RANDOM) = DoubleValue(rnd.nextDouble())
     }
 
     /**

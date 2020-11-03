@@ -203,7 +203,7 @@ class Schema(override val name: Name.SchemaName, override val path: Path, overri
             }
 
             /* Delete all files associated with the entity. */
-            val pathsToDelete = Files.walk(this.path.resolve("entity_$${name.simple}")).sorted(Comparator.reverseOrder()).collect(Collectors.toList())
+            val pathsToDelete = Files.walk(this.path.resolve("entity_${name.simple}")).sorted(Comparator.reverseOrder()).collect(Collectors.toList())
             pathsToDelete.forEach { Files.deleteIfExists(it) }
         }
     }

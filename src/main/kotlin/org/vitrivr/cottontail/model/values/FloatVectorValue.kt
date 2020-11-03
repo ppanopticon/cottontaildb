@@ -3,7 +3,9 @@ package org.vitrivr.cottontail.model.values
 import org.vitrivr.cottontail.model.values.types.NumericValue
 import org.vitrivr.cottontail.model.values.types.RealVectorValue
 import org.vitrivr.cottontail.model.values.types.Value
+import org.vitrivr.cottontail.model.values.types.Value.Companion.RANDOM
 import org.vitrivr.cottontail.model.values.types.VectorValue
+import org.vitrivr.cottontail.utilities.extensions.nextFloat
 import java.util.*
 import kotlin.math.absoluteValue
 import kotlin.math.pow
@@ -12,7 +14,7 @@ import kotlin.math.pow
  * This is an abstraction over a [FloatArray] and it represents a vector of [Float]s.
  *
  * @author Ralph Gasser
- * @version 1.3
+ * @version 1.3.1
  */
 inline class FloatVectorValue(val data: FloatArray) : RealVectorValue<Float> {
 
@@ -23,7 +25,7 @@ inline class FloatVectorValue(val data: FloatArray) : RealVectorValue<Float> {
          * @param size Size of the new [FloatVectorValue]
          * @param rnd A [SplittableRandom] to generate the random numbers.
          */
-        fun random(size: Int, rnd: SplittableRandom = SplittableRandom(System.currentTimeMillis())) = FloatVectorValue(FloatArray(size) { rnd.nextDouble().toFloat() })
+        fun random(size: Int, rnd: SplittableRandom = RANDOM) = FloatVectorValue(FloatArray(size) { rnd.nextFloat() })
 
         /**
          * Generates a [FloatVectorValue] of the given size initialized with ones.

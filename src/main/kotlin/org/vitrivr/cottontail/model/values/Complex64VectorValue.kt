@@ -13,9 +13,42 @@ import kotlin.math.pow
  * This is an abstraction over an [Array] and it represents a vector of [Complex64Value]s.
  *
  * @author Manuel Huerbin & Ralph Gasser
- * @version 1.2
+ * @version 1.3.1
  */
 inline class Complex64VectorValue(val data: DoubleArray) : ComplexVectorValue<Double> {
+    companion object {
+        /**
+         * Generates a [Complex64VectorValue] of the given size initialized with random numbers.
+         *
+         * @param size Size of the new [Complex64VectorValue]
+         * @param rnd A [SplittableRandom] to generate the random numbers.
+         * @return Random [Complex64VectorValue]
+         */
+        fun random(size: Int, rnd: SplittableRandom = Value.RANDOM) = Complex64VectorValue(DoubleArray(2 * size) { rnd.nextDouble() })
+
+        /**
+         * Generates a [Complex64VectorValue] of the given size initialized with ones (i.e 1.0f + i0.0f).
+         *
+         * @param size Size of the new [Complex64VectorValue]
+         * @return [Complex64VectorValue] filled with ones.
+         */
+        fun one(size: Int) = Complex64VectorValue(DoubleArray(size * 2) {
+            if (it % 2 == 0) {
+                1.0
+            } else {
+                0.0
+            }
+        })
+
+        /**
+         * Generates a [Complex64VectorValue] of the given size initialized with zeros.
+         *
+         * @param size Size of the new [Complex64VectorValue]
+         * @return [Complex64VectorValue] filled with zeros.
+         */
+        fun zero(size: Int) = Complex64VectorValue(DoubleArray(size * 2) { 0.0 })
+    }
+
     /**
      * Constructor given an Array of [Complex32Value]s
      *
@@ -41,36 +74,6 @@ inline class Complex64VectorValue(val data: DoubleArray) : ComplexVectorValue<Do
             value[it / 2].imaginary.value
         }
     })
-
-    companion object {
-        /**
-         * Generates a [Complex32VectorValue] of the given size initialized with random numbers.
-         *
-         * @param size Size of the new [Complex32VectorValue]
-         * @param rnd A [SplittableRandom] to generate the random numbers.
-         */
-        fun random(size: Int, rnd: SplittableRandom = SplittableRandom(System.currentTimeMillis())) = Complex64VectorValue(DoubleArray(2 * size) {
-            rnd.nextDouble()
-        })
-
-        /**
-         * Generates a [Complex32VectorValue] of the given size initialized with ones.
-         *
-         * @param size Size of the new [Complex32VectorValue]
-         */
-        fun one(size: Int) = Complex64VectorValue(DoubleArray(2 * size) {
-            1.0
-        })
-
-        /**
-         * Generates a [Complex32VectorValue] of the given size initialized with zeros.
-         *
-         * @param size Size of the new [Complex32VectorValue]
-         */
-        fun zero(size: Int) = Complex64VectorValue(DoubleArray(2 * size) {
-            0.0
-        })
-    }
 
     /** Logical size of the [Complex64VectorValue]. */
     override val logicalSize: Int

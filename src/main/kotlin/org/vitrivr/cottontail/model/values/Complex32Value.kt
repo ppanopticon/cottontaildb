@@ -9,7 +9,7 @@ import java.util.*
 /**
  * Represents a complex number backed by single-precision (32bit) [Float]s
  *
- * @version 1.1.1
+ * @version 1.3.1
  * @author Ralph Gasser
  */
 inline class Complex32Value(val data: FloatArray): ComplexValue<Float> {
@@ -25,8 +25,9 @@ inline class Complex32Value(val data: FloatArray): ComplexValue<Float> {
          * Generates a [Complex32VectorValue] initialized with random numbers.
          *
          * @param rnd A [SplittableRandom] to generate the random numbers.
+         * @return Random [Complex32Value]
          */
-        fun random(rnd: SplittableRandom = SplittableRandom(System.currentTimeMillis())) = Complex32Value(FloatArray(2) {
+        fun random(rnd: SplittableRandom = Value.RANDOM) = Complex32Value(FloatArray(2) {
             rnd.nextDouble().toFloat()
         })
     }

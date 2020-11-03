@@ -76,7 +76,7 @@ class CottonDMLService(val catalogue: Catalogue, val engine: ExecutionEngine) : 
 
             /* Plan query and create execution plan. */
             val planningTime = measureTime {
-                val candidates = this.planner.plan(bindTimedValue.value, 3, 3)
+                val candidates = this.planner.plan(bindTimedValue.value)
                 if (candidates.isEmpty()) {
                     responseObserver.onError(Status.INTERNAL.withDescription("UPDATE query execution failed because no valid execution plan could be produced").asException())
                     return
@@ -126,7 +126,7 @@ class CottonDMLService(val catalogue: Catalogue, val engine: ExecutionEngine) : 
 
             /* Plan query and create execution plan. */
             val planningTime = measureTime {
-                val candidates = this.planner.plan(bindTimedValue.value, 3, 20)
+                val candidates = this.planner.plan(bindTimedValue.value)
                 if (candidates.isEmpty()) {
                     responseObserver.onError(Status.INTERNAL.withDescription("DELETE query execution failed because no valid execution plan could be produced").asException())
                     return
@@ -176,7 +176,7 @@ class CottonDMLService(val catalogue: Catalogue, val engine: ExecutionEngine) : 
 
             /* Plan query and create execution plan. */
             val planningTime = measureTime {
-                val candidates = this.planner.plan(bindTimedValue.value, 3, 3)
+                val candidates = this.planner.plan(bindTimedValue.value)
                 if (candidates.isEmpty()) {
                     responseObserver.onError(Status.INTERNAL.withDescription("TRUNCATE query execution failed because no valid execution plan could be produced").asException())
                     return

@@ -5,6 +5,7 @@ import org.vitrivr.cottontail.model.values.types.ComplexVectorValue
 import org.vitrivr.cottontail.model.values.types.NumericValue
 import org.vitrivr.cottontail.model.values.types.Value
 import org.vitrivr.cottontail.model.values.types.VectorValue
+import org.vitrivr.cottontail.utilities.extensions.nextFloat
 import java.util.*
 import kotlin.math.atan2
 import kotlin.math.pow
@@ -13,9 +14,41 @@ import kotlin.math.pow
  * This is an abstraction over an [Array] and it represents a vector of [Complex32Value]s.
  *
  * @author Manuel Huerbin & Ralph Gasser
- * @version 1.2
+ * @version 1.3.1
  */
 inline class Complex32VectorValue(val data: FloatArray) : ComplexVectorValue<Float> {
+    companion object {
+        /**
+         * Generates a [Complex32VectorValue] of the given size initialized with random numbers.
+         *
+         * @param size Size of the new [Complex32VectorValue]
+         * @param rnd A [SplittableRandom] to generate the random numbers.
+         * @return Random [Complex32VectorValue]
+         */
+        fun random(size: Int, rnd: SplittableRandom = Value.RANDOM) = Complex32VectorValue(FloatArray(size * 2) { rnd.nextFloat() })
+
+        /**
+         * Generates a [Complex32VectorValue] of the given size initialized with ones (i.e 1.0f + i0.0f).
+         *
+         * @param size Size of the new [Complex32VectorValue]
+         * @return [Complex32VectorValue] filled with ones.
+         */
+        fun one(size: Int) = Complex32VectorValue(FloatArray(size * 2) {
+            if (it % 2 == 0) {
+                1.0f
+            } else {
+                0.0f
+            }
+        })
+
+        /**
+         * Generates a [Complex32VectorValue] of the given size initialized with zeros.
+         *
+         * @param size Size of the new [Complex32VectorValue]
+         * @return [Complex32VectorValue] filled with zeros.
+         */
+        fun zero(size: Int) = Complex32VectorValue(FloatArray(size * 2) { 0.0f })
+    }
 
     /**
      * Constructor given an Array of [Complex32Value]s
@@ -42,32 +75,6 @@ inline class Complex32VectorValue(val data: FloatArray) : ComplexVectorValue<Flo
             value[it / 2].imaginary.value.toFloat()
         }
     })
-
-    companion object {
-        /**
-         * Generates a [Complex32VectorValue] of the given size initialized with random numbers.
-         *
-         * @param size Size of the new [Complex32VectorValue]
-         * @param rnd A [SplittableRandom] to generate the random numbers.
-         */
-        fun random(size: Int, rnd: SplittableRandom = SplittableRandom(System.currentTimeMillis())) = Complex32VectorValue(FloatArray(2 * size) {
-            rnd.nextDouble().toFloat()
-        })
-
-        /**
-         * Generates a [Complex32VectorValue] of the given size initialized with ones.
-         *
-         * @param size Size of the new [Complex32VectorValue]
-         */
-        fun one(size: Int) = Complex32VectorValue(FloatArray(2 * size) { 1.0f })
-
-        /**
-         * Generates a [Complex32VectorValue] of the given size initialized with zeros.
-         *
-         * @param size Size of the new [Complex32VectorValue]
-         */
-        fun zero(size: Int) = Complex32VectorValue(FloatArray(2 * size) { 0.0f })
-    }
 
     /** Logical size of the [Complex32VectorValue]. */
     override val logicalSize: Int

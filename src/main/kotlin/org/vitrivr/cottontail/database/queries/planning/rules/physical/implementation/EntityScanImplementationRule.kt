@@ -14,9 +14,9 @@ import org.vitrivr.cottontail.database.queries.planning.nodes.physical.sources.E
 object EntityScanImplementationRule : RewriteRule {
     override fun canBeApplied(node: NodeExpression): Boolean = node is EntityScanLogicalNodeExpression
     override fun apply(node: NodeExpression): NodeExpression? {
-        val children = node.copyOutput()
         if (node is EntityScanLogicalNodeExpression) {
-            val p = EntityScanPhysicalNodeExpression(node.entity)
+            val children = node.copyOutput()
+            val p = EntityScanPhysicalNodeExpression(node.entity, node.columns)
             children?.addInput(p)
             return p
         }

@@ -5,6 +5,7 @@ import io.grpc.stub.StreamObserver
 import org.slf4j.LoggerFactory
 import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.queries.planning.CottontailQueryPlanner
+import org.vitrivr.cottontail.database.queries.planning.rules.logical.DeferredFetchAfterKnnRewriteRule
 import org.vitrivr.cottontail.database.queries.planning.rules.logical.LeftConjunctionRewriteRule
 import org.vitrivr.cottontail.database.queries.planning.rules.logical.RightConjunctionRewriteRule
 import org.vitrivr.cottontail.database.queries.planning.rules.physical.implementation.*
@@ -44,7 +45,8 @@ class CottonDQLService(val catalogue: Catalogue, val engine: ExecutionEngine) : 
     private val planner = CottontailQueryPlanner(
             logicalRewriteRules = listOf(
                     LeftConjunctionRewriteRule,
-                    RightConjunctionRewriteRule
+                    RightConjunctionRewriteRule,
+                    DeferredFetchAfterKnnRewriteRule
             ),
             physicalRewriteRules = listOf(
                     BooleanIndexScanRule,
@@ -53,7 +55,8 @@ class CottonDQLService(val catalogue: Catalogue, val engine: ExecutionEngine) : 
                     FilterImplementationRule,
                     KnnImplementationRule,
                     LimitImplementationRule,
-                    ProjectionImplementationRule
+                    ProjectionImplementationRule,
+                    FetchImplementationRule
             )
     )
 
@@ -73,7 +76,7 @@ class CottonDQLService(val catalogue: Catalogue, val engine: ExecutionEngine) : 
 
             /* Plan query and create execution plan. */
             val planningTime = measureTime {
-                val candidates = this.planner.plan(bindTimedValue.value, 3, 3)
+                val candidates = this.planner.plan(bindTimedValue.value)
                 if (candidates.isEmpty()) {
                     responseObserver.onError(Status.INTERNAL.withDescription("Query execution failed because no valid execution plan could be produced").asException())
                     return
@@ -125,7 +128,7 @@ class CottonDQLService(val catalogue: Catalogue, val engine: ExecutionEngine) : 
 
                 /* Plan query and create execution plan. */
                 val planTimedValue = measureTimedValue {
-                    val candidates = this.planner.plan(bindTimedValue.value, 3, 3)
+                    val candidates = this.planner.plan(bindTimedValue.value)
                     val operator = candidates.minByOrNull { it.totalCost }!!.toOperator(context)
                     context.addOperator(ResultsSpoolerOperator(operator, context, queryId, index, responseObserver))
                 }

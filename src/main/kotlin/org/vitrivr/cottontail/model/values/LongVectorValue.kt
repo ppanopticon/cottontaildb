@@ -22,7 +22,7 @@ inline class LongVectorValue(val data: LongArray) : RealVectorValue<Long> {
          * @param size Size of the new [LongVectorValue]
          * @param rnd A [SplittableRandom] to generate the random numbers.
          */
-        fun random(size: Int, rnd: SplittableRandom = SplittableRandom(System.currentTimeMillis())) = LongVectorValue(LongArray(size) { rnd.nextLong() })
+        fun random(size: Int, rnd: SplittableRandom = Value.RANDOM) = LongVectorValue(LongArray(size) { rnd.nextLong() })
 
         /**
          * Generates a [LongVectorValue] of the given size initialized with ones.

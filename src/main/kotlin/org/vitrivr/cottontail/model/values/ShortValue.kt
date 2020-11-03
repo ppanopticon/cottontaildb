@@ -3,10 +3,27 @@ package org.vitrivr.cottontail.model.values
 import org.vitrivr.cottontail.model.values.types.NumericValue
 import org.vitrivr.cottontail.model.values.types.RealValue
 import org.vitrivr.cottontail.model.values.types.Value
+import org.vitrivr.cottontail.utilities.extensions.nextShort
+import java.util.*
 
+/**
+ * This is an abstraction over a [Short].
+ *
+ * @author Ralph Gasser
+ * @version 1.3.1
+ */
 inline class ShortValue(override val value: Short): RealValue<Short> {
     companion object {
         val ZERO = ShortValue(0.toShort())
+        val ONE = ShortValue(1.toShort())
+
+        /**
+         * Generates a random [ShortValue].
+         *
+         * @param rnd A [SplittableRandom] to generate the random numbers.
+         * @return Random [ShortValue]
+         */
+        fun random(rnd: SplittableRandom = Value.RANDOM) = ShortValue(rnd.nextShort())
     }
 
     /**

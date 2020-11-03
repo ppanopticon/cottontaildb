@@ -3,9 +3,16 @@ package org.vitrivr.cottontail.model.values
 import org.vitrivr.cottontail.model.values.types.NumericValue
 import org.vitrivr.cottontail.model.values.types.RealValue
 import org.vitrivr.cottontail.model.values.types.Value
+import org.vitrivr.cottontail.utilities.extensions.nextFloat
 import java.util.*
 import kotlin.math.pow
 
+/**
+ * This is an abstraction over a [Float].
+ *
+ * @author Ralph Gasser
+ * @version 1.3.1
+ */
 inline class FloatValue(override val value: Float): RealValue<Float> {
 
     companion object {
@@ -15,11 +22,12 @@ inline class FloatValue(override val value: Float): RealValue<Float> {
         val INF = Complex32Value(Float.POSITIVE_INFINITY)
 
         /**
-         * Generates a [FloatValue] initialized with random numbers.
+         * Generates a random [FloatValue].
          *
          * @param rnd A [SplittableRandom] to generate the random numbers.
+         * @return Random [FloatValue]
          */
-        fun random(rnd: SplittableRandom = SplittableRandom(System.currentTimeMillis())) = FloatValue(rnd.nextDouble().toFloat())
+        fun random(rnd: SplittableRandom = Value.RANDOM) = FloatValue(rnd.nextFloat())
     }
 
     /**

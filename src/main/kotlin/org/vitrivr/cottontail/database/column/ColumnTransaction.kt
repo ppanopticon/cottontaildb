@@ -1,7 +1,6 @@
 package org.vitrivr.cottontail.database.column
 
 import org.vitrivr.cottontail.database.general.Transaction
-import org.vitrivr.cottontail.model.basics.CloseableIterator
 import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Countable
 import org.vitrivr.cottontail.model.basics.TupleId
@@ -15,7 +14,7 @@ import org.vitrivr.cottontail.model.values.types.Value
  * the desired level of isolation.
  *
  * @author Ralph Gasser
- * @version 1.1
+ * @version 1.2.0
  */
 interface ColumnTransaction<T : Value> : Transaction, Countable {
 
@@ -66,19 +65,19 @@ interface ColumnTransaction<T : Value> : Transaction, Countable {
     fun delete(tupleId: TupleId)
 
     /**
-     * Creates and returns a new [CloseableIterator] for this [ColumnTransaction] that returns all
+     * Creates and returns a new [ColumnCursor] for this [ColumnCursor] that returns all
      * [TupleId]s contained within the surrounding [Column].
      *
-     * @return [CloseableIterator]
+     * @return [ColumnCursor]
      */
-    fun scan(): CloseableIterator<Long>
+    fun scan(): ColumnCursor<T>
 
     /**
-     * Creates and returns a new [CloseableIterator] for this [ColumnTransaction] that returns
+     * Creates and returns a new [ColumnCursor] for this [ColumnCursor] that returns
      * all [TupleId]s contained within the surrounding [Column] and a certain range.
      *
      * @param range The [LongRange] that should be scanned.
-     * @return [CloseableIterator]
+     * @return [ColumnCursor]
      */
-    fun scan(range: LongRange): CloseableIterator<Long>
+    fun scan(range: LongRange): ColumnCursor<T>
 }

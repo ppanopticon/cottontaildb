@@ -3,12 +3,16 @@ package org.vitrivr.cottontail.database.column.mapdb
 import org.mapdb.*
 import org.vitrivr.cottontail.config.MemoryConfig
 import org.vitrivr.cottontail.database.column.Column
+import org.vitrivr.cottontail.database.column.ColumnCursor
 import org.vitrivr.cottontail.database.column.ColumnTransaction
 import org.vitrivr.cottontail.database.column.ColumnType
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.general.Transaction
 import org.vitrivr.cottontail.database.general.TransactionStatus
-import org.vitrivr.cottontail.model.basics.*
+import org.vitrivr.cottontail.model.basics.ColumnDef
+import org.vitrivr.cottontail.model.basics.Name
+import org.vitrivr.cottontail.model.basics.Record
+import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.model.exceptions.TransactionException
 import org.vitrivr.cottontail.model.values.types.Value
@@ -28,7 +32,7 @@ import java.util.concurrent.locks.StampedLock
  * @param <T> Type of the value held by this [MapDBColumn].
  *
  * @author Ralph Gasser
- * @version 1.3.1
+ * @version 1.4.0
  */
 class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val parent: Entity) : Column<T> {
 
@@ -59,12 +63,6 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val pa
      */
     @Suppress("UNCHECKED_CAST")
     override val columnDef: ColumnDef<T> = this.header.let { ColumnDef(this.name, it.type as ColumnType<T>, it.size, it.nullable) }
-
-    /**
-     * The maximum tuple ID used by this [Column].
-     */
-    override val maxTupleId: Long
-        get() = this.store.maxRecid
 
     /**
      * Status indicating whether this [MapDBColumn] is open or closed.
@@ -242,21 +240,31 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val pa
         }
 
         /**
-         * Creates and returns a new [CloseableIterator] for this [MapDBColumn.Tx] that returns
-         * all [TupleId]s contained within the surrounding [MapDBColumn].
+         * Returns the maximum [TupleId] for this [MapDBColumn].
          *
-         * @return [CloseableIterator]
+         * @return The maximum [TupleId] for this [MapDBColumn].
          */
-        override fun scan() = this.scan(1L..this@MapDBColumn.maxTupleId)
+        override fun maxTupleId(): TupleId = this.localLock.read {
+            checkValidForRead()
+            return this@MapDBColumn.store.maxRecid
+        }
 
         /**
-         * Creates and returns a new [CloseableIterator] for this [MapDBColumn.Tx] that returns
+         * Creates and returns a new [ColumnCursor] for this [MapDBColumn.Tx] that returns all
+         * [TupleId]s contained within the surrounding [MapDBColumn].
+         *
+         * @return [ColumnCursor]
+         */
+        override fun scan() = this.scan(1L..this.maxTupleId())
+
+        /**
+         * Creates and returns a new [ColumnCursor] for this [MapDBColumn.Tx] that returns
          * all [TupleId]s contained within the surrounding [MapDBColumn] and a certain range.
          *
          * @param range The [LongRange] that should be scanned.
-         * @return [CloseableIterator]
+         * @return [ColumnCursor]
          */
-        override fun scan(range: LongRange) = object : CloseableIterator<TupleId> {
+        override fun scan(range: LongRange) = object : ColumnCursor<T> {
 
             init {
                 checkValidForRead()
@@ -268,13 +276,13 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val pa
             /** Wraps a [RecordIdIterator] from the [MapDBColumn]. */
             private val wrapped = this@MapDBColumn.store.RecordIdIterator(range)
 
-            /** Flag indicating whether this [CloseableIterator] has been closed. */
+            /** Flag indicating whether this [ColumnCursor] has been closed. */
             @Volatile
             override var isOpen = true
                 private set
 
             /**
-             * Returns the next element in the iteration.
+             * Returns the next [TupleId] in the iteration.
              */
             override fun next(): TupleId {
                 check(this.isOpen) { "Illegal invocation of next(): This CloseableIterator has been closed." }
@@ -290,7 +298,16 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val pa
             }
 
             /**
-             * Closes this [CloseableIterator] and releases all locks associated with it.
+             * Reads the value at the current [ColumnCursor] position and returns it.
+             *
+             * @return The value [T] at the position of this [ColumnCursor].
+             */
+            override fun readThrough(): T? {
+                return this@MapDBColumn.store.get(this.next(), this@Tx.serializer)
+            }
+
+            /**
+             * Closes this [ColumnCursor] and releases all locks associated with it.
              */
             override fun close() {
                 if (this.isOpen) {

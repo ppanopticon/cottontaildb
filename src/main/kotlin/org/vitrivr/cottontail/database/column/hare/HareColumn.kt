@@ -1,17 +1,26 @@
 package org.vitrivr.cottontail.database.column.hare
 
+import org.vitrivr.cottontail.config.MemoryConfig
 import org.vitrivr.cottontail.database.column.Column
+import org.vitrivr.cottontail.database.column.ColumnCursor
 import org.vitrivr.cottontail.database.column.ColumnTransaction
 import org.vitrivr.cottontail.database.column.mapdb.MapDBColumn
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.general.Transaction
 import org.vitrivr.cottontail.database.general.TransactionStatus
-import org.vitrivr.cottontail.model.basics.CloseableIterator
 import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.TupleId
+import org.vitrivr.cottontail.model.exceptions.TransactionException
 import org.vitrivr.cottontail.model.values.types.Value
+import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnCursor
 import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnFile
+import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnReader
+import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnWriter
+import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareColumnFile
+import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareColumnWriter
+import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
+import org.vitrivr.cottontail.storage.engine.hare.buffer.eviction.EvictionPolicy
 import org.vitrivr.cottontail.utilities.extensions.read
 import org.vitrivr.cottontail.utilities.extensions.write
 import java.nio.file.Path
@@ -32,20 +41,28 @@ import java.util.concurrent.locks.StampedLock
  */
 class HareColumn<T : Value>(override val name: Name.ColumnName, override val parent: Entity) : Column<T> {
 
+    companion object {
+        /**
+         * Initializes a new, empty [HareColumn]
+         *
+         * @param definition The [ColumnDef] that specified the [MapDBColumn]
+         * @param path The path in which to create the [HareColumn]
+         * @param config The [MemoryConfig] used to initialize the [MapDBColumn]
+         */
+        fun initialize(definition: ColumnDef<*>, path: Path, config: MemoryConfig) {
+            FixedHareColumnFile.createDirect(path.resolve("${definition.name.simple}.${HareColumnFile.SUFFIX}"), definition)
+        }
+    }
+
+
     /** The [Path] to the [HareColumn]'s main file. */
-    override val path: Path = this.parent.path.resolve("col_${name.simple}.hare")
+    override val path: Path = this.parent.path.resolve("${name.simple}.${HareColumnFile.SUFFIX}")
 
     /** The [FixedHareColumnFile] that backs this [HareColumn]. */
-    private val column = FixedHareColumnFile<T>(this.path, true)
+    private val column = FixedHareColumnFile<T>(this.path, false)
 
     /** This [HareColumn]'s [ColumnDef]. */
-    override val columnDef: ColumnDef<T>
-        get() = this.column.columnDef
-
-
-    override val maxTupleId: Long
-        get() = TODO("Not yet implemented")
-
+    override val columnDef: ColumnDef<T> = ColumnDef(this.name, this.column.columnType, this.column.logicalSize, this.column.nullable)
 
     /** An internal lock that is used to synchronize concurrent read & write access to this [MapDBColumn] by different [MapDBColumn.Tx]. */
     private val txLock = StampedLock()
@@ -57,9 +74,7 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val par
     override var closed: Boolean = false
         private set
 
-    override fun newTransaction(readonly: Boolean, tid: UUID): ColumnTransaction<T> {
-        TODO("Not yet implemented")
-    }
+    override fun newTransaction(readonly: Boolean, tid: UUID): ColumnTransaction<T> = Tx(readonly, tid)
 
     /**
      * Closes the [HareColumn]. Closing an [HareColumn] is a delicate matter since ongoing [HareColumn.Tx] might be involved.
@@ -96,12 +111,120 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val par
         /** A [StampedLock] local to this [HareColumn.Tx]. It makes sure, that this [HareColumn.Tx] cannot be committed, closed or rolled back while it is being used. */
         private val localLock = StampedLock()
 
+        /** Shared [BufferPool] for this [Tx]. */
+        private val bufferPool = BufferPool(this@HareColumn.column.disk, 5, EvictionPolicy.LRU)
+
+        /** [FixedHareColumnReader] for this [Tx]. */
+        private val reader = FixedHareColumnReader(this@HareColumn.column, this.bufferPool)
+
+        /** [FixedHareColumnReader] for this [Tx]. */
+        private val writer: HareColumnWriter<T> = if (!this.readonly) {
+            FixedHareColumnWriter(this@HareColumn.column, this.bufferPool)
+        } else {
+            ReadonlyHareColumnWriter(this.tid)
+        }
+
+        override fun count(): Long = this.localLock.read {
+            checkValidForRead()
+            this.reader.count()
+        }
+
+        override fun maxTupleId(): TupleId = this.localLock.read {
+            checkValidForRead()
+            this.reader.maxTupleId()
+        }
+
+        override fun read(tupleId: Long): T? = this.localLock.read {
+            checkValidForRead()
+            this.reader.get(tupleId)
+        }
+
+        override fun insert(record: T?) = this.localLock.read {
+            checkValidForWrite()
+            this.writer.append(record)
+        }
+
+        override fun update(tupleId: TupleId, value: T?) = this.localLock.read {
+            checkValidForWrite()
+            this.writer.update(tupleId, value)
+        }
+
+        override fun compareAndUpdate(tupleId: Long, value: T?, expected: T?): Boolean = this.localLock.read {
+            checkValidForWrite()
+            this.writer.compareAndUpdate(tupleId, expected, value)
+        }
+
+        override fun delete(tupleId: TupleId) = this.localLock.read {
+            checkValidForWrite()
+            this.writer.delete(tupleId)
+            Unit
+        }
+
+        override fun scan(): ColumnCursor<T> = this.scan(0L..this.maxTupleId())
+
+        override fun scan(range: LongRange) = object : ColumnCursor<T> {
+            init {
+                checkValidForRead()
+            }
+
+            /** Acquires a read lock on the surrounding [MapDBColumn.Tx]*/
+            private val lock = this@Tx.localLock.readLock()
+
+            /** [BufferPool] instance used for this [ColumnCursor]. Uses [EvictionPolicy.FIFO]. */
+            private val bufferPool = BufferPool(this@HareColumn.column.disk, 5, EvictionPolicy.FIFO)
+
+            /** [FixedHareColumnCursor] instance used for this [ColumnCursor]. */
+            private val cursor = FixedHareColumnCursor(this@HareColumn.column, this.bufferPool, range)
+
+            /** [FixedHareColumnReader] instance used for this [ColumnCursor]. */
+            private val reader = FixedHareColumnReader<T>(this@HareColumn.column, this.bufferPool)
+
+            /** Flag indicating whether this [ColumnCursor] has been closed. */
+            override val isOpen: Boolean
+                get() = cursor.isOpen
+
+            /**
+             * Returns `true` if the iteration has more elements.
+             */
+            override fun hasNext(): Boolean {
+                check(this.isOpen) { "Illegal invocation of next(): This CloseableIterator has been closed." }
+                return this.cursor.hasNext()
+            }
+
+            /**
+             * Returns the next [TupleId] in the iteration.
+             */
+            override fun next(): TupleId {
+                check(this.isOpen) { "Illegal invocation of next(): This CloseableIterator has been closed." }
+                return this.cursor.next()
+            }
+
+            /**
+             * Reads the value at the current [ColumnCursor] position and returns it.
+             *
+             * @return The value [T] at the position of this [ColumnCursor].
+             */
+            override fun readThrough(): T? = this.reader.get(this.next())
+
+            /**
+             * Closes this [ColumnCursor] and releases all locks associated with it.
+             */
+            override fun close() {
+                if (this.isOpen) {
+                    this.cursor.close()
+                    this.reader.close()
+                    this.bufferPool.close()
+                    this@Tx.localLock.unlockRead(this.lock)
+                }
+            }
+        }
+
         /**
          * Commits all changes made through this [Tx] since the last commit or rollback.
          */
         override fun commit() = this.localLock.write {
             if (this.status == TransactionStatus.DIRTY) {
-                //this@HareColumn.column.commit()
+                this.writer.commit()
                 this.status = TransactionStatus.CLEAN
             }
         }
@@ -112,7 +235,7 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val par
          */
         override fun rollback() = this.localLock.write {
             if (this.status == TransactionStatus.DIRTY || this.status == TransactionStatus.ERROR) {
-                //this@HareColumn.column.rollback()
+                this.writer.rollback()
                 this.status = TransactionStatus.CLEAN
             }
         }
@@ -131,36 +254,24 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val par
             }
         }
 
-        override fun count(): Long = this.localLock.read {
-            TODO()
+        /**
+         * Checks if this [HareColumn.Tx] is still open. Otherwise, an exception will be thrown.
+         */
+        private fun checkValidForRead() {
+            if (this.status == TransactionStatus.CLOSED) throw TransactionException.TransactionClosedException(this.tid)
+            if (this.status == TransactionStatus.ERROR) throw TransactionException.TransactionInErrorException(this.tid)
         }
 
-        override fun read(tupleId: Long): T? = this.localLock.read {
-            TODO()
-        }
-
-        override fun insert(record: T?)= this.localLock.read {
-            TODO()
-        }
-
-        override fun update(tupleId: TupleId, value: T?) {
-
-        }
-
-        override fun compareAndUpdate(tupleId: Long, value: T?, expected: T?): Boolean {
-            TODO("Not yet implemented")
-        }
-
-        override fun delete(tupleId: TupleId) {
-            TODO("Not yet implemented")
-        }
-
-        override fun scan(): CloseableIterator<Long> {
-            TODO("Not yet implemented")
-        }
-
-        override fun scan(range: LongRange): CloseableIterator<Long> {
-            TODO("Not yet implemented")
+        /**
+         * Tries to acquire a write-lock. If method fails, an exception will be thrown
+         */
+        private fun checkValidForWrite() {
+            if (this.readonly) throw TransactionException.TransactionReadOnlyException(this.tid)
+            if (this.status == TransactionStatus.CLOSED) throw TransactionException.TransactionClosedException(this.tid)
+            if (this.status == TransactionStatus.ERROR) throw TransactionException.TransactionInErrorException(this.tid)
+            if (this.status != TransactionStatus.DIRTY) {
+                this.status = TransactionStatus.DIRTY
+            }
         }
     }
 }

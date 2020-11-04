@@ -16,7 +16,8 @@ import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.model.exceptions.TransactionException
 import org.vitrivr.cottontail.model.values.types.Value
-import org.vitrivr.cottontail.utilities.extensions.read
+import org.vitrivr.cottontail.utilities.extensions.exclusive
+import org.vitrivr.cottontail.utilities.extensions.shared
 import org.vitrivr.cottontail.utilities.extensions.write
 import java.nio.file.Path
 import java.util.*
@@ -180,8 +181,7 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val pa
         /**
          * Commits all changes made through this [Tx] since the last commit or rollback.
          */
-        @Synchronized
-        override fun commit() = this.localLock.write {
+        override fun commit() = this.localLock.exclusive {
             if (this.status == TransactionStatus.DIRTY) {
                 this@MapDBColumn.store.commit()
                 this.status = TransactionStatus.CLEAN
@@ -192,8 +192,7 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val pa
          * Rolls all changes made through this [Tx] back to the last commit. Can only be executed, if [Tx] is
          * in status [TransactionStatus.DIRTY] or [TransactionStatus.ERROR].
          */
-        @Synchronized
-        override fun rollback() = this.localLock.write {
+        override fun rollback() = this.localLock.exclusive {
             if (this.status == TransactionStatus.DIRTY || this.status == TransactionStatus.ERROR) {
                 this@MapDBColumn.store.rollback()
                 this.status = TransactionStatus.CLEAN
@@ -203,8 +202,7 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val pa
         /**
          * Closes this [Tx] and relinquishes the associated [ReentrantReadWriteLock].
          */
-        @Synchronized
-        override fun close() = this.localLock.write {
+        override fun close() = this.localLock.exclusive {
             if (this.status != TransactionStatus.CLOSED) {
                 if (this.status == TransactionStatus.DIRTY || this.status == TransactionStatus.ERROR) {
                     this.rollback()
@@ -223,9 +221,8 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val pa
          *
          * @throws DatabaseException If the tuple with the desired ID doesn't exist OR is invalid.
          */
-        override fun read(tupleId: Long): T? = this.localLock.read {
+        override fun read(tupleId: Long): T? = this.localLock.shared {
             checkValidForRead()
-            checkValidTupleId(tupleId)
             return this@MapDBColumn.store.get(tupleId, this.serializer)
         }
 
@@ -234,7 +231,7 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val pa
          *
          * @return The number of entries in this [MapDBColumn].
          */
-        override fun count(): Long = this.localLock.read {
+        override fun count(): Long = this.localLock.shared {
             checkValidForRead()
             return this@MapDBColumn.header.count
         }
@@ -244,7 +241,7 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val pa
          *
          * @return The maximum [TupleId] for this [MapDBColumn].
          */
-        override fun maxTupleId(): TupleId = this.localLock.read {
+        override fun maxTupleId(): TupleId = this.localLock.shared {
             checkValidForRead()
             return this@MapDBColumn.store.maxRecid
         }
@@ -324,7 +321,7 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val pa
          * @param record The record that should be inserted. Can be null!
          * @return The tupleId of the inserted record OR the allocated space in case of a null value.
          */
-        override fun insert(record: T?): Long = this.localLock.read {
+        override fun insert(record: T?): Long = this.localLock.shared {
             try {
                 checkValidForWrite()
                 val tupleId = if (record == null) {
@@ -353,10 +350,9 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val pa
          * @param tupleId The ID of the record that should be updated
          * @param value The new value.
          */
-        override fun update(tupleId: Long, value: T?) = this.localLock.read {
+        override fun update(tupleId: Long, value: T?) = this.localLock.shared {
             try {
                 checkValidForWrite()
-                checkValidTupleId(tupleId)
                 this@MapDBColumn.store.update(tupleId, value, this.serializer)
             } catch (e: DBException) {
                 this.status = TransactionStatus.ERROR
@@ -373,10 +369,9 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val pa
          * @param value The new value.
          * @param expected The value expected to be there.
          */
-        override fun compareAndUpdate(tupleId: Long, value: T?, expected: T?): Boolean = this.localLock.read {
+        override fun compareAndUpdate(tupleId: Long, value: T?, expected: T?): Boolean = this.localLock.shared {
             try {
                 checkValidForWrite()
-                checkValidTupleId(tupleId)
                 this@MapDBColumn.store.compareAndSwap(tupleId, expected, value, this.serializer)
             } catch (e: DBException) {
                 this.status = TransactionStatus.ERROR
@@ -391,10 +386,9 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val pa
          *
          * @param tupleId The ID of the record that should be deleted
          */
-        override fun delete(tupleId: Long) = this.localLock.read {
+        override fun delete(tupleId: Long) = this.localLock.shared {
             try {
                 checkValidForWrite()
-                checkValidTupleId(tupleId)
                 this@MapDBColumn.store.delete(tupleId, this.serializer)
 
                 /* Update header. */
@@ -410,31 +404,20 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val pa
         }
 
         /**
-         * Checks if the provided tupleID is valid. Otherwise, an exception will be thrown.
-         */
-        private fun checkValidTupleId(tupleId: Long) {
-            if ((tupleId < 0L) or (tupleId == HEADER_RECORD_ID)) {
-                throw TransactionException.InvalidTupleId(tid, tupleId)
-            }
-        }
-
-        /**
          * Checks if this [MapDBColumn.Tx] is still open. Otherwise, an exception will be thrown.
          */
-        @Synchronized
         private fun checkValidForRead() {
-            if (this.status == TransactionStatus.CLOSED) throw TransactionException.TransactionClosedException(tid)
-            if (this.status == TransactionStatus.ERROR) throw TransactionException.TransactionInErrorException(tid)
+            if (this.status == TransactionStatus.CLOSED) throw TransactionException.TransactionClosedException(this.tid)
+            if (this.status == TransactionStatus.ERROR) throw TransactionException.TransactionInErrorException(this.tid)
         }
 
         /**
          * Tries to acquire a write-lock. If method fails, an exception will be thrown
          */
-        @Synchronized
         private fun checkValidForWrite() {
-            if (this.readonly) throw TransactionException.TransactionReadOnlyException(tid)
-            if (this.status == TransactionStatus.CLOSED) throw TransactionException.TransactionClosedException(tid)
-            if (this.status == TransactionStatus.ERROR) throw TransactionException.TransactionInErrorException(tid)
+            if (this.readonly) throw TransactionException.TransactionReadOnlyException(this.tid)
+            if (this.status == TransactionStatus.CLOSED) throw TransactionException.TransactionClosedException(this.tid)
+            if (this.status == TransactionStatus.ERROR) throw TransactionException.TransactionInErrorException(this.tid)
             if (this.status != TransactionStatus.DIRTY) {
                 this.status = TransactionStatus.DIRTY
             }

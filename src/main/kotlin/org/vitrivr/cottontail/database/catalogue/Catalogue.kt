@@ -536,7 +536,11 @@ class Catalogue(val config: Config) : DBO {
      * @return [DB] object.
      */
     private fun openStore(): DB = try {
-        DBMaker.fileDB(this.path.resolve(FILE_CATALOGUE).toFile()).fileChannelEnable().concurrencyScale(BitUtil.nextPowerOfTwo(Runtime.getRuntime().availableProcessors())).make()
+        DBMaker.fileDB(this.path.resolve(FILE_CATALOGUE).toFile())
+                .fileChannelEnable()
+                .concurrencyScale(BitUtil.nextPowerOfTwo(Runtime.getRuntime().availableProcessors()))
+                .transactionEnable()
+                .make()
     } catch (e: DBException) {
         throw DatabaseException("Failed to open Cottontail DB catalogue: ${e.message}'.")
     }
@@ -556,7 +560,12 @@ class Catalogue(val config: Config) : DBO {
         }
 
         /* Create and initialize new store. */
-        val store = DBMaker.fileDB(this.path.resolve(FILE_CATALOGUE).toFile()).fileChannelEnable().concurrencyScale(BitUtil.nextPowerOfTwo(Runtime.getRuntime().availableProcessors())).make()
+        val store = DBMaker.fileDB(this.path.resolve(FILE_CATALOGUE).toFile())
+                .fileChannelEnable()
+                .concurrencyScale(BitUtil.nextPowerOfTwo(Runtime.getRuntime().availableProcessors()))
+                .transactionEnable()
+                .make()
+
         store.atomicVar(CATALOGUE_FIELD_NAME_HEADER, CatalogueHeader.Serializer, CatalogueHeader()).create()
         store.hashMap(CATALOGUE_FIELD_NAME_SCHEMAS, SchemaNameSerializer, CatalogueSchema.Serializer).counterEnable().create()
         store.hashMap(CATALOGUE_FIELD_NAME_ENTITES, EntityNameSerializer, CatalogueEntity.Serializer).counterEnable().create()

@@ -267,8 +267,7 @@ class CottonDMLService(val catalogue: Catalogue, val engine: ExecutionEngine) : 
                     var tx = this.transactions[fqn]
                     if (tx == null) {
                         /* Extract required schema and entity. */
-                        val schema = this@CottonDMLService.catalogue.schemaForName(fqn.schema())
-                        val entity = schema.entityForName(fqn)
+                        val entity = this@CottonDMLService.catalogue.instantiateEntity(fqn)
                         tx = entity.Tx(false, this.txId)
                         this.transactions[fqn] = tx
                     }

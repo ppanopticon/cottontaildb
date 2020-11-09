@@ -27,7 +27,7 @@ class KnnPhysicalNodeExpression(val knn: KnnPredicate<*>) : UnaryPhysicalNodeExp
     override fun toOperator(context: ExecutionEngine.ExecutionContext): Operator {
         if (this.cost.cpu > 1.0f) {
             return if (this.input.canBePartitioned) {
-                val partitions = this.input.partition(min(this.cost.cpu.roundToInt(), context.availableThreads))
+                val partitions = this.input.partition(min((this.cost.cpu * 1e-6f).roundToInt(), context.availableThreads))
                 val operators = partitions.map {
                     it.toOperator(context)
                 }

@@ -11,6 +11,7 @@ import org.apache.lucene.store.Directory
 import org.apache.lucene.store.FSDirectory
 import org.apache.lucene.store.NativeFSLockFactory
 import org.slf4j.LoggerFactory
+import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.column.ColumnType
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.events.DataChangeEvent
@@ -36,9 +37,9 @@ import java.nio.file.Path
  * for string comparisons using the EQUAL or LIKE operator.
  *
  * @author Luca Rossetto & Ralph Gasser
- * @version 1.2.2
+ * @version 1.2.3
  */
-class LuceneIndex(override val name: Name.IndexName, override val parent: Entity, override val columns: Array<ColumnDef<*>>) : Index() {
+class LuceneIndex(override val name: Name.IndexName, override val catalogue: Catalogue, override val columns: Array<ColumnDef<*>>) : Index() {
 
     companion object {
         /** [ColumnDef] of the _tid column. */
@@ -66,10 +67,10 @@ class LuceneIndex(override val name: Name.IndexName, override val parent: Entity
     }
 
     /** The [LuceneIndex] implementation produces an additional score column. */
-    override val produces: Array<ColumnDef<*>> = arrayOf(ColumnDef(this.parent.name.column("score"), ColumnType.forName("FLOAT")))
+    override val produces: Array<ColumnDef<*>> = arrayOf(ColumnDef(this.name.entity().column("score"), ColumnType.forName("FLOAT")))
 
     /** The path to the directory that contains the data for this [LuceneIndex]. */
-    override val path: Path = this.parent.path.resolve("idx_lucene_$name")
+    override val path: Path = this.catalogue.indexForName(this.name).path
 
     /** True since [SuperBitLSHIndex] supports incremental updates. */
     override val supportsIncrementalUpdate: Boolean = true

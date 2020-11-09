@@ -1,6 +1,7 @@
 package org.vitrivr.cottontail.database.index.lsh.superbit
 
 import org.slf4j.LoggerFactory
+import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.column.Column
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.events.DataChangeEvent
@@ -29,7 +30,7 @@ import org.vitrivr.cottontail.utilities.extensions.read
  * @author Manuel Huerbin & Ralph Gasser
  * @version 1.2.2
  */
-class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, parent: Entity, columns: Array<ColumnDef<*>>, params: Map<String, String>? = null) : LSHIndex<T>(name, parent, columns) {
+class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, catalogue: Catalogue, columns: Array<ColumnDef<*>>, params: Map<String, String>? = null) : LSHIndex<T>(name, catalogue, columns) {
 
     companion object {
         const val CONFIG_NAME = "lsh_config"

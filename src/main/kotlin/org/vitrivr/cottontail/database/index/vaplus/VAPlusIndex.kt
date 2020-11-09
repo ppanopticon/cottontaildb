@@ -4,6 +4,7 @@ import org.apache.commons.math3.linear.MatrixUtils
 import org.mapdb.Atomic
 import org.mapdb.DBMaker
 import org.slf4j.LoggerFactory
+import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.column.Column
 import org.vitrivr.cottontail.database.column.ColumnType
 import org.vitrivr.cottontail.database.entity.Entity
@@ -38,7 +39,7 @@ import java.nio.file.Path
  * @author Manuel Huerbin
  * @version 1.1.2
  */
-class VAPlusIndex(override val name: Name.IndexName, override val parent: Entity, override val columns: Array<ColumnDef<*>>) : Index() {
+class VAPlusIndex(override val name: Name.IndexName, override val catalogue: Catalogue, override val columns: Array<ColumnDef<*>>) : Index() {
 
     /**
      * Index-wide constants.
@@ -50,7 +51,7 @@ class VAPlusIndex(override val name: Name.IndexName, override val parent: Entity
     }
 
     /** Path to the [VAPlusIndex] file. */
-    override val path: Path = this.parent.path.resolve("idx_vaf_$name.db")
+    override val path: Path = this.catalogue.indexForName(this.name).path
 
     /** The type of [Index] */
     override val type: IndexType = IndexType.VAF
@@ -59,10 +60,10 @@ class VAPlusIndex(override val name: Name.IndexName, override val parent: Entity
     override val supportsIncrementalUpdate: Boolean = true
 
     /** The [VAPlusIndex] implementation returns exactly the columns that is indexed. */
-    override val produces: Array<ColumnDef<*>> = arrayOf(ColumnDef(this.parent.name.column("distance"), ColumnType.forName("DOUBLE")))
+    override val produces: Array<ColumnDef<*>> = arrayOf(ColumnDef(this.name.entity().column("distance"), ColumnType.forName("DOUBLE")))
 
     /** The internal [DB] reference. */
-    private val db = if (parent.parent.parent.config.memoryConfig.forceUnmapMappedFiles) {
+    private val db = if (this.catalogue.config.memoryConfig.forceUnmapMappedFiles) {
         DBMaker.fileDB(this.path.toFile()).fileMmapEnable().cleanerHackEnable().transactionEnable().make()
     } else {
         DBMaker.fileDB(this.path.toFile()).fileMmapEnable().transactionEnable().make()

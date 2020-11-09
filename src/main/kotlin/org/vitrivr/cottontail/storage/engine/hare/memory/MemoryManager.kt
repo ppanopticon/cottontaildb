@@ -5,7 +5,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.vitrivr.cottontail.storage.engine.hare.basics.ReferenceCounted
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
-import org.vitrivr.cottontail.utilities.extensions.convertWriteLock
 import org.vitrivr.cottontail.utilities.extensions.write
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicInteger
@@ -65,7 +64,8 @@ object MemoryManager: AutoCloseable {
             }
 
             /* Convert to write lock. */
-            stamp = this.allocationLock.convertWriteLock(stamp)
+            this.allocationLock.unlockRead(stamp)
+            stamp = this.allocationLock.writeLock()
             return MemoryBlock(size)
         } finally {
             this.allocationLock.unlock(stamp)

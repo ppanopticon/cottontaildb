@@ -62,3 +62,4 @@ fun startDB(configPath: String = "config.json") {
         }
     }
 }
+

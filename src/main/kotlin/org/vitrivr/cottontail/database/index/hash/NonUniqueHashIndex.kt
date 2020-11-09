@@ -4,6 +4,7 @@ import org.mapdb.DBMaker
 import org.mapdb.HTreeMap
 import org.mapdb.Serializer
 import org.slf4j.LoggerFactory
+import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.column.Column
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.events.DataChangeEvent
@@ -15,7 +16,6 @@ import org.vitrivr.cottontail.database.queries.components.AtomicBooleanPredicate
 import org.vitrivr.cottontail.database.queries.components.ComparisonOperator
 import org.vitrivr.cottontail.database.queries.components.Predicate
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
-import org.vitrivr.cottontail.database.schema.Schema
 import org.vitrivr.cottontail.model.basics.CloseableIterator
 import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
@@ -40,7 +40,7 @@ import java.nio.file.Path
  * @author Luca Rossetto & Ralph Gasser
  * @version 1.2.2
  */
-class NonUniqueHashIndex(override val name: Name.IndexName, override val parent: Entity, override val columns: Array<ColumnDef<*>>) : Index() {
+class NonUniqueHashIndex(override val name: Name.IndexName, override val catalogue: Catalogue, override val columns: Array<ColumnDef<*>>) : Index() {
     /**
      * Index-wide constants.
      */
@@ -50,7 +50,7 @@ class NonUniqueHashIndex(override val name: Name.IndexName, override val parent:
     }
 
     /** Path to the [NonUniqueHashIndex] file. */
-    override val path: Path = this.parent.path.resolve("idx_nu_$name.db")
+    override val path: Path = this.catalogue.indexForName(this.name).path
 
     /** The type of [Index] */
     override val type: IndexType = IndexType.HASH_UQ
@@ -62,7 +62,7 @@ class NonUniqueHashIndex(override val name: Name.IndexName, override val parent:
     override val produces: Array<ColumnDef<*>> = this.columns
 
     /** The internal database reference. */
-    private val db = if (parent.parent.parent.config.memoryConfig.forceUnmapMappedFiles) {
+    private val db = if (this.catalogue.config.memoryConfig.forceUnmapMappedFiles) {
         DBMaker.fileDB(this.path.toFile()).fileMmapEnable().cleanerHackEnable().transactionEnable().make()
     } else {
         DBMaker.fileDB(this.path.toFile()).fileMmapEnable().transactionEnable().make()

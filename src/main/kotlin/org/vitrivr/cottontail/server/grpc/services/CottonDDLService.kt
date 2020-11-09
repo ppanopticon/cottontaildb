@@ -4,6 +4,7 @@ import io.grpc.Status
 import io.grpc.stub.StreamObserver
 import org.slf4j.LoggerFactory
 import org.vitrivr.cottontail.database.catalogue.Catalogue
+import org.vitrivr.cottontail.database.column.ColumnDriver
 import org.vitrivr.cottontail.database.column.ColumnType
 import org.vitrivr.cottontail.database.index.IndexType
 import org.vitrivr.cottontail.grpc.CottonDDLGrpc
@@ -16,7 +17,7 @@ import org.vitrivr.cottontail.server.grpc.helper.fqn
  * This is a gRPC service endpoint that handles DDL (=Data Definition Language) request for Cottontail DB.
  *
  * @author Ralph Gasser
- * @version 1.1.1
+ * @version 1.1.2
  */
 class CottonDDLService(val catalogue: Catalogue) : CottonDDLGrpc.CottonDDLImplBase() {
     /** Logger used for logging the output. */
@@ -68,7 +69,7 @@ class CottonDDLService(val catalogue: Catalogue) : CottonDDLGrpc.CottonDDLImplBa
      * gRPC endpoint listing the available [Schema][org.vitrivr.cottontail.database.schema.Schema]s.
      */
     override fun listSchemas(request: CottontailGrpc.Empty, responseObserver: StreamObserver<CottontailGrpc.Schema>) = try {
-        this.catalogue.schemas.forEach {
+        this.catalogue.allSchemas().forEach {
             responseObserver.onNext(CottontailGrpc.Schema.newBuilder().setName(it.simple).build())
         }
         responseObserver.onCompleted()
@@ -87,13 +88,12 @@ class CottonDDLService(val catalogue: Catalogue) : CottonDDLGrpc.CottonDDLImplBa
     override fun createEntity(request: CottontailGrpc.EntityDefinition, responseObserver: StreamObserver<CottontailGrpc.Status>) = try {
         val entityName = request.entity.fqn()
         LOGGER.trace("Creating entity {}...", entityName)
-        val schema = this.catalogue.schemaForName(entityName.schema())
         val columns = request.columnsList.map {
             val type = ColumnType.forName(it.type.name)
             val name = entityName.column(it.name)
-            ColumnDef(name, type, it.length, it.nullable)
+            Pair(ColumnDef(name, type, it.length, it.nullable), ColumnDriver.valueOf(it.engine.name))
         }
-        schema.createEntity(entityName, *columns.toTypedArray())
+        this.catalogue.createEntity(entityName, *columns.toTypedArray())
         responseObserver.onNext(CottontailGrpc.Status.newBuilder().setSuccess(true).setTimestamp(System.currentTimeMillis()).build())
         responseObserver.onCompleted()
     } catch (e: DatabaseException.SchemaDoesNotExistException) {
@@ -112,11 +112,14 @@ class CottonDDLService(val catalogue: Catalogue) : CottonDDLGrpc.CottonDDLImplBa
 
     override fun entityDetails(request: CottontailGrpc.Entity, responseObserver: StreamObserver<CottontailGrpc.EntityDefinition>) = try {
         val entityName = request.fqn()
-        val entity = this.catalogue.schemaForName(entityName.schema()).entityForName(entityName)
         val def = CottontailGrpc.EntityDefinition.newBuilder().setEntity(request)
-        for (c in entity.allColumns()) {
-            def.addColumns(CottontailGrpc.ColumnDefinition.newBuilder().setName(c.name.simple).setNullable(c.nullable).setLength(c.logicalSize).setType(CottontailGrpc.Type.valueOf(c.type.name)))
+        this.catalogue.allColumns().filter {
+            it.entity() == entityName
+        }.forEach {
+            val c = this.catalogue.columnForName(it)
+            def.addColumns(CottontailGrpc.ColumnDefinition.newBuilder().setName(it.simple).setNullable(c.nullable).setLength(c.logicalSize).setType(CottontailGrpc.Type.valueOf(c.type.name)))
         }
+
         responseObserver.onNext(def.build())
         responseObserver.onCompleted()
     } catch (e: DatabaseException.SchemaDoesNotExistException) {
@@ -139,7 +142,7 @@ class CottonDDLService(val catalogue: Catalogue) : CottonDDLGrpc.CottonDDLImplBa
     override fun dropEntity(request: CottontailGrpc.Entity, responseObserver: StreamObserver<CottontailGrpc.Status>) = try {
         val entityName = request.fqn()
         LOGGER.trace("Dropping entity {}...", entityName)
-        this.catalogue.schemaForName(entityName.schema()).dropEntity(entityName)
+        this.catalogue.dropEntity(entityName)
         responseObserver.onNext(CottontailGrpc.Status.newBuilder().setSuccess(true).setTimestamp(System.currentTimeMillis()).build())
         responseObserver.onCompleted()
     } catch (e: DatabaseException.SchemaDoesNotExistException) {
@@ -163,7 +166,9 @@ class CottonDDLService(val catalogue: Catalogue) : CottonDDLGrpc.CottonDDLImplBa
     override fun listEntities(request: CottontailGrpc.Schema, responseObserver: StreamObserver<CottontailGrpc.Entity>) = try {
         val schemaName = request.fqn()
         val builder = CottontailGrpc.Entity.newBuilder()
-        this.catalogue.schemaForName(schemaName).entities.forEach {
+        this.catalogue.allEntities().filter {
+            it.schema() == schemaName
+        }.forEach {
             responseObserver.onNext(builder.setName(it.simple).setSchema(request).build())
         }
         responseObserver.onCompleted()
@@ -184,7 +189,7 @@ class CottonDDLService(val catalogue: Catalogue) : CottonDDLGrpc.CottonDDLImplBa
     override fun createIndex(request: CottontailGrpc.IndexDefinition, responseObserver: StreamObserver<CottontailGrpc.Status>) = try {
         LOGGER.trace("Creating index {}", request)
         val indexName = request.index.fqn()
-        val entity = this.catalogue.schemaForName(indexName.schema()).entityForName(indexName.entity())
+        val entity = this.catalogue.instantiateEntity(indexName.entity())
         val columns = request.columnsList.map {
             val columnName = indexName.entity().column(it)
             entity.columnForName(columnName)
@@ -192,7 +197,7 @@ class CottonDDLService(val catalogue: Catalogue) : CottonDDLGrpc.CottonDDLImplBa
         }.toTypedArray()
 
         /* Creates and updates the index. */
-        entity.createIndex(indexName, IndexType.valueOf(request.index.type.toString()), columns, request.paramsMap)
+        this.catalogue.createIndex(indexName, IndexType.valueOf(request.index.type.toString()), columns, request.paramsMap)
 
         /* Notify caller of success. */
         responseObserver.onNext(CottontailGrpc.Status.newBuilder().setSuccess(true).setTimestamp(System.currentTimeMillis()).build())
@@ -224,7 +229,7 @@ class CottonDDLService(val catalogue: Catalogue) : CottonDDLGrpc.CottonDDLImplBa
     override fun dropIndex(request: CottontailGrpc.Index, responseObserver: StreamObserver<CottontailGrpc.Status>) = try {
         val indexName = request.fqn()
         LOGGER.trace("Dropping index {}", indexName)
-        this.catalogue.schemaForName(indexName.schema()).entityForName(indexName.entity()).dropIndex(indexName)
+        this.catalogue.dropIndex(indexName)
 
         /* Notify caller of success. */
         responseObserver.onNext(CottontailGrpc.Status.newBuilder().setSuccess(true).setTimestamp(System.currentTimeMillis()).build())
@@ -255,7 +260,7 @@ class CottonDDLService(val catalogue: Catalogue) : CottonDDLGrpc.CottonDDLImplBa
         LOGGER.trace("Rebuilding index {}", indexName)
 
         /* Update index. */
-        this.catalogue.schemaForName(indexName.schema()).entityForName(indexName.entity()).updateIndex(indexName)
+        this.catalogue.instantiateEntity(indexName.entity()).updateIndex(indexName)
 
         /* Notify caller of success. */
         responseObserver.onNext(CottontailGrpc.Status.newBuilder().setSuccess(true).setTimestamp(System.currentTimeMillis()).build())
@@ -285,13 +290,15 @@ class CottonDDLService(val catalogue: Catalogue) : CottonDDLGrpc.CottonDDLImplBa
         val entityName = request.fqn()
 
         /* Get entity and stream available index structures. */
-        val entity = this.catalogue.schemaForName(entityName.schema()).entityForName(entityName)
-        entity.allIndexes().forEach {
-            val index = CottontailGrpc.Index.newBuilder()
-                    .setName(it.name.simple)
-                    .setType(CottontailGrpc.IndexType.valueOf(it.type.name))
-                    .setEntity(CottontailGrpc.Entity.newBuilder().setName(entity.name.simple).setSchema(CottontailGrpc.Schema.newBuilder().setName(entity.parent.name.simple)))
-            responseObserver.onNext(index.build())
+        this.catalogue.allIndexes().filter {
+            it.entity() == entityName
+        }.forEach {
+            val index = this.catalogue.indexForName(it)
+            val message = CottontailGrpc.Index.newBuilder()
+                    .setName(it.simple)
+                    .setType(CottontailGrpc.IndexType.valueOf(index.type.name))
+                    .setEntity(request)
+            responseObserver.onNext(message.build())
         }
 
         /* Notify caller of success. */
@@ -317,8 +324,8 @@ class CottonDDLService(val catalogue: Catalogue) : CottonDDLGrpc.CottonDDLImplBa
     override fun optimizeEntity(request: CottontailGrpc.Entity, responseObserver: StreamObserver<CottontailGrpc.Status>) = try {
         val entityName = request.fqn()
 
-        /* Update indexes. */
-        this.catalogue.schemaForName(entityName.schema()).entityForName(entityName).updateAllIndexes()
+        /* Update all indexes. */
+        this.catalogue.instantiateEntity(entityName).updateAllIndexes()
 
         /* Notify caller of success. */
         responseObserver.onNext(CottontailGrpc.Status.newBuilder().setSuccess(true).setTimestamp(System.currentTimeMillis()).build())

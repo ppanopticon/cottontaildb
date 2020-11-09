@@ -1,6 +1,7 @@
 package org.vitrivr.cottontail.database.column.hare
 
 import org.vitrivr.cottontail.config.MemoryConfig
+import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.column.Column
 import org.vitrivr.cottontail.database.column.ColumnCursor
 import org.vitrivr.cottontail.database.column.ColumnTransaction
@@ -39,24 +40,27 @@ import java.util.concurrent.locks.StampedLock
  * @author Ralph Gasser
  * @version 1.0.0
  */
-class HareColumn<T : Value>(override val name: Name.ColumnName, override val parent: Entity) : Column<T> {
+class HareColumn<T : Value>(override val name: Name.ColumnName, override val catalogue: Catalogue) : Column<T> {
 
     companion object {
         /**
-         * Initializes a new, empty [HareColumn]
+         * Initializes a new, empty [MapDBColumn]
          *
          * @param definition The [ColumnDef] that specified the [MapDBColumn]
-         * @param path The path in which to create the [HareColumn]
+         * @param location The [Path] in which the [MapDBColumn] will be stored.
          * @param config The [MemoryConfig] used to initialize the [MapDBColumn]
+         *
+         * @return The [Path] of the [HareColumn]
          */
-        fun initialize(definition: ColumnDef<*>, path: Path, config: MemoryConfig) {
-            FixedHareColumnFile.createDirect(path.resolve("${definition.name.simple}.${HareColumnFile.SUFFIX}"), definition)
+        fun initialize(definition: ColumnDef<*>, location: Path, config: MemoryConfig): Path {
+            val path = location.resolve("${definition.name.simple}.${HareColumnFile.SUFFIX}")
+            FixedHareColumnFile.createDirect(path, definition)
+            return path
         }
     }
 
-
-    /** The [Path] to the [HareColumn]'s main file. */
-    override val path: Path = this.parent.path.resolve("${name.simple}.${HareColumnFile.SUFFIX}")
+    /** The [Path] to the file backing this [MapDBColumn]. */
+    override val path: Path = this.catalogue.columnForName(this.name).path
 
     /** The [FixedHareColumnFile] that backs this [HareColumn]. */
     private val column = FixedHareColumnFile<T>(this.path, false)

@@ -4,6 +4,7 @@ import org.mapdb.DBMaker
 import org.mapdb.HTreeMap
 import org.mapdb.Serializer
 import org.slf4j.LoggerFactory
+import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.column.Column
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.events.DataChangeEvent
@@ -15,7 +16,7 @@ import org.vitrivr.cottontail.database.queries.components.AtomicBooleanPredicate
 import org.vitrivr.cottontail.database.queries.components.ComparisonOperator
 import org.vitrivr.cottontail.database.queries.components.Predicate
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
-import org.vitrivr.cottontail.database.schema.Schema
+
 import org.vitrivr.cottontail.model.basics.*
 import org.vitrivr.cottontail.model.exceptions.QueryException
 import org.vitrivr.cottontail.model.exceptions.ValidationException
@@ -30,14 +31,13 @@ import java.nio.file.Path
  * Represents an index in the Cottontail DB data model. An [Index] belongs to an [Entity] and can be used to index one to many
  * [Column]s. Usually, [Index]es allow for faster data access. They process [Predicate]s and return [Recordset]s.
  *
- * @see Schema
  * @see Column
  * @see Entity.Tx
  *
  * @author Ralph Gasser
- * @version 1.2.2
+ * @version 1.2.3
  */
-class UniqueHashIndex(override val name: Name.IndexName, override val parent: Entity, override val columns: Array<ColumnDef<*>>) : Index() {
+class UniqueHashIndex(override val name: Name.IndexName, override val catalogue: Catalogue, override val columns: Array<ColumnDef<*>>) : Index() {
 
     /**
      * Index-wide constants.
@@ -48,7 +48,7 @@ class UniqueHashIndex(override val name: Name.IndexName, override val parent: En
     }
 
     /** Path to the [UniqueHashIndex] file. */
-    override val path: Path = this.parent.path.resolve("idx_$name.db")
+    override val path: Path = this.catalogue.indexForName(this.name).path
 
     /** The type of [Index] */
     override val type: IndexType = IndexType.HASH_UQ
@@ -60,7 +60,7 @@ class UniqueHashIndex(override val name: Name.IndexName, override val parent: En
     override val produces: Array<ColumnDef<*>> = this.columns
 
     /** The internal database reference. */
-    private val db = if (parent.parent.parent.config.memoryConfig.forceUnmapMappedFiles) {
+    private val db = if (this.catalogue.config.memoryConfig.forceUnmapMappedFiles) {
         DBMaker.fileDB(this.path.toFile()).fileMmapEnable().transactionEnable().make()
     } else {
         DBMaker.fileDB(this.path.toFile()).fileMmapEnable().transactionEnable().make()

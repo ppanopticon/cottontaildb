@@ -60,13 +60,11 @@ open class DatabaseException(message: String) : Throwable(message) {
     class IndexNotSupportedException(val index: Name.IndexName, val reason: String) : DatabaseException("Index '$index' could not be created: $reason")
 
     /**
-     * Thrown upon creation of an [Entity][org.vitrivr.cottontail.database.entity.Entity]
-     * if the definition contains duplicate column names.
+     * Thrown upon creation of an [Entity][org.vitrivr.cottontail.database.entity.Entity] if a duplicate column name is encountered.
      *
-     * @param entity [Name] of the affected [Entity][org.vitrivr.cottontail.database.entity.Entity]
-     * @param columns [Name] of the [Column][org.vitrivr.cottontail.database.column.Column]s in the definition.
+     * @param column [Name.ColumnName] of the [Column][org.vitrivr.cottontail.database.column.Column]s in the definition.
      */
-    class DuplicateColumnException(entity: Name.EntityName, columns: Collection<Name>) : DatabaseException("Entity '$entity' could not be created because it contains duplicate column names (c=[${columns.joinToString(",")}])!")
+    class DuplicateColumnException(column: Name.ColumnName) : DatabaseException("Column $column could not be created because a duplicate entry was encountered!")
 
     /**
      * Thrown whenever trying to access a [Column][org.vitrivr.cottontail.database.column.Column]

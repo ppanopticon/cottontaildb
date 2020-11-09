@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.database.column.mapdb
 
 import org.mapdb.*
 import org.vitrivr.cottontail.config.MemoryConfig
+import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.column.Column
 import org.vitrivr.cottontail.database.column.ColumnCursor
 import org.vitrivr.cottontail.database.column.ColumnTransaction
@@ -33,20 +34,19 @@ import java.util.concurrent.locks.StampedLock
  * @param <T> Type of the value held by this [MapDBColumn].
  *
  * @author Ralph Gasser
- * @version 1.4.0
+ * @version 1.4.1
  */
-class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val parent: Entity) : Column<T> {
-
-    /** The [Path] to the [Entity]'s main folder. */
-    override val path: Path = parent.path.resolve("col_${name.simple}.db")
+class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val catalogue: Catalogue) : Column<T> {
+    /** The [Path] to the file backing this [MapDBColumn]. */
+    override val path: Path = this.catalogue.columnForName(this.name).path
 
     /** Internal reference to the [Store] underpinning this [MapDBColumn]. */
     private var store: CottontailStoreWAL = try {
         CottontailStoreWAL.make(
                 file = this.path.toString(),
-                volumeFactory = this.parent.parent.parent.config.memoryConfig.volumeFactory,
-                allocateIncrement = (1L shl this.parent.parent.parent.config.memoryConfig.dataPageShift),
-                fileLockWait = this.parent.parent.parent.config.lockTimeout
+                volumeFactory = this.catalogue.config.memoryConfig.volumeFactory,
+                allocateIncrement = (1L shl this.catalogue.config.memoryConfig.dataPageShift),
+                fileLockWait = this.catalogue.config.lockTimeout
         )
     } catch (e: DBException) {
         throw DatabaseException("Failed to open column at '$path': ${e.message}'")
@@ -107,19 +107,21 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val pa
         /**
          * Initializes a new, empty [MapDBColumn]
          *
-         * @param parent The folder that contains the data file
          * @param definition The [ColumnDef] that specified the [MapDBColumn]
+         * @param location The [Path] in which the [MapDBColumn] will be stored.
          * @param config The [MemoryConfig] used to initialize the [MapDBColumn]
+         *
+         * @return The [Path] of the [MapDBColumn]
          */
-        fun initialize(definition: ColumnDef<*>, path: Path, config: MemoryConfig) {
-            val store = StoreWAL.make(
-                    file = path.resolve("col_${definition.name.simple}.db").toString(),
-                    volumeFactory = config.volumeFactory,
-                    allocateIncrement = 1L shl config.dataPageShift
-            )
+        fun initialize(definition: ColumnDef<*>, location: Path, config: MemoryConfig): Path {
+            /* Prepare store. */
+            val path = location.resolve("col_${definition.name.simple}.db")
+            val store = StoreWAL.make(file = path.toString(), volumeFactory = config.volumeFactory, allocateIncrement = 1L shl config.dataPageShift)
             store.put(ColumnHeader(type = definition.type, size = definition.logicalSize, nullable = definition.nullable), ColumnHeaderSerializer)
             store.commit()
             store.close()
+
+            return path
         }
     }
 

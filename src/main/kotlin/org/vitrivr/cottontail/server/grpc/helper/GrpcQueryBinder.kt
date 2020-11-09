@@ -32,7 +32,7 @@ import org.vitrivr.cottontail.model.values.*
  * 3) A [LogicalNodeExpression] tree is constructed from the internal query objects.
  *
  * @author Ralph Gasser
- * @version 1.2.1
+ * @version 1.2.2
  */
 class GrpcQueryBinder(val catalogue: Catalogue) {
     /**
@@ -193,12 +193,12 @@ class GrpcQueryBinder(val catalogue: Catalogue) {
         when (from.fromCase) {
             CottontailGrpc.From.FromCase.ENTITY -> {
                 val entityName = from.entity.fqn()
-                val entity = this.catalogue.schemaForName(entityName.schema()).entityForName(entityName)
+                val entity = this.catalogue.instantiateEntity(entityName)
                 Pair(entity, EntityScanLogicalNodeExpression(entity = entity))
             }
             CottontailGrpc.From.FromCase.SAMPLE -> {
                 val entityName = from.sample.entity.fqn()
-                val entity = this.catalogue.schemaForName(entityName.schema()).entityForName(entityName)
+                val entity = this.catalogue.instantiateEntity(entityName)
                 Pair(entity, EntitySampleLogicalNodeExpression(entity = entity, size = from.sample.size, seed = from.sample.seed))
             }
             else -> throw QueryException.QuerySyntaxException("Invalid FROM-clause in query.")
@@ -440,7 +440,7 @@ class GrpcQueryBinder(val catalogue: Catalogue) {
                     }
                 }
                 3 -> {
-                    if (split[0] == entity.parent.name.simple && split[1] == entity.name.simple) {
+                    if (split[0] == entity.name.schema().simple && split[1] == entity.name.simple) {
                         val columnName = entity.name.column(split[2])
                         if (columnName.wildcard) {
                             fields.add(Pair(columnName, null as Name.ColumnName?))

@@ -7,7 +7,6 @@ import org.vitrivr.cottontail.database.general.Transaction
 import org.vitrivr.cottontail.database.general.TransactionStatus
 import org.vitrivr.cottontail.database.queries.components.Predicate
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
-import org.vitrivr.cottontail.database.schema.Schema
 import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.exceptions.TransactionException
@@ -20,12 +19,11 @@ import java.util.concurrent.locks.StampedLock
  * Represents an [Index] structure in the Cottontail DB data model. An [Index] belongs to an [Entity]
  * and can be used to index one to many [Column]s. Usually, [Index]es allow for faster data access.
  *
- * @see Schema
  * @see Column
  * @see Entity.Tx
  *
  * @author Ralph Gasser
- * @version 1.6
+ * @version 1.6.1
  */
 abstract class Index : DBO {
 
@@ -37,9 +35,6 @@ abstract class Index : DBO {
 
     /** The [Name.IndexName] of this [Index]. */
     abstract override val name: Name.IndexName
-
-    /** Reference to the [Entity], this [Index] belongs to. */
-    abstract override val parent: Entity
 
     /** The [ColumnDef] that are covered (i.e. indexed) by this [Index]. */
     abstract val columns: Array<ColumnDef<*>>

@@ -34,7 +34,7 @@ import java.util.concurrent.locks.StampedLock
  * @param <T> Type of the value held by this [MapDBColumn].
  *
  * @author Ralph Gasser
- * @version 1.4.1
+ * @version 1.4.2
  */
 class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val catalogue: Catalogue) : Column<T> {
     /** The [Path] to the file backing this [MapDBColumn]. */
@@ -52,7 +52,7 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val ca
         throw DatabaseException("Failed to open column at '$path': ${e.message}'")
     }
 
-    /** Internal reference to the [Header] of this [MapDBColumn]. */
+    /** Internal reference to the [ColumnHeader] of this [MapDBColumn]. */
     private val header
         get() = this.store.get(HEADER_RECORD_ID, ColumnHeaderSerializer)
                 ?: throw DatabaseException.DataCorruptionException("Failed to open header of column '$name'!'")
@@ -157,15 +157,15 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val ca
         override val columnDef: ColumnDef<T>
             get() = this@MapDBColumn.columnDef
 
-        /** Tries to acquire a global read-lock on the [MapDBColumn]. */
+        /** Tries to acquire a global read-lock on this column. */
         init {
             if (this@MapDBColumn.closed) {
-                throw TransactionException.TransactionDBOClosedException(tid)
+                throw TransactionException.TransactionDBOClosedException(this.tid)
             }
         }
 
         /** The [Serializer] used for de-/serialization of [MapDBColumn] entries. */
-        private val serializer = this@MapDBColumn.type.serializer(this@MapDBColumn.columnDef.logicalSize)
+        private val serializer = this@MapDBColumn.columnDef.type.serializer(this@MapDBColumn.columnDef.logicalSize)
 
         /** Obtains a global (non-exclusive) read-lock on [MapDBColumn]. Prevents enclosing [MapDBColumn] from being closed while this [MapDBColumn.Tx] is still in use. */
         private val globalStamp = this@MapDBColumn.globalLock.readLock()
@@ -272,7 +272,7 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val ca
             /** Acquires a read lock on the surrounding [MapDBColumn.Tx]*/
             private val lock = this@Tx.localLock.readLock()
 
-            /** Wraps a [RecordIdIterator] from the [MapDBColumn]. */
+            /** Wraps a [TupleId] iteratore internal to the store. */
             private val wrapped = this@MapDBColumn.store.RecordIdIterator(range)
 
             /** Flag indicating whether this [ColumnCursor] has been closed. */
@@ -329,7 +329,7 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val ca
                 val tupleId = if (record == null) {
                     this@MapDBColumn.store.preallocate()
                 } else {
-                    this@MapDBColumn.store.put(this@MapDBColumn.type.cast(record), this.serializer)
+                    this@MapDBColumn.store.put(this@MapDBColumn.columnDef.type.cast(record), this.serializer)
                 }
 
                 /* Update header. */

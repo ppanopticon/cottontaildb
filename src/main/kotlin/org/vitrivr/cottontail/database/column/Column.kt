@@ -8,7 +8,10 @@ import org.vitrivr.cottontail.model.values.types.Value
 import java.util.*
 
 /**
+ * A [Column] in Cottontail DB. [Column] are the data structures that hold the actual data  found in the database.
  *
+ * @author Ralph Gasser
+ * @version 1.1.0
  */
 interface Column<T: Value> : DBO {
     /**
@@ -17,14 +20,6 @@ interface Column<T: Value> : DBO {
      * @return [ColumnDef] for this [Column]
      */
     val columnDef: ColumnDef<T>
-
-    /**
-     * This [Column]'s type.
-     *
-     * @return The [ColumnType] of this [Column].
-     */
-    val type: ColumnType<T>
-        get() = this.columnDef.type
 
     /**
      * Size of the content of this [Column]. The size is -1 (undefined) for most type of [Column]s.

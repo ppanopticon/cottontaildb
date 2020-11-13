@@ -2,7 +2,6 @@ package org.vitrivr.cottontail.database.catalogue
 
 import org.mapdb.DB
 import org.mapdb.DBException
-import org.mapdb.DBMaker
 import org.vitrivr.cottontail.config.Config
 import org.vitrivr.cottontail.database.catalogue.entities.*
 import org.vitrivr.cottontail.database.catalogue.serializers.ColumnNameSerializer
@@ -19,7 +18,6 @@ import org.vitrivr.cottontail.database.index.IndexType
 import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
-import org.vitrivr.cottontail.utilities.math.BitUtil
 import java.io.IOException
 import java.lang.ref.SoftReference
 import java.nio.file.Files
@@ -74,8 +72,11 @@ class Catalogue(val config: Config) : DBO {
     /** Constant name of the [Catalogue] object. */
     override val name: Name.RootName = Name.RootName
 
-    /** Constant parent [DBO], which is null in case of the [Catalogue]. */
+    /** The [Catalogue] this [Catalogue] belongs to, which is always itself. */
     override val catalogue: Catalogue = this
+
+    /** Constant parent [DBO], which is null in case of the [Catalogue]. */
+    override val parent: DBO? = null
 
     /** A lock used to mediate access to this [Catalogue]. */
     private val lock = ReentrantReadWriteLock()
@@ -285,8 +286,8 @@ class Catalogue(val config: Config) : DBO {
                     throw DatabaseException.DuplicateColumnException(it.first.name)
                 }
                 val path = when (it.second) {
-                    ColumnDriver.MAPDB -> MapDBColumn.initialize(it.first, location, this.config.memoryConfig)
-                    ColumnDriver.HARE -> HareColumn.initialize(it.first, location, this.config.memoryConfig)
+                    ColumnDriver.MAPDB -> MapDBColumn.initialize(it.first, location, this.config.mapdb)
+                    ColumnDriver.HARE -> HareColumn.initialize(it.first, location, this.config.hare)
                 }
                 this.columns[it.first.name] = CatalogueColumn(path, it.first.type, it.first.logicalSize, it.first.nullable, it.second)
                 it.first.name
@@ -536,11 +537,7 @@ class Catalogue(val config: Config) : DBO {
      * @return [DB] object.
      */
     private fun openStore(): DB = try {
-        DBMaker.fileDB(this.path.resolve(FILE_CATALOGUE).toFile())
-                .fileChannelEnable()
-                .concurrencyScale(BitUtil.nextPowerOfTwo(Runtime.getRuntime().availableProcessors()))
-                .transactionEnable()
-                .make()
+        this.config.mapdb.db(this.path.resolve(FILE_CATALOGUE))
     } catch (e: DBException) {
         throw DatabaseException("Failed to open Cottontail DB catalogue: ${e.message}'.")
     }
@@ -560,12 +557,7 @@ class Catalogue(val config: Config) : DBO {
         }
 
         /* Create and initialize new store. */
-        val store = DBMaker.fileDB(this.path.resolve(FILE_CATALOGUE).toFile())
-                .fileChannelEnable()
-                .concurrencyScale(BitUtil.nextPowerOfTwo(Runtime.getRuntime().availableProcessors()))
-                .transactionEnable()
-                .make()
-
+        val store = this.config.mapdb.db(this.path.resolve(FILE_CATALOGUE))
         store.atomicVar(CATALOGUE_FIELD_NAME_HEADER, CatalogueHeader.Serializer, CatalogueHeader()).create()
         store.hashMap(CATALOGUE_FIELD_NAME_SCHEMAS, SchemaNameSerializer, CatalogueSchema.Serializer).counterEnable().create()
         store.hashMap(CATALOGUE_FIELD_NAME_ENTITES, EntityNameSerializer, CatalogueEntity.Serializer).counterEnable().create()

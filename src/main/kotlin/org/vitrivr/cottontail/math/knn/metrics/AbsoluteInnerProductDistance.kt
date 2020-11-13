@@ -1,12 +1,17 @@
 package org.vitrivr.cottontail.math.knn.metrics
 
+import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.model.values.DoubleValue
 import org.vitrivr.cottontail.model.values.types.VectorValue
 
 object AbsoluteInnerProductDistance : DistanceKernel {
-    /** Estimate of the cost required per vector component. */
-    override val cost = 3.0f
-    // todo: assess actual cost
+    /**
+     * Estimates of the cost incurred by applying this [CosineDistance] to a [VectorValue] of size [d].
+     *
+     * @param d The dimension to calculate the cost for.
+     * @return The estimated cost.
+     */
+    override fun costForDimension(d: Int): Float = 2.25f * Cost.COST_FLOP + (Cost.COST_FLOP / d)
 
     /**
      * Calculates the asolute value of the inner product between two [VectorValue]s.

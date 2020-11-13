@@ -8,11 +8,16 @@ import org.vitrivr.cottontail.model.values.types.VectorValue
  * these calculations should be using 'native' operations of the respective [VectorValue] implementation
  *
  * @author Ralph Gasser
- * @version 1.1
+ * @version 1.1.1
  */
 interface DistanceKernel {
-    /** Estimate of the cost required per vector component. */
-    val cost: Float
+    /**
+     * Estimates of the cost incurred by applying this [DistanceKernel] to a [VectorValue] of size [d].
+     *
+     * @param d The dimension to calculate the cost for.
+     * @return The estimated cost.
+     */
+    fun costForDimension(d: Int): Float
 
     /**
      * Calculates the distance between two [VectorValue]s.

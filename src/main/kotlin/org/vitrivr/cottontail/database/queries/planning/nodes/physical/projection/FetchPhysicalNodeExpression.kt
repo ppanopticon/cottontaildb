@@ -22,7 +22,7 @@ class FetchPhysicalNodeExpression(val entity: Entity, val fetch: Array<ColumnDef
         get() = this.input.outputSize
 
     override val cost: Cost
-        get() = Cost(this.outputSize * this.fetch.size * Cost.COST_DISK_ACCESS_READ, this.outputSize * Cost.COST_MEMORY_ACCESS_READ, 0.0f)
+        get() = Cost(this.outputSize * this.fetch.size * Cost.COST_DISK_ACCESS_READ, this.outputSize * Cost.COST_MEMORY_ACCESS, 0.0f)
 
     override fun copy() = FetchPhysicalNodeExpression(this.entity, this.fetch)
 

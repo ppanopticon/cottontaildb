@@ -1,17 +1,24 @@
 package org.vitrivr.cottontail.math.knn.metrics
 
+import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.model.values.DoubleValue
 import org.vitrivr.cottontail.model.values.types.VectorValue
 
 /**
  * Calculates the Hamming distance between to vectors.
  *
- * @version 1.0
+ * @version 1.0.1
  * @author Ralph Gasser
  */
 object HammingDistance : DistanceKernel {
-    override val cost = 1.0f
 
+    /**
+     * Estimates of the cost incurred by applying this [ManhattanDistance] to a [VectorValue] of size [d].
+     *
+     * @param d The dimension to calculate the cost for.
+     * @return The estimated cost.
+     */
+    override fun costForDimension(d: Int): Float = Cost.COST_MEMORY_ACCESS + Cost.COST_FLOP
 
     /**
      * Calculates the Hamming distance between two [VectorValue]s.

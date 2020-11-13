@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.math.knn.metrics
 
+import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.model.values.DoubleValue
 import org.vitrivr.cottontail.model.values.types.VectorValue
 
@@ -10,7 +11,14 @@ import org.vitrivr.cottontail.model.values.types.VectorValue
  * @author Ralph Gasser
  */
 object SquaredEuclidianDistance : DistanceKernel {
-    override val cost = 2.25f
+
+    /**
+     * Estimates of the cost incurred by applying this [SquaredEuclidianDistance] to a [VectorValue] of size [d].
+     *
+     * @param d The dimension to calculate the cost for.
+     * @return The estimated cost.
+     */
+    override fun costForDimension(d: Int): Float = 4.0f * Cost.COST_FLOP
 
     /**
      * Calculates the squared L2 distance between two [VectorValue]s.

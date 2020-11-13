@@ -1,6 +1,6 @@
 package org.vitrivr.cottontail.database.column.hare
 
-import org.vitrivr.cottontail.config.MemoryConfig
+import org.vitrivr.cottontail.config.HareConfig
 import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.column.Column
 import org.vitrivr.cottontail.database.column.ColumnCursor
@@ -46,18 +46,22 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val cat
         /**
          * Initializes a new, empty [MapDBColumn]
          *
-         * @param definition The [ColumnDef] that specified the [MapDBColumn]
-         * @param location The [Path] in which the [MapDBColumn] will be stored.
-         * @param config The [MemoryConfig] used to initialize the [MapDBColumn]
+         * @param definition The [ColumnDef] that specified the [HareColumnFile]
+         * @param location The [Path] in which the [HareColumnFile] will be stored.
+         * @param config The [HareConfig] used to initialize the [HareColumnFile]
          *
          * @return The [Path] of the [HareColumn]
          */
-        fun initialize(definition: ColumnDef<*>, location: Path, config: MemoryConfig): Path {
+        fun initialize(definition: ColumnDef<*>, location: Path, config: HareConfig): Path {
             val path = location.resolve("${definition.name.simple}.${HareColumnFile.SUFFIX}")
             FixedHareColumnFile.createDirect(path, definition)
             return path
         }
     }
+
+    /** Provides access to the [Entity] this [HareColumn] belongs to. */
+    override val parent: Entity
+        get() = this.catalogue.instantiateEntity(this.name.entity()!!)
 
     /** The [Path] to the file backing this [MapDBColumn]. */
     override val path: Path = this.catalogue.columnForName(this.name).path

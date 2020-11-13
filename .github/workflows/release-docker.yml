@@ -1,4 +1,4 @@
-name: Cottontail CI (Release)
+name: Publish Cottontail DB Docker Image
 
 on:
   push:
@@ -65,3 +65,5 @@ jobs:
 
         docker tag $IMAGE_NAME $IMAGE_ID:$VERSION
         docker push $IMAGE_ID:$VERSION
+
+

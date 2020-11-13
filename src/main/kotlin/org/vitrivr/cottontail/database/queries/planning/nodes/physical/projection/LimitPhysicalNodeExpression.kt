@@ -30,7 +30,7 @@ class LimitPhysicalNodeExpression(limit: Long, skip: Long) : UnaryPhysicalNodeEx
         get() = min((this.input.outputSize - this.skip), this.limit)
 
     override val cost: Cost
-        get() = Cost(cpu = this.outputSize * Cost.COST_MEMORY_ACCESS_READ)
+        get() = Cost(cpu = this.outputSize * Cost.COST_MEMORY_ACCESS)
 
     override fun copy() = LimitPhysicalNodeExpression(this.limit, this.skip)
 

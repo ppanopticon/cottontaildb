@@ -1,7 +1,6 @@
 package org.vitrivr.cottontail.storage.engine.hare.disk.direct
 
 import org.slf4j.LoggerFactory
-import org.vitrivr.cottontail.storage.engine.hare.DataCorruptionException
 import org.vitrivr.cottontail.storage.engine.hare.PageId
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
 import org.vitrivr.cottontail.storage.engine.hare.disk.HareDiskManager
@@ -34,7 +33,7 @@ class DirectHareDiskManager(path: Path, lockTimeout: Long = 5000, private val pr
         if (!this.header.properlyClosed) {
             LOGGER.warn("HARE file was not properly closed (file: ${this.path.fileName}). Validating file...")
             if (!this.validate()) {
-                throw DataCorruptionException("CRC32 checksum mismatch (file: ${this.path}, expected:${this.calculateChecksum()}, found: ${this.header.checksum}}).")
+                //throw DataCorruptionException("CRC32 checksum mismatch (file: ${this.path}, expected:${this.calculateChecksum()}, found: ${this.header.checksum}}).")
             }
         }
 

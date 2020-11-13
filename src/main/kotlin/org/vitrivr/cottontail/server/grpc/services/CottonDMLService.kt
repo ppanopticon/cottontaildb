@@ -161,57 +161,6 @@ class CottonDMLService(val catalogue: Catalogue, val engine: ExecutionEngine) : 
     }
 
     /**
-     * gRPC endpoint for handling TRUNCATE queries.
-     */
-    override fun truncate(request: CottontailGrpc.TruncateMessage, responseObserver: StreamObserver<CottontailGrpc.QueryResponseMessage>) = try {
-        /* Create a new execution context for the query. */
-        val context = this.engine.ExecutionContext()
-        val queryId = request.queryId.ifBlank { context.uuid.toString() }
-        val totalDuration = measureTime {
-            /* Bind query and create logical plan. */
-            val bindTimedValue = measureTimedValue {
-                this.binder.parseAndBindTruncate(request)
-            }
-            LOGGER.trace("Parsing & binding TRUNCATE $queryId took ${bindTimedValue.duration}.")
-
-            /* Plan query and create execution plan. */
-            val planningTime = measureTime {
-                val candidates = this.planner.plan(bindTimedValue.value)
-                if (candidates.isEmpty()) {
-                    responseObserver.onError(Status.INTERNAL.withDescription("TRUNCATE query execution failed because no valid execution plan could be produced").asException())
-                    return
-                }
-                val operator = candidates.minByOrNull { it.totalCost }!!.toOperator(context)
-                context.addOperator(ResultsSpoolerOperator(operator, context, queryId, 0, responseObserver))
-            }
-            LOGGER.trace("Planning TRUNCATE $queryId took $planningTime.")
-
-            /* Execute query. */
-            context.execute()
-        }
-
-        /* Complete query. */
-        responseObserver.onCompleted()
-        LOGGER.trace("Executing TRUNCATE ${context.uuid} took $totalDuration to complete.")
-    } catch (e: QueryException.QuerySyntaxException) {
-        LOGGER.error("Error while executing TRUNCATE $request", e)
-        responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("TRUNCATE syntax is invalid: ${e.message}").asException())
-    } catch (e: QueryException.QueryBindException) {
-        LOGGER.error("Error while executing TRUNCATE $request", e)
-        responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("TRUNCATE query binding failed: ${e.message}").asException())
-    } catch (e: ExecutionException) {
-        LOGGER.error("Error while executing TRUNCATE $request", e)
-        responseObserver.onError(Status.INTERNAL.withDescription("TRUNCATE execution failed: ${e.message}").asException())
-    } catch (e: DatabaseException) {
-        LOGGER.error("Error while executing TRUNCATE $request", e)
-        responseObserver.onError(Status.INTERNAL.withDescription("TRUNCATE execution failed failed because of a database error: ${e.message}").asException())
-    } catch (e: Throwable) {
-        LOGGER.error("Error while executing TRUNCATE $request", e)
-        responseObserver.onError(Status.UNKNOWN.withDescription("TRUNCATE execution failed failed because of an unknown error: ${e.message}").asException())
-    }
-
-
-    /**
      * gRPC endpoint for inserting data in a streaming mode; transactions will stay open until the caller explicitly completes or until an error occurs.
      * As new entities are being inserted, new transactions will be created and thus new locks will be acquired.
      */

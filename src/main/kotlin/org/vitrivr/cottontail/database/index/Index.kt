@@ -36,6 +36,10 @@ abstract class Index : DBO {
     /** The [Name.IndexName] of this [Index]. */
     abstract override val name: Name.IndexName
 
+    /** Provides access to the [Entity] this [Index] belongs to. */
+    override val parent: Entity
+        get() = this.catalogue.instantiateEntity(this.name.entity())
+
     /** The [ColumnDef] that are covered (i.e. indexed) by this [Index]. */
     abstract val columns: Array<ColumnDef<*>>
 

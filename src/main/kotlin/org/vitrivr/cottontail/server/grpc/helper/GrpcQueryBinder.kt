@@ -116,27 +116,6 @@ class GrpcQueryBinder(val catalogue: Catalogue) {
     }
 
     /**
-     * Binds the given [CottontailGrpc.TruncateMessage] to the database objects and thereby creates
-     * a tree of [LogicalNodeExpression]s.
-     *
-     * @param truncate The [CottontailGrpc.DeleteMessage] that should be bound.
-     * @return [LogicalNodeExpression]
-     *
-     * @throws QueryException.QuerySyntaxException If [CottontailGrpc.Query] is structurally incorrect.
-     */
-    fun parseAndBindTruncate(truncate: CottontailGrpc.TruncateMessage): LogicalNodeExpression {
-        /* Create SCAN-clause. */
-        val scanClause = parseAndBindSimpleFrom(truncate.from)
-        val entity: Entity = scanClause.first
-        val root: LogicalNodeExpression = scanClause.second
-
-        /* Create and return DELETE-clause. */
-        val del = DeleteLogicalNodeExpression(entity)
-        del.addInput(root)
-        return del
-    }
-
-    /**
      * Parses and binds a simple [CottontailGrpc.Query] without any joins and subselects and thereby
      * generates a tree of [LogicalNodeExpression]s.
      *

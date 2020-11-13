@@ -1,6 +1,6 @@
 package org.vitrivr.cottontail.database.index.hash
 
-import org.mapdb.DBMaker
+import org.mapdb.DB
 import org.mapdb.HTreeMap
 import org.mapdb.Serializer
 import org.slf4j.LoggerFactory
@@ -16,7 +16,6 @@ import org.vitrivr.cottontail.database.queries.components.AtomicBooleanPredicate
 import org.vitrivr.cottontail.database.queries.components.ComparisonOperator
 import org.vitrivr.cottontail.database.queries.components.Predicate
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
-
 import org.vitrivr.cottontail.model.basics.*
 import org.vitrivr.cottontail.model.exceptions.QueryException
 import org.vitrivr.cottontail.model.exceptions.ValidationException
@@ -59,20 +58,11 @@ class UniqueHashIndex(override val name: Name.IndexName, override val catalogue:
     /** The [UniqueHashIndex] implementation returns exactly the columns that is indexed. */
     override val produces: Array<ColumnDef<*>> = this.columns
 
-    /** The internal database reference. */
-    private val db = if (this.catalogue.config.memoryConfig.forceUnmapMappedFiles) {
-        DBMaker.fileDB(this.path.toFile()).fileMmapEnable().transactionEnable().make()
-    } else {
-        DBMaker.fileDB(this.path.toFile()).fileMmapEnable().transactionEnable().make()
-    }
+    /** The internal [DB] reference. */
+    private val db: DB = this.catalogue.config.mapdb.db(this.path)
 
     /** Map structure used for [UniqueHashIndex]. */
     private val map: HTreeMap<out Value, TupleId> = this.db.hashMap(MAP_FIELD_NAME, this.columns.first().type.serializer(this.columns.size), Serializer.LONG_PACKED).counterEnable().createOrOpen()
-
-    init {
-        /* Initial commit. */
-        this.db.commit()
-    }
 
     /**
      * Flag indicating if this [UniqueHashIndex] has been closed.
@@ -80,6 +70,10 @@ class UniqueHashIndex(override val name: Name.IndexName, override val catalogue:
     @Volatile
     override var closed: Boolean = false
         private set
+
+    init {
+        this.db.commit() /* Initial commit. */
+    }
 
     /**
      * Checks if the provided [Predicate] can be processed by this instance of [UniqueHashIndex]. [UniqueHashIndex] can be used to process IN and EQUALS
@@ -102,8 +96,8 @@ class UniqueHashIndex(override val name: Name.IndexName, override val catalogue:
      */
     override fun cost(predicate: Predicate): Cost = when {
         predicate !is AtomicBooleanPredicate<*> || predicate.columns.first() != this.columns[0] -> Cost.INVALID
-        predicate.operator == ComparisonOperator.EQUAL -> Cost(Cost.COST_DISK_ACCESS_READ, Cost.COST_MEMORY_ACCESS_READ, predicate.columns.map { it.physicalSize }.sum().toFloat())
-        predicate.operator == ComparisonOperator.IN -> Cost(Cost.COST_DISK_ACCESS_READ * predicate.values.size, Cost.COST_MEMORY_ACCESS_READ * predicate.values.size, predicate.columns.map { it.physicalSize }.sum().toFloat())
+        predicate.operator == ComparisonOperator.EQUAL -> Cost(Cost.COST_DISK_ACCESS_READ, Cost.COST_MEMORY_ACCESS, predicate.columns.map { it.physicalSize }.sum().toFloat())
+        predicate.operator == ComparisonOperator.IN -> Cost(Cost.COST_DISK_ACCESS_READ * predicate.values.size, Cost.COST_MEMORY_ACCESS * predicate.values.size, predicate.columns.map { it.physicalSize }.sum().toFloat())
         else -> Cost.INVALID
     }
 
@@ -230,9 +224,9 @@ class UniqueHashIndex(override val name: Name.IndexName, override val catalogue:
             /** Pre-fetched [Record]s that match the [Predicate]. */
             private val results = this.prepare()
 
-            /** Flag indicating whether this [CloseableIterator] is open and ready for use. */
+            /** Flag indicating whether this [CloseableIterator] has been closed. */
             @Volatile
-            override var isOpen = true
+            override var isOpen: Boolean = true
                 private set
 
             /**

@@ -5,11 +5,13 @@ import io.grpc.stub.StreamObserver
 import org.slf4j.LoggerFactory
 import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.queries.planning.CottontailQueryPlanner
+import org.vitrivr.cottontail.database.queries.planning.rules.logical.DeferredFetchAfterFilterRewriteRule
 import org.vitrivr.cottontail.database.queries.planning.rules.logical.DeferredFetchAfterKnnRewriteRule
 import org.vitrivr.cottontail.database.queries.planning.rules.logical.LeftConjunctionRewriteRule
 import org.vitrivr.cottontail.database.queries.planning.rules.logical.RightConjunctionRewriteRule
 import org.vitrivr.cottontail.database.queries.planning.rules.physical.implementation.*
 import org.vitrivr.cottontail.database.queries.planning.rules.physical.index.BooleanIndexScanRule
+import org.vitrivr.cottontail.database.queries.planning.rules.physical.index.KnnIndexScanRule
 import org.vitrivr.cottontail.database.queries.planning.rules.physical.pushdown.CountPushdownRule
 import org.vitrivr.cottontail.execution.ExecutionEngine
 import org.vitrivr.cottontail.execution.exceptions.ExecutionException
@@ -27,7 +29,7 @@ import kotlin.time.measureTimedValue
  * Implementation of [CottonDQLGrpc.CottonDQLImplBase], the gRPC endpoint for querying data in Cottontail DB.
  *
  * @author Ralph Gasser
- * @version 1.3
+ * @version 1.3.0
  */
 @ExperimentalTime
 class CottonDQLService(val catalogue: Catalogue, val engine: ExecutionEngine) : CottonDQLGrpc.CottonDQLImplBase() {
@@ -46,9 +48,11 @@ class CottonDQLService(val catalogue: Catalogue, val engine: ExecutionEngine) : 
             logicalRewriteRules = listOf(
                     LeftConjunctionRewriteRule,
                     RightConjunctionRewriteRule,
+                    DeferredFetchAfterFilterRewriteRule,
                     DeferredFetchAfterKnnRewriteRule
             ),
             physicalRewriteRules = listOf(
+                    KnnIndexScanRule,
                     BooleanIndexScanRule,
                     CountPushdownRule,
                     EntityScanImplementationRule,

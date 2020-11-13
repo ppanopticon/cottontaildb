@@ -14,7 +14,6 @@ import org.vitrivr.cottontail.math.knn.selection.MinHeapSelection
 import org.vitrivr.cottontail.math.knn.selection.MinSingleSelection
 import org.vitrivr.cottontail.math.knn.selection.Selection
 import org.vitrivr.cottontail.model.basics.ColumnDef
-import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.Record
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.DoubleValue
@@ -27,15 +26,14 @@ import org.vitrivr.cottontail.utilities.math.KnnUtilities
  * This is a [PipelineBreaker]
  *
  * @author Ralph Gasser
- * @version 1.1.0
+ * @version 1.1.1
  */
 class KnnOperator<T : VectorValue<*>>(parent: Operator, context: ExecutionEngine.ExecutionContext, val knn: KnnPredicate<T>) : PipelineBreaker(parent, context) {
 
     /** The columns produced by this [KnnOperator]. */
     override val columns: Array<ColumnDef<*>> = arrayOf(
             *this.parent.columns,
-            ColumnDef(this.knn.column.name.entity()?.column(KnnUtilities.DISTANCE_COLUMN_NAME)
-                    ?: Name.ColumnName(KnnUtilities.DISTANCE_COLUMN_NAME), KnnUtilities.DISTANCE_COLUMN_TYPE)
+            KnnUtilities.columnDef(this.knn.column.name.entity())
     )
 
     override fun prepareOpen() { /* NoOp */

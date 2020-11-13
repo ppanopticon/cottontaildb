@@ -74,6 +74,10 @@ class Entity(override val name: Name.EntityName, override val catalogue: Catalog
         }.toTypedArray())
     }.toMutableSet()
 
+    /** The parent of this [Entity], which is the [Catalogue]. */
+    override val parent: Catalogue
+        get() = this.catalogue
+
     /** Status indicating whether this [Entity] is open or closed. */
     @Volatile
     override var closed: Boolean = false

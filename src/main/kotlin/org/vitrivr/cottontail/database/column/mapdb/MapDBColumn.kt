@@ -1,7 +1,10 @@
 package org.vitrivr.cottontail.database.column.mapdb
 
-import org.mapdb.*
-import org.vitrivr.cottontail.config.MemoryConfig
+import org.mapdb.CottontailStoreWAL
+import org.mapdb.DBException
+import org.mapdb.Serializer
+import org.mapdb.Store
+import org.vitrivr.cottontail.config.MapDBConfig
 import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.column.Column
 import org.vitrivr.cottontail.database.column.ColumnCursor
@@ -40,14 +43,13 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val ca
     /** The [Path] to the file backing this [MapDBColumn]. */
     override val path: Path = this.catalogue.columnForName(this.name).path
 
+    /** Provides access to the [Entity] this [MapDBColumn] belongs to. */
+    override val parent: Entity
+        get() = this.catalogue.instantiateEntity(this.name.entity()!!)
+
     /** Internal reference to the [Store] underpinning this [MapDBColumn]. */
     private var store: CottontailStoreWAL = try {
-        CottontailStoreWAL.make(
-                file = this.path.toString(),
-                volumeFactory = this.catalogue.config.memoryConfig.volumeFactory,
-                allocateIncrement = (1L shl this.catalogue.config.memoryConfig.dataPageShift),
-                fileLockWait = this.catalogue.config.lockTimeout
-        )
+        this.catalogue.config.mapdb.store(this.path)
     } catch (e: DBException) {
         throw DatabaseException("Failed to open column at '$path': ${e.message}'")
     }
@@ -109,18 +111,17 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val ca
          *
          * @param definition The [ColumnDef] that specified the [MapDBColumn]
          * @param location The [Path] in which the [MapDBColumn] will be stored.
-         * @param config The [MemoryConfig] used to initialize the [MapDBColumn]
+         * @param config The [MapDBConfig] used to initialize the [MapDBColumn]
          *
          * @return The [Path] of the [MapDBColumn]
          */
-        fun initialize(definition: ColumnDef<*>, location: Path, config: MemoryConfig): Path {
+        fun initialize(definition: ColumnDef<*>, location: Path, config: MapDBConfig): Path {
             /* Prepare store. */
             val path = location.resolve("col_${definition.name.simple}.db")
-            val store = StoreWAL.make(file = path.toString(), volumeFactory = config.volumeFactory, allocateIncrement = 1L shl config.dataPageShift)
+            val store = config.store(path)
             store.put(ColumnHeader(type = definition.type, size = definition.logicalSize, nullable = definition.nullable), ColumnHeaderSerializer)
             store.commit()
             store.close()
-
             return path
         }
     }

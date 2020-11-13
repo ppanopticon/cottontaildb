@@ -321,7 +321,7 @@ class CottonDDLService(val catalogue: Catalogue) : CottonDDLGrpc.CottonDDLImplBa
     /**
      * gRPC endpoint for optimizing a particular entity. Currently just rebuilds all the indexes.
      */
-    override fun optimizeEntity(request: CottontailGrpc.Entity, responseObserver: StreamObserver<CottontailGrpc.Status>) = try {
+    override fun optimize(request: CottontailGrpc.Entity, responseObserver: StreamObserver<CottontailGrpc.Status>) = try {
         val entityName = request.fqn()
 
         /* Update all indexes. */
@@ -342,5 +342,39 @@ class CottonDDLService(val catalogue: Catalogue) : CottonDDLGrpc.CottonDDLImplBa
     } catch (e: Throwable) {
         LOGGER.error("Error while optimizing entity '${request.fqn()}'", e)
         responseObserver.onError(Status.UNKNOWN.withDescription("Failed to optimize entity '${request.fqn()}' because of an unknown error: ${e.message}").asException())
+    }
+
+    /**
+     * gRPC endpoint for handling TRUNCATE queries.
+     */
+    override fun truncate(request: CottontailGrpc.Entity, responseObserver: StreamObserver<CottontailGrpc.Status>) = try {
+        val entityName = request.fqn()
+        LOGGER.trace("Truncating entity {}...", entityName)
+
+        /* Drop and re-create entity. */
+        val entity = this.catalogue.entityForName(entityName)
+        val columns = entity.columns.map {
+            val column = this.catalogue.columnForName(it)
+            Pair(ColumnDef(it, column.type, column.logicalSize, column.nullable), column.driver)
+        }.toTypedArray()
+        this.catalogue.dropEntity(entityName)
+        this.catalogue.createEntity(entityName, *columns)
+
+        responseObserver.onNext(CottontailGrpc.Status.newBuilder().setSuccess(true).setTimestamp(System.currentTimeMillis()).build())
+        responseObserver.onCompleted()
+
+        LOGGER.trace("Truncating $entityName successfull!", request)
+    } catch (e: DatabaseException.SchemaDoesNotExistException) {
+        LOGGER.error("Error while truncating entity '${request.fqn()}'", e)
+        responseObserver.onError(Status.NOT_FOUND.withDescription("Schema '${request.schema.fqn()}' does not exist!").asException())
+    } catch (e: DatabaseException.EntityDoesNotExistException) {
+        LOGGER.error("Error while truncating entity '${request.fqn()}'", e)
+        responseObserver.onError(Status.NOT_FOUND.withDescription("Entity '${request.fqn()}' does not exist!").asException())
+    } catch (e: DatabaseException) {
+        LOGGER.error("Error while truncating entity '${request.fqn()}'", e)
+        responseObserver.onError(Status.UNKNOWN.withDescription("Failed to drop entity '${request.fqn()}' because of database error: ${e.message}").asException())
+    } catch (e: Throwable) {
+        LOGGER.error("Error while truncating entity '${request.fqn()}'", e)
+        responseObserver.onError(Status.UNKNOWN.withDescription("Failed to drop entity '${request.fqn()}' because of unknown error: ${e.message}").asException())
     }
 }

@@ -71,7 +71,7 @@ data class AtomicBooleanPredicate<T : Value>(private val column: ColumnDef<T>, v
     }
 
     /** The number of operations required by this [AtomicBooleanPredicate]. */
-    override val cost: Float = 3 * Cost.COST_MEMORY_ACCESS_READ
+    override val cost: Float = 3 * Cost.COST_MEMORY_ACCESS
 
     /** Set of [ColumnDef] that are affected by this [AtomicBooleanPredicate]. */
     override val columns: Set<ColumnDef<T>> = setOf(this.column)
@@ -151,7 +151,8 @@ data class KnnPredicate<T : VectorValue<*>>(val column: ColumnDef<T>, val k: Int
     override val columns: Set<ColumnDef<*>> = setOf(column)
 
     /** Cost required for applying this [KnnPredicate] to a single record. */
-    override val cost: Float = this.distance.cost * (this.query.size + (this.weights?.size ?: 0))
+    override val cost: Float = this.distance.costForDimension(this.query.first().logicalSize) * (this.query.size + (this.weights?.size
+            ?: 0))
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

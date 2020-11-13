@@ -1,17 +1,24 @@
 package org.vitrivr.cottontail.math.knn.metrics
 
+import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.model.values.DoubleValue
 import org.vitrivr.cottontail.model.values.types.VectorValue
 
 /**
  * Calculates the cosine distance, i.e. the angle, between two vectors.
  *
- * @version 1.0
+ * @version 1.0.1
  * @author Ralph Gasser
  */
 object CosineDistance : DistanceKernel {
 
-    override val cost = 5.00f
+    /**
+     * Estimates of the cost incurred by applying this [CosineDistance] to a [VectorValue] of size [d].
+     *
+     * @param d The dimension to calculate the cost for.
+     * @return The estimated cost.
+     */
+    override fun costForDimension(d: Int): Float = 6.0f * Cost.COST_FLOP + ((3.0f / d) * Cost.COST_FLOP)
 
     /**
      * Calculates the L2 distance between two [VectorValue]s.

@@ -5,10 +5,10 @@ import org.vitrivr.cottontail.utilities.serializers.PathSerializer
 import java.nio.file.Path
 
 /**
- * Cottntail DB configuration class.
+ * Cottontail DB configuration class.
  *
  * @author Ralph Gasser
- * @version 1.1
+ * @version 1.3.0
  */
 @Serializable
 data class Config(
@@ -19,15 +19,15 @@ data class Config(
         /** Flag indicating whether to start the CLI upon starting Cottontail DB.*/
         val cli: Boolean = true,
 
-        /** Default timeout for obtaining a file lock. */
-        val lockTimeout: Long = 1000L,
-
         /** Reference to [ServerConfig], which contains configuration regarding the gRPC server. */
-        val serverConfig: ServerConfig = ServerConfig(),
+        val server: ServerConfig = ServerConfig(),
 
-        /** Reference to [MemoryConfig], which contains configuration regarding the memory usage of Cottontail DB. */
-        val memoryConfig: MemoryConfig = MemoryConfig(),
+        /** Reference to [MapDBConfig], which contains configuration regarding the use of Map DB. */
+        val mapdb: MapDBConfig = MapDBConfig(),
+
+        /** Reference to [HareConfig], which contains configuration regarding the use of the HARE column format. */
+        val hare: HareConfig = HareConfig(),
 
         /** Reference to [ExecutionConfig], which contains configuration regarding query execution in Cottontail DB. */
-        val executionConfig: ExecutionConfig = ExecutionConfig()
+        val execution: ExecutionConfig = ExecutionConfig()
 )

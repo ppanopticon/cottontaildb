@@ -1,6 +1,6 @@
 package org.vitrivr.cottontail.database.index.lsh
 
-import org.mapdb.DBMaker
+import org.mapdb.DB
 import org.mapdb.HTreeMap
 import org.mapdb.Serializer
 import org.vitrivr.cottontail.database.catalogue.Catalogue
@@ -27,12 +27,8 @@ abstract class LSHIndex<T : VectorValue<*>>(final override val name: Name.IndexN
     /** The type of [Index] */
     override val type: IndexType = IndexType.LSH
 
-    /** The internal database reference. */
-    protected val db = if (this.catalogue.config.memoryConfig.forceUnmapMappedFiles) {
-        DBMaker.fileDB(this.path.toFile()).fileMmapEnable().cleanerHackEnable().transactionEnable().make()
-    } else {
-        DBMaker.fileDB(this.path.toFile()).fileMmapEnable().transactionEnable().make()
-    }
+    /** The internal [DB] reference. */
+    protected val db: DB = this.catalogue.config.mapdb.db(this.path)
 
     /** Map structure used for [LSHIndex]. Contains bucket ID and maps it to array of longs. */
     protected val map: HTreeMap<Int, LongArray> = this.db.hashMap(MAP_FIELD_NAME, Serializer.INTEGER, Serializer.LONG_ARRAY).counterEnable().createOrOpen()

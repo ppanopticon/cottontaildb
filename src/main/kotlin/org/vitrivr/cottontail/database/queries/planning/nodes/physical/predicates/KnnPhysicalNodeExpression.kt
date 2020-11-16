@@ -26,15 +26,15 @@ class KnnPhysicalNodeExpression(val knn: KnnPredicate<*>) : UnaryPhysicalNodeExp
 
     override fun copy() = KnnPhysicalNodeExpression(this.knn)
     override fun toOperator(context: ExecutionEngine.ExecutionContext): Operator {
-        val parallelisation = this.cost.parallelisation()
-        if (parallelisation > 1) {
-            return if (this.input.canBePartitioned) {
-                val hint = this.knn.hint
-                val partitions = if (hint is KnnPredicateHint.ParallelKnnPredicateHint) {
-                    this.input.partition(max(hint.min, min(context.availableThreads, hint.max)))
-                } else {
-                    this.input.partition(min(parallelisation, context.availableThreads))
-                }
+        val hint = this.knn.hint
+        val parallelisation = if (hint is KnnPredicateHint.ParallelKnnPredicateHint) {
+            max(hint.min, min(context.availableThreads, hint.max))
+        } else {
+            min(this.cost.parallelisation(), context.availableThreads)
+        }
+        return if (parallelisation > 1) {
+            if (this.input.canBePartitioned) {
+                val partitions = this.input.partition(parallelisation)
                 val operators = partitions.map {
                     it.toOperator(context)
                 }
@@ -43,7 +43,7 @@ class KnnPhysicalNodeExpression(val knn: KnnPredicate<*>) : UnaryPhysicalNodeExp
                 KnnOperator(this.input.toOperator(context), context, this.knn)
             }
         } else {
-            return KnnOperator(this.input.toOperator(context), context, this.knn)
+            KnnOperator(this.input.toOperator(context), context, this.knn)
         }
     }
 }

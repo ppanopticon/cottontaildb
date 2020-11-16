@@ -1,8 +1,8 @@
 {
   "root": "./cottontaildb-data",
   "mapdb": {
-    "mapDbEnableMmap": true,
-    "mapDbForceUnmap": true,
-    "mapDbPageShift": 22
+    "enableMmap": true,
+    "forceUnmap": true,
+    "pageShift": 22
   }
 }

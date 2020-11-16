@@ -38,6 +38,7 @@ class FixedHareColumnCursor<T : Value>(val file: FixedHareColumnFile<T>, private
         require(this.file.isOpen) { "FixedHareColumnFile has been closed (file = ${this.file.path})." }
         require(this.file.disk == this.bufferPool.disk) { "FixedHareColumnFile and provided BufferPool do not share the same HareDiskManager." }
 
+        /* Fetch header page. */
         val page = this.bufferPool.get(FixedHareColumnFile.ROOT_PAGE_ID, Priority.HIGH)
         val pageView = HeaderPageView(page).validate()
 
@@ -50,6 +51,9 @@ class FixedHareColumnCursor<T : Value>(val file: FixedHareColumnFile<T>, private
             this.start = 0L
             this.end = pageView.maxTupleId
         }
+
+        /* Release header page. */
+        page.release()
     }
 
     /**

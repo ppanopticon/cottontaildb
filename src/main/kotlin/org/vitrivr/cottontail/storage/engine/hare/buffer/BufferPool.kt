@@ -339,9 +339,6 @@ class BufferPool(val disk: HareDiskManager, val size: Int = 25, val evictionPoli
                 check(it != ReferenceCounted.REF_COUNT_DISPOSED) { "PageRef $this has been disposed and cannot be accessed anymore." }
                 it+1
             }
-            if (oldRefCount == 0) {
-                this@BufferPool.evictionQueue.removeCandidate(this)
-            }
             this.token.touch()
             this
         }
@@ -369,10 +366,11 @@ class BufferPool(val disk: HareDiskManager, val size: Int = 25, val evictionPoli
          *
          * @return true if [PageRef] was successfully prepared for eviction, false otherwise.
          */
-        internal fun dispose(): Boolean = this.evictionLock.write {
+        internal fun dispose(): Boolean = this.evictionLock.exclusive {
             return if (this._refCount.compareAndSet(0, ReferenceCounted.REF_COUNT_DISPOSED)) {
                 this@BufferPool.pageDirectory.remove(this.id)
-                if (this.dirty && this.id != -1L) {
+                if (this.dirty) {
+                    /* Update dirty pages. */
                     this@BufferPool.disk.update(this.id, this)
                 }
                 true

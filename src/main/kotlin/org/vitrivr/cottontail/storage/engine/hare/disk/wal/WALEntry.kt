@@ -33,7 +33,7 @@ class WALEntry : View {
     }
 
     /** The [ByteBuffer] backing this [WALEntry]. */
-    override val buffer: ByteBuffer = ByteBuffer.allocateDirect(SIZE)
+    override val buffer: ByteBuffer = ByteBuffer.allocate(SIZE)
 
     /** The sequence number of this [WALEntry]. */
     var sequenceNumber: Long

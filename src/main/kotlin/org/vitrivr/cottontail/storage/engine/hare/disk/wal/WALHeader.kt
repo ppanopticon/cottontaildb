@@ -51,7 +51,7 @@ class WALHeader : View {
     }
 
     /** The [ByteBuffer] backing this [WALHeader]. */
-    override val buffer: ByteBuffer = ByteBuffer.allocateDirect(SIZE)
+    override val buffer: ByteBuffer = ByteBuffer.allocate(SIZE)
 
     /** Type of the file containing this [WALHeader] (must be [FileType.WAL]). */
     val type: FileType

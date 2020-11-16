@@ -117,7 +117,7 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean) : HareColu
 
     /* Initialize important fields. */
     init {
-        val page = HarePage(ByteBuffer.allocateDirect(this.disk.pageSize))
+        val page = HarePage(ByteBuffer.allocate(this.disk.pageSize))
         this.disk.read(FixedHareColumnFile.ROOT_PAGE_ID, page)
         val header = HeaderPageView(page).validate()
         this.columnType = header.type as ColumnType<T>

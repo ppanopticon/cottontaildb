@@ -16,7 +16,7 @@ import java.nio.channels.FileChannel
  * @version 1.1.3
  * @author Ralph Gasser
  */
-class HareHeader(val direct: Boolean = false) : View {
+class HareHeader() : View {
     companion object {
         /** Constants. */
 
@@ -67,11 +67,7 @@ class HareHeader(val direct: Boolean = false) : View {
     }
 
     /** The [ByteBuffer] that backs this [HareHeader]. */
-    override val buffer: ByteBuffer = if (this.direct) {
-        ByteBuffer.allocate(SIZE)
-    } else {
-        ByteBuffer.allocateDirect(SIZE)
-    }
+    override val buffer: ByteBuffer = ByteBuffer.allocate(SIZE)
 
     /** Type of the file containing this [HareHeader] (must be [FileType.PAGE]). */
     val type: FileType

@@ -252,7 +252,7 @@ open class WriteAheadLog(private val manager: WALHareDiskManager, private val lo
      * Re-calculates the [CRC32C] checksum for this [WriteAheadLog].
      */
     private fun calculateChecksum() {
-        val buffer = ByteBuffer.allocateDirect(this.manager.pageSize)
+        val buffer = ByteBuffer.allocate(this.manager.pageSize)
         this.crc32.reset()
         this.fileChannel.position(WALHeader.SIZE.toLong())
         for (seq in 0L until this.walHeader.entries) {

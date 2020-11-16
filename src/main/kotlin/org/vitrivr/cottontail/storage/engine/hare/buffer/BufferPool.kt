@@ -15,7 +15,6 @@ import org.vitrivr.cottontail.storage.engine.hare.buffer.eviction.EvictionQueueT
 import org.vitrivr.cottontail.storage.engine.hare.disk.HareDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectHareDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
-import org.vitrivr.cottontail.storage.engine.hare.memory.MemoryManager
 import org.vitrivr.cottontail.utilities.extensions.exclusive
 import org.vitrivr.cottontail.utilities.extensions.read
 import org.vitrivr.cottontail.utilities.extensions.shared
@@ -44,10 +43,12 @@ class BufferPool(val disk: HareDiskManager, val size: Int = 25, val evictionPoli
     }
 
     /** Creates a new [MemoryManager.MemoryBlock] for this [BufferPool]. */
-    private val memory = MemoryManager.request(this.size shl this.disk.pageShift)
+    private val memory = ByteBuffer.allocate(this.size shl this.disk.pageShift)
 
     /** Array of [HarePage]s that are kept in memory. */
-    private val pages = this.memory.paged(this.disk.pageShift, this.size)
+    private val pages = Array<ByteBuffer>(this.size) {
+        this.memory.position(it shl this.disk.pageShift).limit((it+1) shl this.disk.pageShift).slice()
+    }
 
     /** The internal directory that maps [PageId]s to [PageReference]s.*/
     private val pageDirectory = Long2ObjectOpenHashMap<PageReference>()
@@ -73,7 +74,7 @@ class BufferPool(val disk: HareDiskManager, val size: Int = 25, val evictionPoli
         get() = this.disk.size
 
     /** The amount of memory used by this [BufferPool] to buffer [PageReference]s. */
-    val memorySize = this.memory.size
+    val memorySize = this.memory.capacity()
 
     /** Returns the total number of buffered [HarePage]s. */
     val bufferedPages
@@ -194,7 +195,6 @@ class BufferPool(val disk: HareDiskManager, val size: Int = 25, val evictionPoli
                     it.dispose()
                 }
             }
-            this.memory.release()
             this.closed = true
         }
     }

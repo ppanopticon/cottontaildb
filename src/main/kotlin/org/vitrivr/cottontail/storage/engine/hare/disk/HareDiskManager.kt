@@ -39,10 +39,10 @@ abstract class HareDiskManager(val path: Path, val lockTimeout: Long = 5000) : R
         const val MAX_PAGE_SHIFT = 22
 
         /** [ByteBuffer] containing a 0 byte. */
-        val EMPTY: ByteBuffer = ByteBuffer.allocateDirect(1)
+        val EMPTY: ByteBuffer = ByteBuffer.allocate(1)
 
         /** [ByteBuffer] containing [PageConstants.PAGE_TYPE_FREED]. */
-        val FREED: ByteBuffer = ByteBuffer.allocateDirect(4).putInt(PageConstants.PAGE_TYPE_FREED)
+        val FREED: ByteBuffer = ByteBuffer.allocate(4).putInt(PageConstants.PAGE_TYPE_FREED)
 
         /** Offsets. */
 
@@ -60,8 +60,8 @@ abstract class HareDiskManager(val path: Path, val lockTimeout: Long = 5000) : R
         fun create(path: Path, pageShift: Int = 18) {
             /* Prepare header data for page file in the HARE format. */
             val pageSize = 1 shl pageShift
-            val header = HareHeader(true).init(pageShift)
-            val stack = LongStack(ByteBuffer.allocateDirect(pageSize - HareHeader.SIZE)).init()
+            val header = HareHeader().init(pageShift)
+            val stack = LongStack(ByteBuffer.allocate(pageSize - HareHeader.SIZE)).init()
 
             /* Create parent directories. */
             if (Files.notExists(path.parent)) {
@@ -83,10 +83,10 @@ abstract class HareDiskManager(val path: Path, val lockTimeout: Long = 5000) : R
     protected val fileLock = FileUtilities.acquireFileLock(this.fileChannel, this.lockTimeout)
 
     /** Reference to the [HareHeader] of the HARE file managed by this [HareDiskManager]. */
-    protected val header = HareHeader(true).read(this.fileChannel, OFFSET_HEADER)
+    protected val header = HareHeader().read(this.fileChannel, OFFSET_HEADER)
 
     /** Reference to the [LongStack] of the HARE file managed by this [HareDiskManager]. */
-    protected val freePageStack: LongStack = LongStack(ByteBuffer.allocateDirect(this.pageSize - HareHeader.SIZE)).read(this.fileChannel, OFFSET_FREE_PAGE_STACK)
+    protected val freePageStack: LongStack = LongStack(ByteBuffer.allocate(this.pageSize - HareHeader.SIZE)).read(this.fileChannel, OFFSET_FREE_PAGE_STACK)
 
     /** A [ReentrantReadWriteLock] that mediates access to the closed state of this [HareDiskManager]. */
     protected val closeLock = StampedLock()
@@ -193,7 +193,7 @@ abstract class HareDiskManager(val path: Path, val lockTimeout: Long = 5000) : R
      * @return [CRC32C] object for this [HareDiskManager]
      */
     fun calculateChecksum(): Long {
-        val page = ByteBuffer.allocateDirect(this.header.pageSize)
+        val page = ByteBuffer.allocate(this.header.pageSize)
         val crc32 = CRC32C()
         for (i in 1L until this.pages) {
             this.fileChannel.read(page, this.pageIdToOffset(i))

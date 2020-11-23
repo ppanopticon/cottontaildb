@@ -67,7 +67,7 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val cat
     override val path: Path = this.catalogue.columnForName(this.name).path
 
     /** The [FixedHareColumnFile] that backs this [HareColumn]. */
-    private val column = FixedHareColumnFile<T>(this.path, false)
+    private val column = FixedHareColumnFile<T>(this.path)
 
     /** This [HareColumn]'s [ColumnDef]. */
     override val columnDef: ColumnDef<T> = ColumnDef(this.name, this.column.columnType, this.column.logicalSize, this.column.nullable)
@@ -120,7 +120,7 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val cat
         private val localLock = StampedLock()
 
         /** Shared [BufferPool] for this [Tx]. */
-        private val bufferPool = BufferPool(this@HareColumn.column.disk, 5, EvictionPolicy.LRU)
+        private val bufferPool = BufferPool(this@HareColumn.column.disk, this.tid, 5, EvictionPolicy.LRU)
 
         /** [FixedHareColumnReader] for this [Tx]. */
         private val reader = FixedHareColumnReader(this@HareColumn.column, this.bufferPool)
@@ -178,14 +178,8 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val cat
             /** Acquires a read lock on the surrounding [MapDBColumn.Tx]*/
             private val lock = this@Tx.localLock.readLock()
 
-            /** [BufferPool] instance used for this [ColumnCursor]. Uses [EvictionPolicy.FIFO]. */
-            private val bufferPool = BufferPool(this@HareColumn.column.disk, 5, EvictionPolicy.FIFO)
-
             /** [FixedHareColumnCursor] instance used for this [ColumnCursor]. */
-            private val cursor = FixedHareColumnCursor(this@HareColumn.column, this.bufferPool, range)
-
-            /** [FixedHareColumnReader] instance used for this [ColumnCursor]. */
-            private val reader = FixedHareColumnReader<T>(this@HareColumn.column, this.bufferPool)
+            private val cursor = FixedHareColumnCursor(this@HareColumn.column, this@Tx.bufferPool, range)
 
             /** Flag indicating whether this [ColumnCursor] has been closed. */
             override val isOpen: Boolean
@@ -212,7 +206,7 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val cat
              *
              * @return The value [T] at the position of this [ColumnCursor].
              */
-            override fun readThrough(): T? = this.reader.get(this.next())
+            override fun readThrough(): T? = this@Tx.reader.get(this.next())
 
             /**
              * Closes this [ColumnCursor] and releases all locks associated with it.
@@ -220,8 +214,6 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val cat
             override fun close() {
                 if (this.isOpen) {
                     this.cursor.close()
-                    this.reader.close()
-                    this.bufferPool.close()
                     this@Tx.localLock.unlockRead(this.lock)
                 }
             }
@@ -257,6 +249,12 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val cat
                     this.rollback()
                 }
                 this.status = TransactionStatus.CLOSED
+
+                /* Close reader & writer. */
+                this.reader.close()
+                this.writer.close()
+
+                /* Release locks. */
                 this@HareColumn.txLock.unlock(this.txStamp)
                 this@HareColumn.globalLock.unlockRead(this.globalStamp)
             }

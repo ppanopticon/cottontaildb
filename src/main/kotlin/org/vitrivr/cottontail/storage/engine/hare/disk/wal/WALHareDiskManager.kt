@@ -40,10 +40,41 @@ class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAl
 
     companion object {
         private val LOGGER = LoggerFactory.getLogger(WALHareDiskManager::class.java)
+
+        /** File suffix of a undo log file. */
+        private const val HARE_UNDO_LOG_SUFFIX = "uwal"
     }
 
     /** Reference to the [UndoLog]. The [UndoLog] is created whenever a write starts and removed on commit or rollback. */
     private val undoLogs = ConcurrentHashMap<TransactionId, UndoLog>()
+
+    init {
+        if (!this.header.properlyClosed || this.header.isDirty) {
+            /* Find open Redo WAL files. */
+            val matcher = FileSystems.getDefault().getPathMatcher("glob:*.$HARE_UNDO_LOG_SUFFIX")
+            Files.walk(this.path.parent, 1).use { stream ->
+                stream.forEach { path ->
+                    if (matcher.matches(path.fileName)) {
+                        val log = UndoLog(path, this.lockTimeout)
+                        this.undoLogs[log.tid] = log
+                    }
+                }
+            }
+
+            /* Check if there are dangling undo logs. */
+            if (this.undoLogs.size > 0) {
+                LOGGER.warn("HARE page file was found with unfinished transactions; starting recovery...")
+                this.recover()
+            } else if (!this.validate()) {
+                throw DataCorruptionException("CRC32C checksum mismatch (file: ${this.path}, expected:${this.calculateChecksum()}, found: ${this.header.checksum}}).")
+            }
+        }
+
+        /* Updates properly closed & dirty flag in header. */
+        this.header.isDirty = false
+        this.header.properlyClosed = false
+        this.header.write(this.fileChannel, OFFSET_HEADER)
+    }
 
     /**
      * Fetches the data identified by the given [PageId] into the given [Page] object thereby
@@ -95,12 +126,14 @@ class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAl
             check(this.fileChannel.isOpen) { "HARE page file write failed: Channel closed and cannot be used to write data (file: ${this.path})." }
 
             /* Obtain UndoLog object for transaction and lock it. */
-            val log = this.undoLogs.computeIfAbsent(tid) {
-                UndoLog(this.path.parent.resolve("${this.path.fileName}.$tid.uwal"), this.lockTimeout)
-            }
+            val log = this.getOrStartUndoLog(tid)
             log.logSnapshot(pageId)
 
+            /* Update header. */
+            this.header.isDirty = true
+
             /* Write changes to disk. */
+            this.header.write(this.fileChannel, OFFSET_HEADER)
             page.write(this.fileChannel, this.pageIdToOffset(pageId))
         }
     }
@@ -122,9 +155,7 @@ class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAl
             check(this.fileChannel.isOpen) { "HARE page file write failed: Channel closed and cannot be used to write data (file: ${this.path})." }
 
             /* Obtain UndoLog object for transaction and lock it. */
-            this.undoLogs.computeIfAbsent(tid) {
-                UndoLog(this.path.parent.resolve("${this.path.fileName}.$tid.uwal"), this.lockTimeout)
-            }
+            this.getOrStartUndoLog(tid)
 
             /* Pre-allocate pages if LongStack is empty. */
             if (this.freePageStack.entries == 0) {
@@ -164,9 +195,7 @@ class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAl
             require(!this.freePageStack.contains(pageId)) { "HARE page file write failed: Page ID $pageId has already been freed for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
 
             /* Obtain UndoLog object for transaction and log page snapshot. */
-            val log = this.undoLogs.computeIfAbsent(tid) {
-                UndoLog(this.path.parent.resolve("${this.path.fileName}.$tid.uwal"), this.lockTimeout)
-            }
+            val log = this.getOrStartUndoLog(tid)
             log.logSnapshot(pageId)
 
             /* Free page by adding page to free page stack. */
@@ -247,40 +276,6 @@ class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAl
     }
 
     /**
-     * Executed prior to opening a [WALHareDiskManager]; checks file consistency and starts recovery
-     * in the presence of dangling [UndoLog]s.
-     */
-    override fun prepareOpen() {
-        if (!this.header.properlyClosed || this.header.isDirty) {
-            /* Find open Redo WAL files. */
-            val matcher = FileSystems.getDefault().getPathMatcher("glob:*.redo")
-            Files.walk(this.path.parent, 0).use { stream ->
-                stream.forEach { path ->
-                    if (matcher.matches(path)) {
-                        val tid = path.fileName.toString().split('.')[1]
-                        this.undoLogs[UUID.fromString(tid)] = UndoLog(path, this.lockTimeout)
-                    }
-                }
-            }
-
-            /* Check if there are dangling undo logs. */
-            if (this.undoLogs.size > 0) {
-                LOGGER.warn("HARE page file was found with unfinished transactions; starting recovery...")
-                this.recover()
-            } else {
-                if (!this.validate()) {
-                    throw DataCorruptionException("CRC32C checksum mismatch (file: ${this.path}, expected:${this.calculateChecksum()}, found: ${this.header.checksum}}).")
-                }
-            }
-        }
-
-        /* Updates properly closed & dirty flag in header. */
-        this.header.isDirty = false
-        this.header.properlyClosed = false
-        this.header.write(this.fileChannel, OFFSET_HEADER)
-    }
-
-    /**
      * Closes the [UndoLog] associated with this [WALHareDiskManager].
      */
     override fun prepareClose() {
@@ -297,11 +292,51 @@ class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAl
         this.header.write(this.fileChannel, OFFSET_HEADER)
     }
 
+
+    /**
+     * Obtains or start an [UndoLog] for the given [TransactionId].
+     *
+     * @param tid [TransactionId] to obtain or start the [UndoLog] for.
+     * @return [UndoLog] for [TransactionId]
+     */
+    private fun getOrStartUndoLog(tid: TransactionId): UndoLog = this.undoLogs.computeIfAbsent(tid) {
+        val name = this.path.fileName.toString().split(".").first()
+        UndoLog(this.path.parent.resolve("$name.$tid.$HARE_UNDO_LOG_SUFFIX"), this.lockTimeout)
+    }
+
     /**
      * Performs recovery based on [UndoLog].
      */
-    private fun recover() {
+    private fun recover() = this.closeLock.shared {
+        check(this.fileChannel.isOpen) { "HARE page file recovery failed: Channel closed and cannot be used to write data (file: ${this.path})." }
+        for (log in this.undoLogs.values) {
+            when (log.state) {
+                WALState.COMMITTED -> {
+                    LOGGER.info("HARE page fil recovery: Removing dangling undo log for transaction ${log.tid}.")
+                    log.delete()
+                }
+                WALState.ABORTED -> {
+                    /* Apply undo log. */
+                    LOGGER.info("HARE page fil recovery: Rolling back aborted transaction ${log.tid}.")
+                    log.apply()
 
+                    /* Remove log and delete file. */
+                    log.delete()
+                }
+                WALState.LOGGING -> {
+                    /* Log presumed abort.*/
+                    LOGGER.info("HARE page fil recovery: Rolling back interrupted transaction ${log.tid} (presumed abort).")
+                    log.logAbort()
+
+                    /* Apply undo log. */
+                    log.apply()
+
+                    /* Remove log and delete file. */
+                    log.delete()
+                }
+            }
+        }
+        this.undoLogs.clear()
     }
 
     /**
@@ -313,6 +348,11 @@ class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAl
      * @version 1.0.0
      */
     internal inner class UndoLog(path: Path, lockTimeout: Long = 5000L) : WriteAheadLog(path, lockTimeout) {
+
+        /** [TransactionId] this [UndoLog] belongs to. */
+        override val tid: TransactionId
+            get() = UUID.fromString(this.path.fileName.toString().split('.')[1])
+
         /**
          * Logs a snapshot for a [PageId] and appends it to the log.
          *

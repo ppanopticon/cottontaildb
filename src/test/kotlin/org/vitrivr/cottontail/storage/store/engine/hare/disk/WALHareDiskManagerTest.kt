@@ -214,6 +214,40 @@ class WALHareDiskManagerTest {
     }
 
     /**
+     * Appends [HarePage]s of random bytes and checks, if those [HarePage]s' content remains the same after reading.
+     */
+    @ExperimentalTime
+    @ParameterizedTest(name = "WALDiskManager (Append / Commit / Update / Close / Open / Read): pages={0}")
+    @ValueSource(ints = [5000, 10000, 20000, 50000, 100000])
+    fun testUpdateWithClose(size: Int) {
+        val page = HarePage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
+        val data = this.initWithData(size)
+        val tid = UUID.randomUUID()
+
+        val newData = Array(data.size) {
+            val bytes = ByteArray(this.manager!!.pageSize)
+            random.nextBytes(bytes)
+            bytes
+        }
+
+        /* Update data with new data. */
+        for (i in newData.indices) {
+            page.putBytes(0, newData[i])
+            this.manager!!.update(tid, (i + 1L), page)
+            Assertions.assertArrayEquals(newData[i], page.getBytes(0))
+        }
+
+        /* Close and re-open the manager. */
+        this.manager!!.close()
+        this.manager = WALHareDiskManager(this.path)
+
+        /* Compare old data with what is stored (should be same). */
+        this.compareSingleRead(data)
+        this.compareMultiRead(data)
+    }
+
+
+    /**
      * Compares the data stored in this [DirectHareDiskManager] with the data provided as array of [ByteArray]s
      */
     @ExperimentalTime

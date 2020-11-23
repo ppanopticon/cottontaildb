@@ -8,7 +8,6 @@ import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.general.begin
 import org.vitrivr.cottontail.database.queries.components.AtomicBooleanPredicate
 import org.vitrivr.cottontail.database.queries.components.ComparisonOperator
-import org.vitrivr.cottontail.database.schema.Schema
 import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
@@ -42,9 +41,6 @@ class UniqueHashIndexTest {
     private var catalogue: Catalogue = Catalogue(TestConstants.config)
 
     /** Schema used for testing. */
-    private var schema: Schema? = null
-
-    /** Schema used for testing. */
     private var entity: Entity? = null
 
     /** Schema used for testing. */
@@ -56,15 +52,12 @@ class UniqueHashIndexTest {
     @BeforeAll
     fun initialize() {
         /* Create schema. */
-        this.catalogue.createSchema(schemaName)
-        this.schema = this.catalogue.schemaForName(schemaName)
+        this.catalogue.createSchema(this.schemaName)
+        this.catalogue.createEntity(this.entityName, *this.columns)
+        this.catalogue.createIndex(this.indexName, IndexType.HASH_UQ, arrayOf(this.columns[0]))
 
-        /* Create entity. */
-        this.schema?.createEntity(this.entityName, *this.columns)
-        this.entity = this.schema?.entityForName(this.entityName)
-
-        /* Create index. */
-        this.entity?.createIndex(indexName, IndexType.HASH_UQ, arrayOf(this.columns[0]))
+        /* Obtain entity and index. */
+        this.entity = this.catalogue.instantiateEntity(this.entityName)
         this.index = entity?.allIndexes()?.find { it.name == indexName }
 
         /* Populates the database with test values. */

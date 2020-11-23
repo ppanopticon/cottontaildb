@@ -46,8 +46,9 @@ class HareDoubleArrayCursorTest : AbstractCursorTest() {
     fun test(dimensions: Int) {
         val columnDef = ColumnDef(Name.ColumnName("test"), DoubleVectorColumnType, logicalSize = dimensions)
         FixedHareColumnFile.createDirect(this.path, columnDef)
-        val hareFile: FixedHareColumnFile<DoubleVectorValue> = FixedHareColumnFile(this.path, false)
-        val bufferPool = BufferPool(hareFile.disk, 25, EvictionPolicy.LRU)
+        val tid = UUID.randomUUID()
+        val hareFile: FixedHareColumnFile<DoubleVectorValue> = FixedHareColumnFile(this.path)
+        val bufferPool = BufferPool(hareFile.disk, tid, 25, EvictionPolicy.LRU)
 
         this.initWithData(hareFile, bufferPool, dimensions)
         this.compareData(hareFile, bufferPool, dimensions)

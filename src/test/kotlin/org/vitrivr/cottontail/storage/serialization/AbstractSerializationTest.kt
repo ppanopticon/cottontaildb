@@ -38,15 +38,15 @@ abstract class AbstractSerializationTest {
         )
     }
 
+    protected val schemaName = Name.SchemaName("schema-test")
+
     /** The [Catalogue] instance used for the [AbstractSerializationTest]. */
     protected val catalogue: Catalogue = Catalogue(TestConstants.config)
 
-    /** The [Schema] instance used for the [AbstractSerializationTest]. */
-    protected val schema = this.catalogue.let {
-        val name = Name.SchemaName("schema-test")
-        it.createSchema(name)
-        it.schemaForName(name)
+    init {
+        this.catalogue.createSchema(this.schemaName)
     }
+
 
     /**
      * Closes the [Catalogue] and deletes all the files.

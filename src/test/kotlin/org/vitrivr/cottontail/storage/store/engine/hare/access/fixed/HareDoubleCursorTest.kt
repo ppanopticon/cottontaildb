@@ -42,8 +42,9 @@ class HareDoubleCursorTest {
     @BeforeEach
     fun beforeEach() {
         FixedHareColumnFile.createDirect(this.path, this.columnDef)
-        this.hareFile = FixedHareColumnFile(this.path, false)
-        this.bufferPool = BufferPool(this.hareFile!!.disk, 25, EvictionPolicy.LRU)
+        val tid = UUID.randomUUID()
+        this.hareFile = FixedHareColumnFile(this.path)
+        this.bufferPool = BufferPool(this.hareFile!!.disk, tid, 25, EvictionPolicy.LRU)
     }
 
     @AfterEach

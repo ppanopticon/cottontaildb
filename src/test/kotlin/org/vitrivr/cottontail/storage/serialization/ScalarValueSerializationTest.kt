@@ -18,7 +18,7 @@ import java.util.*
  * Test case that tests for correctness of [LongVectorValue] serialization and deserialization.
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.0.1
  */
 class ScalarValueSerializationTest : AbstractSerializationTest() {
 
@@ -30,7 +30,7 @@ class ScalarValueSerializationTest : AbstractSerializationTest() {
      */
     @RepeatedTest(3)
     fun test() {
-        val nameEntity = this.schema.name.entity("longvector-test")
+        val nameEntity = this.schemaName.entity("longvector-test")
         val idCol = ColumnDef(nameEntity.column("id"), ColumnType.forName("INTEGER"), -1, false)
         val intCol = ColumnDef(nameEntity.column("intCol"), ColumnType.forName("INTEGER"), -1, false)
         val longCol = ColumnDef(nameEntity.column("longCol"), ColumnType.forName("LONG"), -1, false)
@@ -42,20 +42,20 @@ class ScalarValueSerializationTest : AbstractSerializationTest() {
 
         /* Prepare entity. */
         val columns = arrayOf(idCol, intCol, longCol, doubleCol, floatCol, byteCol, shortCol)
-        this.schema.createEntity(nameEntity, *columns)
-        val schema = this.schema.entityForName(nameEntity)
+        this.catalogue.createEntity(nameEntity, *columns)
+        val entity = this.catalogue.instantiateEntity(nameEntity)
 
         /* Prepare random number generator. */
         val seed = System.currentTimeMillis()
         val r1 = SplittableRandom(seed)
 
         /* Insert data into column. */
-        schema.Tx(false).begin { tx1 ->
+        entity.Tx(false).begin { tx1 ->
             var i1 = 1L
             Assertions.assertEquals(0L, tx1.count())
             repeat(TestConstants.collectionSize) {
                 val values: Array<Value?> = arrayOf(
-                        IntValue(++i1), IntValue(r1.nextInt()), LongValue(r1.nextLong()),
+                        IntValue(i1++), IntValue(r1.nextInt()), LongValue(r1.nextLong()),
                         DoubleValue(r1.nextDouble()), FloatValue(r1.nextDouble()),
                         ByteValue(r1.nextInt()), ShortValue(r1.nextInt())
                 )
@@ -66,12 +66,12 @@ class ScalarValueSerializationTest : AbstractSerializationTest() {
 
         /* Read data from column. */
         val r2 = SplittableRandom(seed)
-        schema.Tx(true).begin { tx2 ->
+        entity.Tx(true).begin { tx2 ->
             var i2 = 1L
             Assertions.assertEquals(TestConstants.collectionSize.toLong(), tx2.count())
             repeat(TestConstants.collectionSize) {
-                val rec2 = tx2.read(++i2, columns)
-                Assertions.assertEquals(i2, (rec2[idCol] as IntValue).asLong().value) /* Compare IDs. */
+                val rec2 = tx2.read(i2 - 1, columns)
+                Assertions.assertEquals(i2++, (rec2[idCol] as IntValue).asLong().value) /* Compare IDs. */
                 Assertions.assertEquals(r2.nextInt(), (rec2[intCol] as IntValue).value)
                 Assertions.assertEquals(r2.nextLong(), (rec2[longCol] as LongValue).value)
                 Assertions.assertEquals(r2.nextDouble(), (rec2[doubleCol] as DoubleValue).value)

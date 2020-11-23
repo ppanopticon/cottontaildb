@@ -18,7 +18,7 @@ import java.util.*
  * Test case that tests for correctness of [FloatVectorValue] serialization and deserialization.
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.0.1
  */
 class FloatVectorValueSerializationTest : AbstractSerializationTest() {
 
@@ -31,35 +31,35 @@ class FloatVectorValueSerializationTest : AbstractSerializationTest() {
     @ParameterizedTest
     @MethodSource("dimensions")
     fun test(dimension: Int) {
-        val nameEntity = this.schema.name.entity("floatvector-test")
+        val nameEntity = this.schemaName.entity("floatvector-test")
         val idCol = ColumnDef(nameEntity.column("id"), ColumnType.forName("INTEGER"), -1, false)
         val vectorCol = ColumnDef(nameEntity.column("vector"), ColumnType.forName("FLOAT_VEC"), dimension, false)
 
         /* Prepare entity. */
         val columns = arrayOf(idCol, vectorCol)
-        this.schema.createEntity(nameEntity, *columns)
-        val schema = this.schema.entityForName(nameEntity)
+        this.catalogue.createEntity(nameEntity, *columns)
+        val entity = this.catalogue.instantiateEntity(nameEntity)
 
         /* Prepare random number generator. */
         val seed = System.currentTimeMillis()
         val r1 = SplittableRandom(seed)
 
         /* Insert data into column. */
-        schema.Tx(false).begin { tx1 ->
+        entity.Tx(false).begin { tx1 ->
             var i1 = 1L
             VectorUtility.randomFloatVectorSequence(dimension, TestConstants.collectionSize, r1).forEach {
-                tx1.insert(StandaloneRecord(columns = columns, values = arrayOf(IntValue(++i1), it)))
+                tx1.insert(StandaloneRecord(columns = columns, values = arrayOf(IntValue(i1++), it)))
             }
             true
         }
 
         /* Read data from column. */
         val r2 = SplittableRandom(seed)
-        schema.Tx(true).begin { tx2 ->
+        entity.Tx(true).begin { tx2 ->
             var i2 = 1L
             VectorUtility.randomFloatVectorSequence(dimension, TestConstants.collectionSize, r2).forEach {
-                val rec2 = tx2.read(++i2, columns)
-                Assertions.assertEquals(i2, (rec2[idCol] as IntValue).asLong().value)  /* Compare IDs. */
+                val rec2 = tx2.read(i2 - 1, columns)
+                Assertions.assertEquals(i2++, (rec2[idCol] as IntValue).asLong().value)  /* Compare IDs. */
                 Assertions.assertArrayEquals(it.data, (rec2[vectorCol] as FloatVectorValue).data) /* Compare generated vector and deserialized vector. */
                 Assertions.assertFalse(FloatVectorValue.random(dimension, r1).data.contentEquals((rec2[vectorCol] as FloatVectorValue).data)) /* Compare to some random vector and serialized vector; match very unlikely! */
             }

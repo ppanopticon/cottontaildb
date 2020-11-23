@@ -9,27 +9,24 @@ import java.nio.channels.FileChannel
  * A view on the entry of a [WriteAheadLog] file.
  *
  * @author Ralph Gasser
- * @version 1.0.1
+ * @version 1.0.2
  */
 class WALEntry : View {
 
     companion object {
         /** Size of a [WALEntry] entry. */
-        const val SIZE = 24
+        const val SIZE = 20
 
         /** Offsets */
 
         /** Offset into the [WALEntry] to access the [sequenceNumber]. */
         const val OFFSET_SEQUENCE_NUMBER = 0
 
-        /** Offset into the [WALEntry] to access the [action]. */
-        const val OFFSET_WAL_ACTION = 8
+        /** Offset into the [WALEntry] to access the [pageId]. */
+        const val OFFSET_ACTION = 8
 
         /** Offset into the [WALEntry] to access the [pageId]. */
         const val OFFSET_PAGE_ID = 12
-
-        /** Offset into the [WALEntry] to access the [payloadSize]. */
-        const val OFFSET_PAYLOAD_SIZE = 20
     }
 
     /** The [ByteBuffer] backing this [WALEntry]. */
@@ -42,11 +39,11 @@ class WALEntry : View {
             this.buffer.putLong(OFFSET_SEQUENCE_NUMBER, v)
         }
 
-    /** The [WALAction] carried out by this [WALEntry]. */
+    /** The type of [WALAction]. */
     var action: WALAction
-        get() = WALAction.values()[this.buffer.getInt(OFFSET_WAL_ACTION)]
+        get() = WALAction.values()[this.buffer.getInt(OFFSET_ACTION)]
         set(v) {
-            this.buffer.putInt(OFFSET_WAL_ACTION, v.ordinal)
+            this.buffer.putInt(OFFSET_ACTION, v.ordinal)
         }
 
     /** The [PageId] affected by this [WALEntry]. Only meaningful for [WALAction.UPDATE], [WALAction.FREE_REUSE] and [WALAction.FREE_TRUNCATE] */
@@ -54,13 +51,6 @@ class WALEntry : View {
         get() = this.buffer.getLong(OFFSET_PAGE_ID)
         set(v) {
             this.buffer.putLong(OFFSET_PAGE_ID, v)
-        }
-
-    /** The size of the size of the payload carried by this [WALEntry]*/
-    var payloadSize: Int
-        get() = this.buffer.getInt(OFFSET_PAYLOAD_SIZE)
-        set(v) {
-            this.buffer.putInt(OFFSET_PAYLOAD_SIZE, v)
         }
 
     /**

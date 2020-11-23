@@ -91,25 +91,26 @@ class WALHareDiskManagerTest {
         val data = this.initWithData(size)
         val random = SplittableRandom()
         val pageIds = mutableListOf<PageId>()
+        val tid = UUID.randomUUID()
 
         /* Truncate last page and compare sizes. */
         for (i in 0 until 100) {
-            val pageId = random.nextLong(1L, data.size.toLong())
+            val pageId = random.nextLong(1L, data.size.toLong() - 1)
             if (!pageIds.contains(pageId)) {
-                this.manager!!.free(pageId)
+                this.manager!!.free(tid, pageId)
                 pageIds.add(pageId)
             } else {
                 Assertions.assertThrows(IllegalArgumentException::class.java) {
-                    this.manager!!.free(pageId)
+                    this.manager!!.free(tid, pageId)
                 }
             }
         }
-        this.manager!!.commit()
+        this.manager!!.commit(tid)
 
         /* Check page content. */
         val page = HarePage(ByteBuffer.allocateDirect(pageSize))
         for (pageId in pageIds) {
-            this.manager!!.read(pageId, page)
+            this.manager!!.read(tid, pageId, page)
             Assertions.assertEquals(PageConstants.PAGE_TYPE_FREED, page.getInt(0))
         }
     }
@@ -124,26 +125,28 @@ class WALHareDiskManagerTest {
         val data = this.initWithData(size)
         val random = SplittableRandom()
         val pageIds = mutableListOf<PageId>()
+        val tid1 = UUID.randomUUID()
 
         /* Free random pages. */
         for (i in 0 until 100) {
             val pageId = random.nextLong(1L, data.size.toLong())
             if (!pageIds.contains(pageId)) {
-                this.manager!!.free(pageId)
+                this.manager!!.free(tid1, pageId)
                 pageIds.add(pageId)
             } else {
                 Assertions.assertThrows(IllegalArgumentException::class.java) {
-                    this.manager!!.free(pageId)
+                    this.manager!!.free(tid1, pageId)
                 }
             }
         }
-        this.manager!!.commit()
+        this.manager!!.commit(tid1)
 
         /* Check page re-use. */
+        val tid2 = UUID.randomUUID()
         for (i in pageIds.size-1 downTo 0) {
-            Assertions.assertEquals(pageIds[i], this.manager!!.allocate())
+            Assertions.assertEquals(pageIds[i], this.manager!!.allocate(tid2))
         }
-        this.manager!!.rollback()
+        this.manager!!.rollback(tid2)
     }
 
     /**
@@ -155,6 +158,7 @@ class WALHareDiskManagerTest {
     fun testUpdateWithCommit(size: Int) {
         val page = HarePage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
         val data = this.initWithData(size)
+        val tid = UUID.randomUUID()
 
         val newData = Array(data.size) {
             val bytes = ByteArray(this.manager!!.pageSize)
@@ -164,17 +168,15 @@ class WALHareDiskManagerTest {
 
         /* Update data with new data. */
         for (i in newData.indices) {
-            this.manager!!.read((i + 1L), page)
-
             page.putBytes(0, newData[i])
-
-            this.manager!!.update((i + 1L), page)
+            this.manager!!.update(tid, (i + 1L), page)
             Assertions.assertArrayEquals(newData[i], page.getBytes(0))
         }
 
-        this.manager!!.commit()
+        /* Commit changes. */
+        this.manager!!.commit(tid)
 
-        /* Check if data remains the same. */
+        /* Compare new data with what is stored (should be same). */
         this.compareSingleRead(newData)
         this.compareMultiRead(newData)
     }
@@ -188,6 +190,7 @@ class WALHareDiskManagerTest {
     fun testUpdateWithRollback(size: Int) {
         val page = HarePage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
         val data = this.initWithData(size)
+        val tid = UUID.randomUUID()
 
         val newData = Array(data.size) {
             val bytes = ByteArray(this.manager!!.pageSize)
@@ -197,18 +200,15 @@ class WALHareDiskManagerTest {
 
         /* Update data with new data. */
         for (i in newData.indices) {
-            this.manager!!.read((i + 1L), page)
-
-
             page.putBytes(0, newData[i])
-
-            this.manager!!.update((i + 1L), page)
+            this.manager!!.update(tid, (i + 1L), page)
             Assertions.assertArrayEquals(newData[i], page.getBytes(0))
         }
 
-        this.manager!!.rollback()
+        /* Rollback changes. */
+        this.manager!!.rollback(tid)
 
-        /* Check if data remains the same. */
+        /* Compare old data with what is stored (should be same). */
         this.compareSingleRead(data)
         this.compareMultiRead(data)
     }
@@ -219,10 +219,11 @@ class WALHareDiskManagerTest {
     @ExperimentalTime
     private fun compareSingleRead(ref: Array<ByteArray>) {
         val page = HarePage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
+        val tid = UUID.randomUUID()
         var readTime = Duration.ZERO
         for (i in ref.indices) {
             readTime += measureTime {
-                this.manager!!.read((i + 1L), page)
+                this.manager!!.read(tid, (i + 1L), page)
             }
             Assertions.assertArrayEquals(ref[i], page.getBytes(0))
         }
@@ -238,11 +239,12 @@ class WALHareDiskManagerTest {
         val page2 = HarePage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
         val page3 = HarePage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
         val page4 = HarePage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
+        val tid = UUID.randomUUID()
 
         var readTime = Duration.ZERO
         for (i in ref.indices step 4) {
             readTime += measureTime {
-                this.manager!!.read((i + 1L), arrayOf(page1, page2, page3, page4))
+                this.manager!!.read(tid, (i + 1L), arrayOf(page1, page2, page3, page4))
             }
             Assertions.assertArrayEquals(ref[i], page1.getBytes(0))
             Assertions.assertArrayEquals(ref[i + 1], page2.getBytes(0))
@@ -262,6 +264,7 @@ class WALHareDiskManagerTest {
     private fun initWithData(size: Int) : Array<ByteArray> {
         val page = HarePage(ByteBuffer.allocateDirect(this.manager!!.pageSize))
         var writeTime = Duration.ZERO
+        val tid = UUID.randomUUID()
 
         val data = Array(size) {
             val bytes = ByteArray(this.manager!!.pageSize)
@@ -273,16 +276,16 @@ class WALHareDiskManagerTest {
         for (i in data.indices) {
             page.putBytes(0, data[i])
             writeTime += measureTime {
-                val pageId = this.manager!!.allocate()
+                val pageId = this.manager!!.allocate(tid)
                 Assertions.assertEquals(prev + 1L, pageId)  /* Make sure pageIds increase monotonically. */
                 prev = pageId
-                this.manager!!.update(pageId, page)
+                this.manager!!.update(tid, pageId, page)
             }
         }
 
         /* Commit changes. */
         writeTime += measureTime {
-            this.manager!!.commit()
+            this.manager!!.commit(tid)
         }
 
         println("Writing ${this.manager!!.size `in` Units.MEGABYTE} took $writeTime (${(this.manager!!.size `in` Units.MEGABYTE).value / writeTime.inSeconds} MB/s).")

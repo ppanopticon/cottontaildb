@@ -3,21 +3,24 @@ package org.vitrivr.cottontail.storage.engine.hare.disk.wal
 import org.slf4j.LoggerFactory
 import org.vitrivr.cottontail.storage.engine.hare.DataCorruptionException
 import org.vitrivr.cottontail.storage.engine.hare.PageId
+import org.vitrivr.cottontail.storage.engine.hare.TransactionId
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
 import org.vitrivr.cottontail.storage.engine.hare.disk.HareDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectHareDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.LongStack
-import org.vitrivr.cottontail.utilities.extensions.exclusive
 import org.vitrivr.cottontail.utilities.extensions.read
 import org.vitrivr.cottontail.utilities.extensions.shared
-import org.vitrivr.cottontail.utilities.extensions.write
+import java.io.IOException
+import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.channels.FileLock
+import java.nio.file.FileSystems
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.concurrent.locks.ReentrantLock
-import java.util.concurrent.locks.StampedLock
+import java.util.*
+import java.util.concurrent.ConcurrentHashMap
+import java.util.zip.CRC32C
 import kotlin.math.max
 
 /**
@@ -30,7 +33,7 @@ import kotlin.math.max
  *
  * @see HareDiskManager
  *
- * @version 1.3.1
+ * @version 1.4.0
  * @author Ralph Gasser
  */
 class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAllocatePages: Int = 32) : HareDiskManager(path, lockTimeout) {
@@ -39,63 +42,36 @@ class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAl
         private val LOGGER = LoggerFactory.getLogger(WALHareDiskManager::class.java)
     }
 
-    /** Reference to the [WriteAheadLog]. The [WriteAheadLog] is created whenever a write starts and removed on commit or rollback. */
-    @Volatile
-    private var wal: WriteAheadLog? = null
-
-    /** A [ReentrantLock] to mediate access to [WriteAheadLog]. */
-    private val writeAheadLock = StampedLock()
-
-    init {
-        if (!this.header.properlyClosed) {
-            val walFile = this.path.parent.resolve("${this.path.fileName}.wal")
-            this.header.isDirty = true
-            if (Files.exists(walFile)) {
-                this.wal = WriteAheadLog(this, this.lockTimeout)
-            } else {
-                LOGGER.warn("HARE file was found in a dirty state but no WAL file could be found (file: ${this.path.fileName}). Validating file...")
-                if (!this.validate()) {
-                    throw DataCorruptionException("CRC32C checksum mismatch (file: ${this.path}, expected:${this.calculateChecksum()}, found: ${this.header.checksum}}).")
-                }
-            }
-        }
-
-        /* Updates properly closed flag in header. */
-        this.header.properlyClosed = false
-        this.header.write(this.fileChannel, OFFSET_HEADER)
-    }
+    /** Reference to the [UndoLog]. The [UndoLog] is created whenever a write starts and removed on commit or rollback. */
+    private val undoLogs = ConcurrentHashMap<TransactionId, UndoLog>()
 
     /**
-     * Fetches the data identified by the given [PageId] into the given [HarePage] object thereby replacing the content
-     * of that [HarePage]. [WALHareDiskManager]s always read directly from the underlying file. Thus, uncommitted changes to
-     * the file are invisible.
+     * Fetches the data identified by the given [PageId] into the given [Page] object thereby
+     * replacing the content of that [Page].
      *
+     * @param tid The [TransactionId] of the transaction that performs the action.
      * @param pageId [PageId] to fetch data for.
      * @param page [Page] to fetch data into. Its content will be updated.
      */
-    override fun read(pageId: PageId, page: HarePage) {
-        this.closeLock.shared {
-            check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to access data (file: ${this.path})." }
-            page.lock.exclusive {
-                this.fileChannel.read(page.buffer, this.pageIdToOffset(pageId))
-                page.buffer.clear()
-            }
+    override fun read(tid: TransactionId, pageId: PageId, page: HarePage) {
+        this.closeLock.read {
+            check(this.fileChannel.isOpen) { "HARE page file read failed: Channel closed and cannot be used to read data (file: ${this.path})." }
+            page.read(this.fileChannel, this.pageIdToOffset(pageId))
         }
     }
 
     /**
-     * Fetches the data starting from the given [PageId] into the given [HarePage] objects thereby replacing the content
-     * of those [HarePage]s. [WALHareDiskManager]s always read directly from the underlying file. Thus, uncommitted changes to
-     * the file are invisible.
+     * Fetches the data starting from the given [PageId] into the given [Page] objects thereby replacing the content of those [Page]s.
      *
+     * @param tid The [TransactionId] of the transaction that performs the action.
      * @param pageId [PageId] to start fetching
      * @param pages [HarePage]s to fetch data into. Their content will be updated.
      */
-    override fun read(pageId: PageId, pages: Array<HarePage>) {
-        this.closeLock.shared {
-            check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to access data (file: ${this.path})." }
+    override fun read(tid: TransactionId, pageId: PageId, pages: Array<HarePage>) {
+        this.closeLock.read {
+            check(this.fileChannel.isOpen) { "HARE page file read failed: Channel closed and cannot be used to read data (file: ${this.path})." }
             val locks = Array(pages.size) { pages[it].lock.writeLock() }
-            val buffers = Array(pages.size) { pages[it].buffer }
+            val buffers = Array(pages.size) { pages[it].buffer.clear() }
             this.fileChannel.position(this.pageIdToOffset(pageId))
             this.fileChannel.read(buffers)
             locks.indices.forEach { i ->
@@ -108,13 +84,25 @@ class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAl
     /**
      * Updates the page  with the given [PageId] with the content in the [HarePage].
      *
-     * This change will be written to the [WriteAheadLog].
+     * This change will be written to the [UndoLog].
      *
+     * @param tid The [TransactionId] of the transaction that performs the action.
      * @param pageId [PageId] of the [Page] that should be updated
      * @param page [HarePage] the data the [Page] should be updated with.
      */
-    override fun update(pageId: PageId, page: HarePage) = createOrUseSharedWAL {
-        it.update(pageId, page)
+    override fun update(tid: TransactionId, pageId: PageId, page: HarePage) {
+        this.closeLock.shared {
+            check(this.fileChannel.isOpen) { "HARE page file write failed: Channel closed and cannot be used to write data (file: ${this.path})." }
+
+            /* Obtain UndoLog object for transaction and lock it. */
+            val log = this.undoLogs.computeIfAbsent(tid) {
+                UndoLog(this.path.parent.resolve("${this.path.fileName}.$tid.uwal"), this.lockTimeout)
+            }
+            log.logSnapshot(pageId)
+
+            /* Write changes to disk. */
+            page.write(this.fileChannel, this.pageIdToOffset(pageId))
+        }
     }
 
     /**
@@ -124,124 +112,185 @@ class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAl
      * if that [LongStack] has run empty, then new pages are physically allocated and the file
      * will grow by the number of pages specified in [DirectHareDiskManager.preAllocatePages].
      *
-     * This change will be written to the [WriteAheadLog].
+     * This change will be written to the [UndoLog].
      *
+     * @param tid The [TransactionId] of the transaction that performs the action.
      * @return The [PageId] of the allocated [Page].
      */
-    override fun allocate(): PageId = createOrUseSharedWAL {
-        it.allocate()
+    override fun allocate(tid: TransactionId): PageId {
+        return this.closeLock.shared {
+            check(this.fileChannel.isOpen) { "HARE page file write failed: Channel closed and cannot be used to write data (file: ${this.path})." }
+
+            /* Obtain UndoLog object for transaction and lock it. */
+            this.undoLogs.computeIfAbsent(tid) {
+                UndoLog(this.path.parent.resolve("${this.path.fileName}.$tid.uwal"), this.lockTimeout)
+            }
+
+            /* Pre-allocate pages if LongStack is empty. */
+            if (this.freePageStack.entries == 0) {
+                val nextPageId = this.header.maximumPageId + 1
+                val preAllocatePageId = nextPageId + this.preAllocatePages
+                this.fileChannel.write(EMPTY.clear(), (preAllocatePageId + 1) shl this.header.pageShift)
+                for (pageId in preAllocatePageId downTo nextPageId) {
+                    this.freePageStack.offer(pageId)
+                }
+            }
+
+            /* Allocate PageId and adjust header. */
+            val newPageId = this.freePageStack.pop()
+            this.header.isDirty = true
+            this.header.allocatedPages += 1
+            this.header.maximumPageId = max(this.header.maximumPageId, newPageId)
+
+            /* Write all changes to disk. */
+            this.header.write(this.fileChannel, OFFSET_HEADER)
+            this.freePageStack.write(this.fileChannel, OFFSET_FREE_PAGE_STACK)
+
+            /* Return ID of next free page. */
+            newPageId
+        }
     }
 
     /**
      * Frees the page with the given [PageId] making space for new entries
      *
+     * @param tid The [TransactionId] of the transaction that performs the action.
      * @param pageId The [PageId] of the page that should be freed.
      */
-    override fun free(pageId: PageId) = createOrUseSharedWAL {
-        it.free(pageId)
-    }
+    override fun free(tid: TransactionId, pageId: PageId) {
+        this.closeLock.read {
+            /* Sanity checks. */
+            check(this.fileChannel.isOpen) { "HARE page file write failed: Channel closed and cannot be used to write data (file: ${this.path})." }
+            require(!this.freePageStack.contains(pageId)) { "HARE page file write failed: Page ID $pageId has already been freed for this HARE page file (file: ${this.path}, pages: ${this.pages})." }
 
-    /**
-     * Performs a commit of all pending changes by replaying the [WriteAheadLog] file.
-     */
-    override fun commit(): Unit = useExclusiveWAL {
-        val pageSizeLong = this.pageSize.toLong()
-        it.replay { entry, channel ->
-            when (entry.action) {
-                WALAction.UPDATE -> {
-                    this.fileChannel.transferFrom(channel, this.pageIdToOffset(entry.pageId), pageSizeLong)
-                }
-                WALAction.ALLOCATE_REUSE -> {
-                    val newPageId = this.freePageStack.pop()
-                    require(newPageId == entry.pageId) { "Failed to commit. The reused page ID $newPageId does not match the expected page ID ${entry.pageId} (file: ${this.path}, pages: ${this.pages})." }
-
-                    /* Increment allocated pages count. */
-                    this.header.allocatedPages += 1
-                    this.header.maximumPageId = max(newPageId, this.header.maximumPageId)
-
-                    /* Write changes to disk. */
-                    this.header.write(this.fileChannel, OFFSET_HEADER)
-                    this.freePageStack.write(this.fileChannel, OFFSET_FREE_PAGE_STACK)
-                }
-                WALAction.ALLOCATE_APPEND -> {
-                    val newPageId = this.header.maximumPageId + 1
-                    val preAllocatePageId = newPageId + this.preAllocatePages
-                    require(newPageId == entry.pageId) { "Failed to commit. The new page ID $newPageId does not match the expected page ID ${entry.pageId} (file: ${this.path}, pages: ${this.pages})." }
-                    for (pageId in preAllocatePageId..newPageId) {
-                        this.freePageStack.offer(pageId)
-                    }
-
-                    /* Increment allocated pages count. */
-                    this.header.allocatedPages += 1
-                    this.header.maximumPageId = max(newPageId, this.header.maximumPageId)
-
-                    /* Write changes to disk. */
-                    this.header.write(this.fileChannel, OFFSET_HEADER)
-                    this.freePageStack.write(this.fileChannel, OFFSET_FREE_PAGE_STACK)
-                    this.fileChannel.write(EMPTY.clear(), (preAllocatePageId + 1) shl this.header.pageShift)
-                }
-                WALAction.FREE -> {
-                    /* Add PageId to stack or increment number of dangling pages. */
-                    if (!this.freePageStack.offer(entry.pageId)) {
-                        this.header.danglingPages += 1
-                    }
-
-                    /* Decrement number of allocated pages. */
-                    this.header.allocatedPages -= 1
-
-                    /* Write changes to disk. */
-                    val offset = pageIdToOffset(entry.pageId)
-                    this.header.write(this.fileChannel, OFFSET_HEADER)
-                    this.freePageStack.write(this.fileChannel, OFFSET_FREE_PAGE_STACK)
-                    this.fileChannel.write(FREED.flip(), offset)
-                }
+            /* Obtain UndoLog object for transaction and log page snapshot. */
+            val log = this.undoLogs.computeIfAbsent(tid) {
+                UndoLog(this.path.parent.resolve("${this.path.fileName}.$tid.uwal"), this.lockTimeout)
             }
-            true
+            log.logSnapshot(pageId)
+
+            /* Free page by adding page to free page stack. */
+            this.header.isDirty = true
+            if (!this.freePageStack.offer(pageId)) {
+                this.header.danglingPages += 1
+            }
+
+            /* Decrement number of allocated pages. */
+            this.header.allocatedPages -= 1
+
+            /* Write all changes to disk. */
+            this.header.write(this.fileChannel, OFFSET_HEADER)
+            this.freePageStack.write(this.fileChannel, OFFSET_FREE_PAGE_STACK)
+            this.fileChannel.write(FREED.flip(), this.pageIdToOffset(pageId))
         }
-
-        /* Update file header and force all data to disk. */
-        this.header.isDirty = false
-        this.header.checksum = this.calculateChecksum()
-        this.header.write(this.fileChannel, OFFSET_HEADER)
-        this.fileChannel.force(true)
-
-        /** Delete WAL. */
-        it.close()
-        it.delete()
-        this.wal = null
     }
 
     /**
-     * Performs a rollback of all pending changes by discarding the [WriteAheadLog] file.
+     * Performs a commit of all pending changes by discarding the [UndoLog] file.
+     *
+     * @param tid The [TransactionId] of the transaction that performs the action.
      */
-    override fun rollback() = useExclusiveWAL {
-        /* Update file header. */
-        this.header.isDirty = false
-        this.header.write(this.fileChannel, OFFSET_HEADER)
-        this.fileChannel.force(true)
+    override fun commit(tid: TransactionId) {
+        this.closeLock.shared {
+            check(this.fileChannel.isOpen) { "HARE page file commit failed: Channel closed and cannot be used to write data (file: ${this.path})." }
 
-        /** Delete WAL. */
-        it.close()
-        it.delete()
-        this.wal = null
+            /* Obtain UndoLog object for transaction and lock it. */
+            val log = this.undoLogs[tid]
+            if (log != null) {
+                /* Update file header. */
+                this.header.isDirty = false
+                this.header.checksum = this.calculateChecksum()
+                this.header.write(this.fileChannel, OFFSET_HEADER)
+                this.fileChannel.force(true)
+
+                /* Log successful commit. */
+                log.logCommit()
+
+                /* Remove log and delete file. */
+                this.undoLogs.remove(tid)
+                log.delete()
+            }
+        }
     }
 
     /**
-     * Deletes the HARE page file backing this [WALHareDiskManager] and associated [WriteAheadLog] files.
+     * Performs a rollback of all pending changes by applying the [UndoLog] file.
+     *
+     * @param tid The [TransactionId] of the transaction that performs the action.
+     */
+    override fun rollback(tid: TransactionId) = this.closeLock.shared {
+        check(this.fileChannel.isOpen) { "HARE page file rollback failed: Channel closed and cannot be used to write data (file: ${this.path})." }
+
+        /* Obtain UndoLog object for transaction and lock it. */
+        val log = this.undoLogs[tid]
+        if (log != null) {
+            /* Logs abort. */
+            log.logAbort()
+
+            /* Apply undo log. */
+            log.apply()
+
+            /* Remove log and delete file. */
+            this.undoLogs.remove(tid)
+            log.delete()
+        }
+    }
+
+    /**
+     * Deletes the HARE page file backing this [WALHareDiskManager] and associated [UndoLog] files.
      *
      * Calling this method also closes the associated [FileChannel]s.
      */
     override fun delete() {
+        this.undoLogs.values.forEach { it.delete() }
         super.delete()
-        this.wal?.delete()
     }
 
     /**
-     * Closes the [WriteAheadLog] associated with this [WALHareDiskManager].
+     * Executed prior to opening a [WALHareDiskManager]; checks file consistency and starts recovery
+     * in the presence of dangling [UndoLog]s.
+     */
+    override fun prepareOpen() {
+        if (!this.header.properlyClosed || this.header.isDirty) {
+            /* Find open Redo WAL files. */
+            val matcher = FileSystems.getDefault().getPathMatcher("glob:*.redo")
+            Files.walk(this.path.parent, 0).use { stream ->
+                stream.forEach { path ->
+                    if (matcher.matches(path)) {
+                        val tid = path.fileName.toString().split('.')[1]
+                        this.undoLogs[UUID.fromString(tid)] = UndoLog(path, this.lockTimeout)
+                    }
+                }
+            }
+
+            /* Check if there are dangling undo logs. */
+            if (this.undoLogs.size > 0) {
+                LOGGER.warn("HARE page file was found with unfinished transactions; starting recovery...")
+                this.recover()
+            } else {
+                if (!this.validate()) {
+                    throw DataCorruptionException("CRC32C checksum mismatch (file: ${this.path}, expected:${this.calculateChecksum()}, found: ${this.header.checksum}}).")
+                }
+            }
+        }
+
+        /* Updates properly closed & dirty flag in header. */
+        this.header.isDirty = false
+        this.header.properlyClosed = false
+        this.header.write(this.fileChannel, OFFSET_HEADER)
+    }
+
+    /**
+     * Closes the [UndoLog] associated with this [WALHareDiskManager].
      */
     override fun prepareClose() {
-        /* Closes WAL. */
-        this.wal?.close()
+        /* Closes all open WALs. */
+        if (this.undoLogs.size > 0) {
+            LOGGER.warn("HARE page file is being closed while having ongoing transactions.")
+            this.undoLogs.values.forEach {
+                it.close()
+            }
+        }
 
         /* Sets properly closed flag. */
         this.header.properlyClosed = true
@@ -249,44 +298,138 @@ class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAl
     }
 
     /**
-     * This function acquires a lock on the [WriteAheadLog] entry then checks, if the [WriteAheadLog]
-     * exists. If not, a new [WriteAheadLog] is created.
-     *
-     * @param action The action that should be executed with the local [WriteAheadLog].
+     * Performs recovery based on [UndoLog].
      */
-    private inline fun <R> createOrUseSharedWAL(action: (WriteAheadLog) -> R) : R {
-        this.closeLock.shared {
-            check(this.fileChannel.isOpen) { "FileChannel for this HARE page file {${this.path}} was closed and cannot be used to write data (file: ${this.path})." }
-            this.writeAheadLock.read {
-                synchronized(this) {
-                    if (this.wal == null) {
-                        /* Generate WriteAheadLogFile. */
-                        this.wal = WriteAheadLog.create(this)
+    private fun recover() {
 
-                        /* Update the file header to reflect start of WAL logging. */
-                        this.header.isDirty = true
-                        this.header.write(this.fileChannel, OFFSET_HEADER)
-                    }
-                }
-                return action(this.wal!!)
-            }
-        }
     }
 
     /**
-     * This function acquires a lock on the [WriteAheadLog] entry then checks, if the [WriteAheadLog]
-     * exists. If so, the action will be executed, otherwise, nothing happens.
+     * This is a [WriteAheadLog] implementation that captures the old (snapshot) version of each [HarePage]
+     * that is written through this [WALHareDiskManager]. The [UndoLog] can be used to rollback changes,
+     * in case a transaction fails.
      *
-     * @param action The action that should be executed with the local [WriteAheadLog].
+     * @author Ralph Gasser
+     * @version 1.0.0
      */
-    private inline fun useExclusiveWAL(action: (WriteAheadLog) -> Unit) {
-        this.closeLock.shared {
-            check(this.fileChannel.isOpen) { "FileChannel for this HARE page file {${this.path}} was closed and cannot be used to write data (file: ${this.path})." }
-            this.writeAheadLock.write {
-                if (this.wal != null) {
-                    action(this.wal!!)
+    internal inner class UndoLog(path: Path, lockTimeout: Long = 5000L) : WriteAheadLog(path, lockTimeout) {
+        /**
+         * Logs a snapshot for a [PageId] and appends it to the log.
+         *
+         * @param pageId The [PageId] to snapshot.
+         */
+        @Synchronized
+        fun logSnapshot(pageId: PageId) = this.closeLock.shared {
+            check(this.fileChannel.isOpen) { "HARE Write Ahead Log (WAL) file log failed: Channel has been closed and cannot be used (name = ${this.path.fileName})." }
+            check(!this.walHeader.state.isSealed) { "HARE Write Ahead Log (WAL) file log failed: Log has been sealed (name = ${this.path.fileName})." }
+            require(pageId <= this@WALHareDiskManager.maximumPageId) { "HARE Write Ahead Log (WAL) file log failed: Page ID $pageId is out of bounds (name = ${this.path.fileName})." }
+
+            /* Prepare log entry. */
+            this.entry.sequenceNumber = this.walHeader.entries++
+            this.entry.action = WALAction.UNDO_SNAPSHOT
+            this.entry.pageId = pageId
+
+            /* Write log entry + transfer page snapshot. */
+            this.entry.write(this.fileChannel)
+            val pageSize = this@WALHareDiskManager.pageSize.toLong()
+            val transferred = this@WALHareDiskManager.fileChannel.transferTo(pageIdToOffset(pageId), pageSize, this.fileChannel)
+            if (transferred != pageSize) {
+                throw IOException("HARE Write Ahead Log (WAL) file log failed: Requested $pageSize bytes for snapshot but only received $transferred.")
+            }
+            this.walHeader.write(this.fileChannel, OFFSET_WAL_HEADER) /* Logged last. */
+        }
+
+        /**
+         * Applies the [UndoLog] thus reverting all changes since the last checkpoint.
+         */
+        @Synchronized
+        fun apply() = this.closeLock.shared {
+            check(this.fileChannel.isOpen) { "HARE Write Ahead Log (WAL) undo failed: File has been closed and cannot be used for replay (name = ${this.path.fileName})." }
+
+            /* Force-update header and compare checksum. */
+            val pageSize = this@WALHareDiskManager.pageSize.toLong()
+            this.walHeader.read(this.fileChannel, OFFSET_WAL_HEADER)
+            if (this.calculateChecksum() != this.walHeader.checksum) {
+                throw DataCorruptionException("HARE Write Ahead Log (WAL) undo failed: CRC32 checksum of data does not match checksum in header (name = ${this.path.fileName}).")
+            }
+
+            /* Set file channel position to beginning for JOURNAL. */
+            this.fileChannel.position(WALHeader.SIZE.toLong())
+
+            /* Transfer old header + long stack. */
+            this@WALHareDiskManager.fileChannel.transferFrom(this.fileChannel, 0L, pageSize)
+
+            /* Read each entry, perform sanity checks and update CRC32. */
+            for (seq in 0L until this.walHeader.entries) {
+                /* Read entry and check sequence number. */
+                this.entry.read(this.fileChannel)
+                if (this.entry.sequenceNumber != seq) {
+                    throw DataCorruptionException("HARE Write Ahead Log (WAL) undo failed: Sequence number mismatch at position $seq (name = ${this.path.fileName}).")
+                }
+                if (this.entry.action != WALAction.UNDO_SNAPSHOT) {
+                    throw DataCorruptionException("HARE Write Ahead Log (WAL) undo failed: action mismatch at position $seq (name = ${this.path.fileName}).")
+                }
+                val transferred = this@WALHareDiskManager.fileChannel.transferFrom(this.fileChannel, this@WALHareDiskManager.pageIdToOffset(entry.pageId), pageSize)
+                if (transferred != pageSize) {
+                    throw DataCorruptionException("HARE Write Ahead Log (WAL) undo failed: truncated entry at position $seq (name = ${this.path.fileName}).")
                 }
             }
+
+            /* Force all changes and delete undo log. */
+            this@WALHareDiskManager.fileChannel.force(true)
+
+            /* Re-read file header. */
+            if (!this@WALHareDiskManager.validate()) {
+                throw DataCorruptionException("HARE Write Ahead Log (WAL) undo failed: Invalid CRC32C checksum for restored file (name = ${this.path.fileName}).")
+            }
+        }
+
+        /**
+         * Read the [WALHeader] and
+         */
+        override fun prepareOpen() {
+            /* Initialize newly created UndoLog. */
+            if (this.fileChannel.size() == 0L) {
+                this.walHeader.init()
+                this.walHeader.write(this.fileChannel)
+
+                /* Copies state of WALHereDiskManager header (HareHeader + LongStack). */
+                this@WALHareDiskManager.fileChannel.transferTo(0L, this@WALHareDiskManager.pageSize.toLong(), this.fileChannel)
+            } else if (!this.valid()) {
+                throw DataCorruptionException("HARE Write Ahead Log (WAL): CRC32 checksum of data does not match checksum in header.")
+            }
+        }
+
+        /**
+         * Re-calculates the [CRC32C] checksum for this [UndoLog].
+         *
+         * @return [Long] value of [CRC32C] checksum.
+         */
+        override fun calculateChecksum(): Long = this.closeLock.shared {
+            /* Initialize required objects. */
+            val crc32c = CRC32C()
+            val page = HarePage(ByteBuffer.allocate(this@WALHareDiskManager.pageSize))
+
+            /* Set file channel position to beginning for JOURNAL. */
+            this.fileChannel.position(WALHeader.SIZE.toLong() + this@WALHareDiskManager.pageSize)
+
+            /* Read each entry, perform sanity checks and update CRC32. */
+            for (seq in 0L until this.walHeader.entries) {
+                /* Read entry and check sequence number. */
+                this.entry.read(this.fileChannel)
+                if (this.entry.sequenceNumber != seq) {
+                    throw DataCorruptionException("HARE Write Ahead Log (WAL) sequence number mismatch at position $seq (name = ${this.path.fileName}).")
+                }
+                if (this.entry.action != WALAction.UNDO_SNAPSHOT) {
+                    throw DataCorruptionException("HARE Write Ahead Log (WAL) action mismatch at position $seq; UNDO_SNAPSHOT expected (name = ${this.path.fileName}).")
+                }
+                page.read(this.fileChannel)
+                crc32c.update(page.buffer)
+            }
+
+            /* Reset file channel position to EOF. */
+            this.fileChannel.position(this.fileChannel.size())
+            return crc32c.value
         }
     }
 }

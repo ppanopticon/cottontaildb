@@ -10,9 +10,9 @@ import java.nio.channels.FileChannel
  * A view on the header section of a [WriteAheadLog] file.
  *
  * @author Ralph Gasser
- * @version 1.0.1
+ * @version 1.0.2
  */
-class WALHeader : View {
+internal class WALHeader : View {
 
     companion object {
         /** Size of this HARE WAL file header. */
@@ -32,22 +32,14 @@ class WALHeader : View {
         /** The offset into a [WALHeader] to get its version. */
         private const val HEADER_OFFSET_VERSION = 12
 
-        /** The offset into a [WALHeader] to get its flags. */
-        private const val HEADER_OFFSET_FLAGS = 16
+        /** The offset into a [WALHeader] to get its [WALState]. */
+        private const val HEADER_OFFSET_STATE = 16
 
-        /** The offset into a [WALHeader] to get the number of allocated pages. */
-        private const val HEADER_OFFSET_LOG = 24
+        /** The offset into a [WALHeader] to get the number of entries. */
+        private const val HEADER_OFFSET_ENTRIES = 20
 
-        /** The offset into a [WALHeader] to get the number of pre-allocated pages. */
-        private const val HEADER_OFFSET_LOG_TRANSFERRED = 32
-
-        /** The offset into a [WALHeader] to get the number of pre-allocated pages. */
-        private const val HEADER_OFFSET_CHECKSUM = 40
-
-        /** Masks. */
-
-        /** Mask for consistency flag in in this [WALHeader]. */
-        const val HEADER_MASK_CONSISTENCY_OK = 1L shl 0
+        /** The offset into a [WALHeader] to get the number checksum. */
+        private const val HEADER_OFFSET_CHECKSUM = 28
     }
 
     /** The [ByteBuffer] backing this [WALHeader]. */
@@ -61,31 +53,26 @@ class WALHeader : View {
     val version: Int
         get() = this.buffer.getInt(HEADER_OFFSET_VERSION)
 
-    /** Total number of entries contained in this [WriteAheadLog] file. */
-    val flags: Long
-        get() = this.buffer.getLong(HEADER_OFFSET_FLAGS)
+    /** The [WALState] for the [WriteAheadLog] this [WALHeader] belongs to. */
+    var state: WALState
+        get() = WALState.values()[this.buffer.getInt(HEADER_OFFSET_STATE)]
+        set(v) {
+            this.buffer.putInt(HEADER_OFFSET_STATE, v.ordinal)
+        }
 
-    /** Total number of entries contained in this [WriteAheadLog] file. */
+    /** Total number of entries contained in the [WriteAheadLog] file this [WALHeader] belongs to. */
     var entries: Long
-        get() = this.buffer.getLong(HEADER_OFFSET_LOG)
+        get() = this.buffer.getLong(HEADER_OFFSET_ENTRIES)
         set(v) {
-            this.buffer.putLong(HEADER_OFFSET_LOG, v)
+            this.buffer.putLong(HEADER_OFFSET_ENTRIES, v)
         }
 
-    /** Total number of entries contained in this [WriteAheadLog] file. */
-    var transferred: Long
-        get() = this.buffer.getLong(HEADER_OFFSET_LOG_TRANSFERRED)
-        set(v) {
-            this.buffer.putLong(HEADER_OFFSET_LOG_TRANSFERRED, v)
-        }
-
-    /** Total number of entries contained in this [WriteAheadLog] file. */
+    /** CRC32 checksum of the [WriteAheadLog] file this [WALHeader] belongs to. */
     var checksum: Long
         get() = this.buffer.getLong(HEADER_OFFSET_CHECKSUM)
         set(v) {
             this.buffer.putLong(HEADER_OFFSET_CHECKSUM, v)
         }
-
 
     /**
      * Initializes a new [WALHeader], which will overwrite its contet.
@@ -99,7 +86,7 @@ class WALHeader : View {
         this.buffer.putChar(FILE_HEADER_IDENTIFIER[3])             /* 6: Identifier E. */
         this.buffer.putInt(FileType.WAL.ordinal)                   /* 8: Type of HARE file. */
         this.buffer.putInt(WAL_VERSION)                            /* 12: Version of the HARE format. */
-        this.buffer.putLong(HEADER_MASK_CONSISTENCY_OK)            /* 20: Flags used by the HARE page file. */
+        this.buffer.putLong(0L)                              /* 20: Flags used by the HARE page file. */
         this.buffer.putLong(0L)                              /* 28: Number of pages in WAL file. */
         this.buffer.putLong(0L)                              /* 36: Number of transferred pages in WAL file. */
         this.buffer.putLong(0L)                              /* 44: CRC32 checksum for WAL file. */

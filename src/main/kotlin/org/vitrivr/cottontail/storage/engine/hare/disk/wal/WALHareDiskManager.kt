@@ -312,12 +312,12 @@ class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAl
         for (log in this.undoLogs.values) {
             when (log.state) {
                 WALState.COMMITTED -> {
-                    LOGGER.info("HARE page fil recovery: Removing dangling undo log for transaction ${log.tid}.")
+                    LOGGER.info("HARE page file recovery: Removing dangling undo log for transaction ${log.tid}.")
                     log.delete()
                 }
                 WALState.ABORTED -> {
                     /* Apply undo log. */
-                    LOGGER.info("HARE page fil recovery: Rolling back aborted transaction ${log.tid}.")
+                    LOGGER.info("HARE page file recovery: Rolling back aborted transaction ${log.tid}.")
                     log.apply()
 
                     /* Remove log and delete file. */
@@ -325,7 +325,7 @@ class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAl
                 }
                 WALState.LOGGING -> {
                     /* Log presumed abort.*/
-                    LOGGER.info("HARE page fil recovery: Rolling back interrupted transaction ${log.tid} (presumed abort).")
+                    LOGGER.info("HARE page file recovery: Rolling back interrupted transaction ${log.tid} (presumed abort).")
                     log.logAbort()
 
                     /* Apply undo log. */
@@ -352,6 +352,8 @@ class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAl
         /** [TransactionId] this [UndoLog] belongs to. */
         override val tid: TransactionId
             get() = UUID.fromString(this.path.fileName.toString().split('.')[1])
+
+        /** */
 
         /**
          * Logs a snapshot for a [PageId] and appends it to the log.
@@ -393,14 +395,11 @@ class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAl
                 throw DataCorruptionException("HARE Write Ahead Log (WAL) undo failed: CRC32 checksum of data does not match checksum in header (name = ${this.path.fileName}).")
             }
 
-            /* Set file channel position to beginning for JOURNAL. */
-            this.fileChannel.position(WALHeader.SIZE.toLong())
-
-            /* Transfer old header + long stack. */
-            this@WALHareDiskManager.fileChannel.transferFrom(this.fileChannel, 0L, pageSize)
-
             /* Read each entry, perform sanity checks and update CRC32. */
-            for (seq in 0L until this.walHeader.entries) {
+            for (seq in (this.walHeader.entries - 1L) downTo 0L) {
+                /* Update FileChannels position. */
+                this.fileChannel.position(this.walHeader.size + this@WALHareDiskManager.pageSize + seq * (this.entry.size + this@WALHareDiskManager.pageSize))
+
                 /* Read entry and check sequence number. */
                 this.entry.read(this.fileChannel)
                 if (this.entry.sequenceNumber != seq) {
@@ -415,8 +414,15 @@ class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAl
                 }
             }
 
+            /* Transfer old header + long stack. */
+            this.fileChannel.position(this.walHeader.size.toLong())
+            this@WALHareDiskManager.fileChannel.transferFrom(this.fileChannel, 0L, pageSize)
+
             /* Force all changes and delete undo log. */
             this@WALHareDiskManager.fileChannel.force(true)
+
+            /* Reset file channel's position to EOF. */
+            this.fileChannel.position(this.fileChannel.size())
 
             /* Re-read file header. */
             if (!this@WALHareDiskManager.validate()) {

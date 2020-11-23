@@ -263,6 +263,17 @@ class Catalogue(val config: Config) : DBO {
      * @param entityName The name of the [Entity] that should be created.
      * @param columns The list of columns that should be created.
      */
+    fun createEntity(entityName: Name.EntityName, vararg columns: ColumnDef<*>) {
+        val colWithDriver = columns.map { Pair(it, ColumnDriver.HARE) }.toTypedArray()
+        createEntity(entityName, *colWithDriver)
+    }
+
+    /**
+     * Creates a new [Entity] in this [Schema].
+     *
+     * @param entityName The name of the [Entity] that should be created.
+     * @param columns The list of columns that should be created.
+     */
     fun createEntity(entityName: Name.EntityName, vararg columns: Pair<ColumnDef<*>, ColumnDriver>) = this.lock.write {
         check(!this.closed) { "Catalogue has been closed and cannot be used anymore." }
 
@@ -452,6 +463,18 @@ class Catalogue(val config: Config) : DBO {
     }
 
     /**
+     * Fetches and returns the [CatalogueSchema] entry for the provided [Name.SchemaName].
+     *
+     * @param entityName [Name.SchemaName] to lookup the [CatalogueSchema] for.
+     * @return [CatalogueSchema]
+     */
+    fun schemaForName(schemaName: Name.SchemaName): CatalogueSchema = this.lock.read {
+        check(!this.closed) { "Catalogue has been closed and cannot be used anymore." }
+        return this.schemas[schemaName]
+                ?: throw DatabaseException.SchemaDoesNotExistException(schemaName)
+    }
+
+    /**
      * Fetches and returns the [CatalogueEntity] entry for the provided [Name.EntityName].
      *
      * @param entityName [Name.EntityName] to lookup the [CatalogueEntity] for.
@@ -549,8 +572,8 @@ class Catalogue(val config: Config) : DBO {
      */
     private fun initStore() = try {
         try {
-            if (!Files.exists(this.path.parent)) {
-                Files.createDirectories(this.path.parent)
+            if (!Files.exists(this.path)) {
+                Files.createDirectories(this.path)
             }
         } catch (e: IOException) {
             throw DatabaseException("Failed to create Cottontail DB catalogue due to an IO exception: ${e.message}")

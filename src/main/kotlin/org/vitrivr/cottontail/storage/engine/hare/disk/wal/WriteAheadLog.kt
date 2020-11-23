@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.storage.engine.hare.disk.wal
 
+import org.vitrivr.cottontail.storage.engine.hare.TransactionId
 import org.vitrivr.cottontail.storage.engine.hare.disk.FileUtilities
 import org.vitrivr.cottontail.storage.engine.hare.disk.HareDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.wal.WALHareDiskManager.UndoLog
@@ -41,6 +42,9 @@ internal abstract class WriteAheadLog(protected val path: Path, protected val lo
 
     /** A [ReentrantReadWriteLock] that mediates access to the closed state of this [HareDiskManager]. */
     protected val closeLock = StampedLock()
+
+    /** The [TransactionId] this [WriteAheadLog] belongs to. */
+    abstract val tid: TransactionId
 
     /** Returns [WALState] of this [UndoLog] */
     val state: WALState

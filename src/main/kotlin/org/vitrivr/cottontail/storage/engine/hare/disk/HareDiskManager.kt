@@ -120,11 +120,6 @@ abstract class HareDiskManager(val path: Path, val lockTimeout: Long = 5000) : R
     override val isOpen
         get() = this.fileChannel.isOpen
 
-    /** Executes initialization. */
-    init {
-        this.prepareOpen()
-    }
-
     /**
      * Fetches the data identified by the given [PageId] into the given [Page] object thereby replacing the content of that [Page].
      *
@@ -231,12 +226,6 @@ abstract class HareDiskManager(val path: Path, val lockTimeout: Long = 5000) : R
             this.fileChannel.close()
         }
     }
-
-    /**
-     * Logic that should be executed prior to opening a [HareDiskManager]. This includes things
-     * such as consistency checks or recovery.
-     */
-    protected abstract fun prepareOpen()
 
     /**
      * Logic that should be executed prior to closing a [HareDiskManager]. This includes things

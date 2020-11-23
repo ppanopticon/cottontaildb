@@ -33,6 +33,21 @@ class DirectHareDiskManager(path: Path, lockTimeout: Long = 5000, private val pr
         private val LOGGER = LoggerFactory.getLogger(DirectHareDiskManager::class.java)
     }
 
+    init {
+        if (!this.header.properlyClosed) {
+            LOGGER.warn("HARE page file was not properly closed (file: ${this.path.fileName}). Validating file...")
+            if (!this.validate()) {
+                throw DataCorruptionException("HARE page file CRC32 checksum mismatch (file: ${this.path}, expected: ${this.calculateChecksum()}, found: ${this.header.checksum}}).")
+            }
+        }
+
+        /* Updates sanity flag in header. */
+        this.header.checksum = this.calculateChecksum()
+        this.header.properlyClosed = false
+        this.header.isDirty = false
+        this.header.write(this.fileChannel, OFFSET_HEADER)
+    }
+
     /**
      * Fetches the data identified by the given [PageId] into the given [Page] object thereby
      * replacing the content of that [Page].
@@ -166,23 +181,6 @@ class DirectHareDiskManager(path: Path, lockTimeout: Long = 5000, private val pr
     override fun rollback(tid: TransactionId) { /* No Op. */
     }
 
-    /**
-     * Performs some sanity check before opening the file.
-     */
-    override fun prepareOpen() {
-        if (!this.header.properlyClosed) {
-            LOGGER.warn("HARE page file was not properly closed (file: ${this.path.fileName}). Validating file...")
-            if (!this.validate()) {
-                throw DataCorruptionException("HARE page file CRC32 checksum mismatch (file: ${this.path}, expected: ${this.calculateChecksum()}, found: ${this.header.checksum}}).")
-            }
-        }
-
-        /* Updates sanity flag in header. */
-        this.header.checksum = this.calculateChecksum()
-        this.header.properlyClosed = false
-        this.header.isDirty = false
-        this.header.write(this.fileChannel, OFFSET_HEADER)
-    }
 
     /**
      * Sets the properly closed flag to true and flushes the header.

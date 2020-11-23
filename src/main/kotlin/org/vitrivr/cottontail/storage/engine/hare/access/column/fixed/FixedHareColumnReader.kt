@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.storage.engine.hare.access.column.fixed
 
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.types.Value
+import org.vitrivr.cottontail.storage.engine.hare.TransactionId
 import org.vitrivr.cottontail.storage.engine.hare.access.EntryDeletedException
 import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareColumnFile
 import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareColumnReader
@@ -18,16 +19,21 @@ import java.util.concurrent.locks.StampedLock
  * A [HareColumnReader] implementation for [FixedHareColumnFile]s.
  *
  * @author Ralph Gasser
- * @version 1.0.1
+ * @version 1.0.3
  */
 class FixedHareColumnReader<T : Value>(val file: FixedHareColumnFile<T>, private val bufferPool: BufferPool) : HareColumnReader<T> {
-    /** The [Serializer] used to read data through this [FixedHareColumnReader]. */
-    private val serializer: Serializer<T> = this.file.columnType.serializer(this.file.logicalSize)
+
+    /** The [TransactionId] this [FixedHareColumnReader] is associated with. */
+    override val tid: TransactionId
+        get() = this.bufferPool.tid
 
     /** Flag indicating whether this [FixedHareColumnReader] is open.  */
     @Volatile
     override var isOpen: Boolean = true
         private set
+
+    /** The [Serializer] used to read data through this [FixedHareColumnReader]. */
+    private val serializer: Serializer<T> = this.file.columnType.serializer(this.file.logicalSize)
 
     /** A [StampedLock] that mediates access to methods of this [FixedHareColumnReader]. */
     private val localLock = StampedLock()

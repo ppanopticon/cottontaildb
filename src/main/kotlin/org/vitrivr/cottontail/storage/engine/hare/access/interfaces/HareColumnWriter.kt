@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.storage.engine.hare.access.interfaces
 
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.types.Value
+import org.vitrivr.cottontail.storage.engine.hare.TransactionId
 import org.vitrivr.cottontail.storage.engine.hare.access.EntryDeletedException
 import org.vitrivr.cottontail.storage.engine.hare.access.NullValueNotAllowedException
 import org.vitrivr.cottontail.storage.engine.hare.basics.Resource
@@ -10,9 +11,12 @@ import org.vitrivr.cottontail.storage.engine.hare.basics.Resource
  * A data structure that allow for write access to a [HareColumnFile].
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.0.2
  */
 interface HareColumnWriter<T : Value> : Resource {
+    /** The [TransactionId] of the transaction associated with this [HareColumnReader]. */
+    val tid: TransactionId
+
     /**
      * Updates the [Value] for the given [TupleId].
      *

@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.storage.engine.hare.access.column.variable
 
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.types.Value
+import org.vitrivr.cottontail.storage.engine.hare.TransactionId
 import org.vitrivr.cottontail.storage.engine.hare.access.EntryDeletedException
 import org.vitrivr.cottontail.storage.engine.hare.access.column.directory.Directory
 import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnFile
@@ -24,9 +25,17 @@ import java.util.concurrent.locks.StampedLock
  * A [HareColumnReader] implementation for [FixedHareColumnFile]s.
  *
  * @author Ralph Gasser
- * @version 1.0.1
+ * @version 1.0.3
  */
 class VariableHareColumnReader<T : Value>(val file: VariableHareColumnFile<T>, private val directory: Directory) : HareColumnReader<T> {
+    /** The [TransactionId] this [VariableHareColumnReader] is associated with. */
+    override val tid: TransactionId
+        get() = this.bufferPool.tid
+
+    /** Flag indicating whether this [VariableHareColumnWriter] is open.  */
+    @Volatile
+    override var isOpen: Boolean = true
+        private set
 
     /** The [Serializer] used to read data through this [FixedHareColumnReader]. */
     private val serializer: Serializer<T> = this.file.columnType.serializer(this.file.logicalSize)
@@ -37,11 +46,6 @@ class VariableHareColumnReader<T : Value>(val file: VariableHareColumnFile<T>, p
 
     /** The [BufferPool] instance used by this [VariableHareColumnReader] is always shared with the [Directory]. */
     private val bufferPool: BufferPool = this.directory.bufferPool
-
-    /** Flag indicating whether this [VariableHareColumnWriter] is open.  */
-    @Volatile
-    override var isOpen: Boolean = true
-        private set
 
     /** A [StampedLock] that mediates access to methods of this [VariableHareColumnWriter]. */
     private val localLock = StampedLock()

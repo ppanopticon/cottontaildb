@@ -18,6 +18,7 @@ import java.lang.StrictMath.floorDiv
 import java.lang.StrictMath.max
 import java.nio.ByteBuffer
 import java.nio.file.Path
+import java.util.*
 import java.util.concurrent.locks.StampedLock
 
 /**
@@ -26,7 +27,7 @@ import java.util.concurrent.locks.StampedLock
  * @author Ralph Gasser
  * @param 1.1.0
  */
-class FixedHareColumnFile<T : Value>(val path: Path, withWal: Boolean) : HareColumnFile<T> {
+class FixedHareColumnFile<T : Value>(val path: Path) : HareColumnFile<T> {
 
     /** Companion object with important constants. */
     companion object {
@@ -54,16 +55,17 @@ class FixedHareColumnFile<T : Value>(val path: Path, withWal: Boolean) : HareCol
             HareDiskManager.create(path, pageShift)
 
             val manager = DirectHareDiskManager(path, 5000)
+            val tid = UUID.randomUUID()
 
             /** Allocate file header page. */
             val page = HarePage(ByteBuffer.allocate(manager.pageSize))
             HeaderPageView.initialize(page, columnDef)
 
             /* Allocate header page. */
-            manager.update(manager.allocate(), page)
+            manager.update(tid, manager.allocate(tid), page)
 
             /** Allocate first data page. */
-            manager.update(manager.allocate(), page.clear())
+            manager.update(tid, manager.allocate(tid), page.clear())
             manager.close()
         }
 
@@ -86,12 +88,8 @@ class FixedHareColumnFile<T : Value>(val path: Path, withWal: Boolean) : HareCol
         }
     }
 
-    /** Initializes the [HareDiskManager] based on the `wal` property. */
-    override val disk = if (withWal) {
-        WALHareDiskManager(this.path)
-    } else {
-        DirectHareDiskManager(this.path)
-    }
+    /** Initializes the [DirectHareDiskManager]. */
+    override val disk = WALHareDiskManager(this.path)
 
     /** The [Name] of this [FixedHareColumnFile]. */
     override val name: String
@@ -106,6 +104,7 @@ class FixedHareColumnFile<T : Value>(val path: Path, withWal: Boolean) : HareCol
     /** Flag indicating whether this [FixedHareColumnFile] supports null entries or not. */
     override val nullable: Boolean
 
+    /** Flag indicating whether this [FixedHareColumnFile] is still open. */
     override val isOpen: Boolean
         get() = this.disk.isOpen
 
@@ -120,8 +119,9 @@ class FixedHareColumnFile<T : Value>(val path: Path, withWal: Boolean) : HareCol
 
     /* Initialize important fields. */
     init {
+        val tid = UUID.randomUUID()
         val page = HarePage(ByteBuffer.allocate(this.disk.pageSize))
-        this.disk.read(ROOT_PAGE_ID, page)
+        this.disk.read(tid, ROOT_PAGE_ID, page)
         val header = HeaderPageView(page).validate()
         this.columnType = header.type as ColumnType<T>
         this.logicalSize = header.size

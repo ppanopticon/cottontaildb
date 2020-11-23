@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.storage.engine.hare.access.column.variable
 
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.types.Value
+import org.vitrivr.cottontail.storage.engine.hare.TransactionId
 import org.vitrivr.cottontail.storage.engine.hare.access.column.directory.Directory
 import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnFile
 import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareColumnWriter
@@ -20,19 +21,24 @@ import java.util.concurrent.locks.StampedLock
  * A [HareColumnWriter] implementation for [VariableHareColumnFile]s.
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.0.3
  */
 class VariableHareColumnWriter<T : Value>(val file: VariableHareColumnFile<T>, private val directory: Directory) : HareColumnWriter<T> {
+    /** The [TransactionId] this [VariableHareColumnWriter] is associated with. */
+    override val tid: TransactionId
+        get() = this.bufferPool.tid
+
+    /** Flag indicating whether this [VariableHareColumnWriter] is open.  */
+    @Volatile
+    override var isOpen: Boolean = true
+        private set
+
     /** The [Serializer] used to read data through this [VariableHareColumnFile]. */
     private val serializer: Serializer<T> = this.file.columnType.serializer(this.file.logicalSize)
 
     /** The [BufferPool] instance used by this [VariableHareColumnWriter] is always shared with the [Directory]. */
     private val bufferPool: BufferPool = this.directory.bufferPool
 
-    /** Flag indicating whether this [VariableHareColumnWriter] is open.  */
-    @Volatile
-    override var isOpen: Boolean = true
-        private set
 
     /** A [StampedLock] that mediates access to methods of this [VariableHareColumnWriter]. */
     private val localLock = StampedLock()
@@ -121,7 +127,7 @@ class VariableHareColumnWriter<T : Value>(val file: VariableHareColumnFile<T>, p
      */
     override fun commit() = this.localLock.exclusive {
         this.bufferPool.flush()
-        this.file.disk.commit()
+        this.file.disk.commit(this.tid)
     }
 
     /**
@@ -129,7 +135,7 @@ class VariableHareColumnWriter<T : Value>(val file: VariableHareColumnFile<T>, p
      */
     override fun rollback() = this.localLock.exclusive {
         this.bufferPool.synchronize()
-        this.file.disk.rollback()
+        this.file.disk.rollback(this.tid)
     }
 
     /**

@@ -3,6 +3,7 @@ package org.vitrivr.cottontail.storage.engine.hare.disk
 import org.vitrivr.cottontail.storage.basics.MemorySize
 import org.vitrivr.cottontail.storage.basics.Units
 import org.vitrivr.cottontail.storage.engine.hare.PageId
+import org.vitrivr.cottontail.storage.engine.hare.TransactionId
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
 import org.vitrivr.cottontail.storage.engine.hare.basics.PageConstants
 import org.vitrivr.cottontail.storage.engine.hare.basics.Resource
@@ -25,7 +26,7 @@ import java.util.zip.CRC32C
  * usually residing on some form of persistent storage. Only one  [HareDiskManager] can be opened per HARE
  * page fil and it acquires an exclusive [FileLock] once created.
  *
- * @version 1.2.1
+ * @version 1.2.2
  * @author Ralph Gasser
  */
 abstract class HareDiskManager(val path: Path, val lockTimeout: Long = 5000) : Resource {
@@ -119,36 +120,45 @@ abstract class HareDiskManager(val path: Path, val lockTimeout: Long = 5000) : R
     override val isOpen
         get() = this.fileChannel.isOpen
 
+    /** Executes initialization. */
+    init {
+        this.prepareOpen()
+    }
+
     /**
      * Fetches the data identified by the given [PageId] into the given [Page] object thereby replacing the content of that [Page].
      *
+     * @param tid The [TransactionId] of the transaction that performs the action.
      * @param pageId [PageId] to fetch data for.
      * @param page [HarePage] to fetch data into. Its content will be updated.
      */
-    abstract fun read(pageId: PageId, page: HarePage)
+    abstract fun read(tid: TransactionId, pageId: PageId, page: HarePage)
 
     /**
      * Fetches the data starting from the given [PageId] into the given [Page] objects thereby replacing the content of those [Page].
      *
+     * @param tid The [TransactionId] of the transaction that performs the action.
      * @param pageId [PageId] to start fetching
      * @param pages [Page]s to fetch data into. Their content will be updated.
      */
-    abstract fun read(pageId: PageId, pages: Array<HarePage>)
+    abstract fun read(tid: TransactionId, pageId: PageId, pages: Array<HarePage>)
 
     /**
      * Updates the [Page] identified by the given [PageId] in the HARE file managed by this [HareDiskManager].
      *
+     * @param tid The [TransactionId] of the transaction that performs the action.
      * @param pageId [PageId] of the [Page] that should be updated
      * @param page [Page] the data the [Page] should be updated with.
      */
-    abstract fun update(pageId: PageId, page: HarePage)
+    abstract fun update(tid: TransactionId, pageId: PageId, page: HarePage)
 
     /**
      * Allocates new [Page] in the HARE file managed by this [HareDiskManager].
      *
+     * @param tid The [TransactionId] of the transaction that performs the action.
      * @return The [PageId] of the allocated [Page].
      */
-    abstract fun allocate(): PageId
+    abstract fun allocate(tid: TransactionId): PageId
 
     /**
      * Frees the [Page] identified by the given [PageId] making space for new entries.
@@ -157,26 +167,24 @@ abstract class HareDiskManager(val path: Path, val lockTimeout: Long = 5000) : R
      * it is unsafe to use [PageId]s of freed [Page]s, until they are re-allocated, since freed [Page]s may be invalidated,
      * removed or replaced at any time.
      *
+     * @param tid The [TransactionId] of the transaction that performs the action.
      * @param pageId The [PageId] that should be freed.
      */
-    abstract fun free(pageId: PageId)
+    abstract fun free(tid: TransactionId, pageId: PageId)
 
     /**
-     * Commits all changes made through this [HareDiskManager].
+     * Commits all changes made through this [HareDiskManager]
+     *
+     * @param tid The [TransactionId] of the transaction that performs the action.
      */
-    abstract fun commit()
+    abstract fun commit(tid: TransactionId)
 
     /**
      * Rolls back all changes made through this [HareDiskManager].
-     */
-    abstract fun rollback()
-
-    /**
      *
+     * @param tid The [TransactionId] of the transaction that performs the action.
      */
-    fun sync() {
-       this.fileChannel.force(false)
-    }
+    abstract fun rollback(tid: TransactionId)
 
     /**
      * Deletes the HARE file backing this [HareDiskManager]. Calling this method also
@@ -207,7 +215,10 @@ abstract class HareDiskManager(val path: Path, val lockTimeout: Long = 5000) : R
      *
      * @return true If and only if checksum in header and of content are identical.
      */
-    fun validate(): Boolean = (this.header.checksum == this.calculateChecksum())
+    fun validate(): Boolean {
+        this.header.read(this.fileChannel, OFFSET_HEADER) /* Re-read header. */
+        return (this.header.checksum == this.calculateChecksum()) /* Calculate checksum. */
+    }
 
     /**
      * Closes this [HareDiskManager].
@@ -222,7 +233,14 @@ abstract class HareDiskManager(val path: Path, val lockTimeout: Long = 5000) : R
     }
 
     /**
-     * Logic that should be executed prior to closing a [HareDiskManager].
+     * Logic that should be executed prior to opening a [HareDiskManager]. This includes things
+     * such as consistency checks or recovery.
+     */
+    protected abstract fun prepareOpen()
+
+    /**
+     * Logic that should be executed prior to closing a [HareDiskManager]. This includes things
+     * such as flushing buffers, consistency checks and updating certain flags.
      */
     protected abstract fun prepareClose()
 

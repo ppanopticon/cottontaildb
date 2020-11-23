@@ -9,6 +9,7 @@ import org.junit.jupiter.params.provider.ValueSource
 import org.vitrivr.cottontail.TestConstants
 import org.vitrivr.cottontail.storage.basics.Units
 import org.vitrivr.cottontail.storage.engine.hare.PageId
+import org.vitrivr.cottontail.storage.engine.hare.TransactionId
 import org.vitrivr.cottontail.storage.engine.hare.basics.PageConstants
 import org.vitrivr.cottontail.storage.engine.hare.disk.HareDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectHareDiskManager
@@ -93,6 +94,7 @@ class DirectHareDiskManagerTest {
     fun testUpdatePage(size: Int) {
         val page = HarePage(ByteBuffer.allocateDirect(pageSize))
         val data = this.initWithData(size)
+        val tid: TransactionId = UUID.randomUUID()
 
         val newData = Array(data.size) {
             val bytes = ByteArray(pageSize)
@@ -105,7 +107,7 @@ class DirectHareDiskManagerTest {
         for (i in newData.indices) {
             updateTime += measureTime {
                 page.putBytes(0, newData[i])
-                this.manager!!.update(i + 1L, page)
+                this.manager!!.update(tid, i + 1L, page)
             }
             assertArrayEquals(newData[i], page.getBytes(0))
         }
@@ -128,16 +130,17 @@ class DirectHareDiskManagerTest {
         val data = this.initWithData(size)
         val random = SplittableRandom()
         val pageIds = mutableListOf<PageId>()
+        val tid: TransactionId = UUID.randomUUID()
 
         /* Truncate last page and compare sizes. */
         for (i in 0 until 100) {
             val pageId = random.nextLong(1L, data.size.toLong())
             if (!pageIds.contains(pageId)) {
-                this.manager!!.free(pageId)
+                this.manager!!.free(tid, pageId)
                 pageIds.add(pageId)
             } else {
                 assertThrows(IllegalArgumentException::class.java) {
-                    this.manager!!.free(pageId)
+                    this.manager!!.free(tid, pageId)
                 }
             }
         }
@@ -145,7 +148,7 @@ class DirectHareDiskManagerTest {
         /* Check page content. */
         val page = HarePage(ByteBuffer.allocateDirect(pageSize))
         for (pageId in pageIds) {
-            this.manager!!.read(pageId, page)
+            this.manager!!.read(tid, pageId, page)
             assertEquals(PageConstants.PAGE_TYPE_FREED, page.getInt(0))
         }
     }
@@ -160,23 +163,24 @@ class DirectHareDiskManagerTest {
         val data = this.initWithData(size)
         val random = SplittableRandom()
         val pageIds = mutableListOf<PageId>()
+        val tid: TransactionId = UUID.randomUUID()
 
         /* Truncate last page and compare sizes. */
         for (i in 0 until 100) {
             val pageId = random.nextLong(1L, data.size.toLong())
             if (!pageIds.contains(pageId)) {
-                this.manager!!.free(pageId)
+                this.manager!!.free(tid, pageId)
                 pageIds.add(pageId)
             } else {
                 assertThrows(IllegalArgumentException::class.java) {
-                    this.manager!!.free(pageId)
+                    this.manager!!.free(tid, pageId)
                 }
             }
         }
 
         /* Check page re-use. */
         for (i in pageIds.size-1 downTo 0) {
-            assertEquals(pageIds[i], this.manager!!.allocate())
+            assertEquals(pageIds[i], this.manager!!.allocate(tid))
         }
     }
 
@@ -186,11 +190,12 @@ class DirectHareDiskManagerTest {
     @ExperimentalTime
     private fun compareSingleRead(ref: Array<ByteArray>) {
         val page = HarePage(ByteBuffer.allocateDirect(pageSize))
+        val tid: TransactionId = UUID.randomUUID()
 
         var readTime = Duration.ZERO
         for (i in ref.indices) {
             readTime += measureTime {
-                this.manager!!.read(i + 1L, page)
+                this.manager!!.read(tid, i + 1L, page)
             }
             assertArrayEquals(ref[i], page.getBytes(0))
         }
@@ -207,11 +212,12 @@ class DirectHareDiskManagerTest {
         val page2 = HarePage(ByteBuffer.allocateDirect(pageSize))
         val page3 = HarePage(ByteBuffer.allocateDirect(pageSize))
         val page4 = HarePage(ByteBuffer.allocateDirect(pageSize))
+        val tid: TransactionId = UUID.randomUUID()
 
         var readTime = Duration.ZERO
         for (i in ref.indices step 4) {
             readTime += measureTime {
-                this.manager!!.read(i + 1L, arrayOf(page1, page2, page3, page4))
+                this.manager!!.read(tid, i + 1L, arrayOf(page1, page2, page3, page4))
             }
             assertArrayEquals(ref[i], page1.getBytes(0))
             assertArrayEquals(ref[i+1], page2.getBytes(0))
@@ -230,6 +236,8 @@ class DirectHareDiskManagerTest {
     @ExperimentalTime
     private fun initWithData(size: Int) : Array<ByteArray> {
         val page = HarePage(ByteBuffer.allocateDirect(pageSize))
+        val tid: TransactionId = UUID.randomUUID()
+
         var writeTime = Duration.ZERO
         val data = Array(size) {
             val bytes = ByteArray(pageSize)
@@ -241,16 +249,16 @@ class DirectHareDiskManagerTest {
         for (i in data.indices) {
             writeTime += measureTime {
                 page.putBytes(0, data[i])
-                val pageId = this.manager!!.allocate()
+                val pageId = this.manager!!.allocate(tid)
                 assertEquals(prev + 1L, pageId) /* Make sure pageIds increase monotonically. */
                 prev = pageId
-                this.manager!!.update(pageId, page)
+                this.manager!!.update(tid, pageId, page)
             }
             assertEquals(i + 1L, this.manager!!.pages)
         }
 
         /* Commit changes. */
-        this.manager!!.commit()
+        this.manager!!.commit(tid)
 
         val diskSize = this.manager!!.size `in` Units.MEGABYTE
         println("Appending $diskSize took $writeTime (${diskSize.value / writeTime.inSeconds} MB/s).")

@@ -6,6 +6,7 @@ import io.micrometer.jmx.JmxConfig
 import io.micrometer.jmx.JmxMeterRegistry
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap
 import org.vitrivr.cottontail.storage.engine.hare.PageId
+import org.vitrivr.cottontail.storage.engine.hare.TransactionId
 import org.vitrivr.cottontail.storage.engine.hare.basics.PageRef
 import org.vitrivr.cottontail.storage.engine.hare.basics.ReferenceCounted
 import org.vitrivr.cottontail.storage.engine.hare.basics.Resource
@@ -13,7 +14,6 @@ import org.vitrivr.cottontail.storage.engine.hare.buffer.eviction.EvictionPolicy
 import org.vitrivr.cottontail.storage.engine.hare.buffer.eviction.EvictionQueue
 import org.vitrivr.cottontail.storage.engine.hare.buffer.eviction.EvictionQueueToken
 import org.vitrivr.cottontail.storage.engine.hare.disk.HareDiskManager
-import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectHareDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
 import org.vitrivr.cottontail.utilities.extensions.exclusive
 import org.vitrivr.cottontail.utilities.extensions.read
@@ -26,15 +26,15 @@ import java.util.concurrent.locks.ReentrantReadWriteLock
 import java.util.concurrent.locks.StampedLock
 
 /**
- * A [BufferPool] mediates access to a HARE file through a [DirectHareDiskManager] and facilitates
- * reading and writing [HarePage]s from/to memory and swapping [HarePage]s into the in-memory buffer.
+ * A [BufferPool] mediates access to a HARE file through a [HareDiskManager] and facilitates reading
+ * and writing [HarePage]s from/to memory and swapping [HarePage]s into the in-memory buffer.
  *
  * @see EvictionQueue
  *
  * @version 1.2.1
  * @author Ralph Gasser
  */
-class BufferPool(val disk: HareDiskManager, val size: Int = 25, val evictionPolicy: EvictionPolicy) : Resource {
+class BufferPool(val disk: HareDiskManager, val tid: TransactionId, val size: Int = 25, val evictionPolicy: EvictionPolicy) : Resource {
 
     companion object {
         val METER_REGISTRY: MeterRegistry = JmxMeterRegistry(JmxConfig.DEFAULT, Clock.SYSTEM)
@@ -42,10 +42,10 @@ class BufferPool(val disk: HareDiskManager, val size: Int = 25, val evictionPoli
         val PAGE_ACCESS_COUNTER = METER_REGISTRY.counter("Cottontail.Hare.BufferPool.PageAccess")
     }
 
-    /** Creates a new [MemoryManager.MemoryBlock] for this [BufferPool]. */
+    /** Creates a new [ByteBuffer] for this [BufferPool]. */
     private val memory = ByteBuffer.allocate(this.size shl this.disk.pageShift)
 
-    /** Array of [HarePage]s that are kept in memory. */
+    /** Array of sliced [ByteBuffer]s, each representing a [PageReference]. */
     private val pages = Array<ByteBuffer>(this.size) {
         this.memory.position(it shl this.disk.pageShift).limit((it+1) shl this.disk.pageShift).slice()
     }
@@ -116,7 +116,7 @@ class BufferPool(val disk: HareDiskManager, val size: Int = 25, val evictionPoli
                 val newRef = evictPage(pageId, priority)
 
                 /* Now read page from disk. */
-                this.disk.read(pageId, newRef)
+                this.disk.read(tid, pageId, newRef)
 
                 /* Update page directory and queue and return new PageRef. */
                 this.pageDirectory[pageId] = newRef
@@ -139,7 +139,7 @@ class BufferPool(val disk: HareDiskManager, val size: Int = 25, val evictionPoli
             val pageRefs = range.map {
                 this@BufferPool.evictPage(it, Priority.DEFAULT)
             }
-            this@BufferPool.disk.read(range.first, (pageRefs.toTypedArray() as Array<HarePage>))
+            this@BufferPool.disk.read(tid, range.first, (pageRefs.toTypedArray() as Array<HarePage>))
             pageRefs.forEach {
                 this@BufferPool.pageDirectory[it.id] = it
             }
@@ -153,7 +153,7 @@ class BufferPool(val disk: HareDiskManager, val size: Int = 25, val evictionPoli
      */
     fun append(): PageId = this.closeLock.read {
         check(this.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
-        return this.disk.allocate()
+        return this.disk.allocate(this.tid)
     }
 
     /**
@@ -165,7 +165,7 @@ class BufferPool(val disk: HareDiskManager, val size: Int = 25, val evictionPoli
         this.directoryLock.shared {
             for (p in this.pageDirectory.values) {
                 if (p.dirty) {
-                    this.disk.update(p.id, p)
+                    this.disk.update(this.tid, p.id, p)
                 }
             }
         }
@@ -180,7 +180,7 @@ class BufferPool(val disk: HareDiskManager, val size: Int = 25, val evictionPoli
         this.directoryLock.shared {
             for (p in this.pageDirectory.values) {
                 if (p.dirty) {
-                    this.disk.read(p.id, p)
+                    this.disk.read(this.tid, p.id, p)
                 }
             }
         }
@@ -336,9 +336,16 @@ class BufferPool(val disk: HareDiskManager, val size: Int = 25, val evictionPoli
          */
         override fun retain() = this.evictionLock.shared {
             val oldRefCount = this._refCount.getAndUpdate {
-                check(it != ReferenceCounted.REF_COUNT_DISPOSED) { "PageRef $this has been disposed and cannot be accessed anymore." }
-                it+1
+                check(it != ReferenceCounted.REF_COUNT_DISPOSED) { "PageRef $this has been disposed and cannot be retained anymore." }
+                it + 1
             }
+
+            /* Removes this from the eviction queue. */
+            if (oldRefCount == 0) {
+                this@BufferPool.evictionQueue.removeCandidate(this)
+            }
+
+            /* Update token. */
             this.token.touch()
             this
         }
@@ -347,12 +354,12 @@ class BufferPool(val disk: HareDiskManager, val size: Int = 25, val evictionPoli
          * Releases this [PageRef] thus decreasing its reference count by one.
          */
         override fun release() = this.evictionLock.shared {
-            val refCount = this._refCount.updateAndGet {
+            val newRefCount = this._refCount.updateAndGet {
                 check(it != ReferenceCounted.REF_COUNT_DISPOSED) { "PageRef $this has been disposed and cannot be accessed anymore." }
                 check(it > 0) { "PageRef $this has a reference count of zero and cannot be released!" }
-                it-1
+                it - 1
             }
-            if (refCount == 0) {
+            if (newRefCount == 0) {
                 this@BufferPool.evictionQueue.offerCandidate(this)
             }
         }
@@ -371,7 +378,7 @@ class BufferPool(val disk: HareDiskManager, val size: Int = 25, val evictionPoli
                 this@BufferPool.pageDirectory.remove(this.id)
                 if (this.dirty) {
                     /* Update dirty pages. */
-                    this@BufferPool.disk.update(this.id, this)
+                    this@BufferPool.disk.update(this@BufferPool.tid, this.id, this)
                 }
                 true
             } else {

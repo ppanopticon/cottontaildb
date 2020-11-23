@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.storage.engine.hare.access.column.fixed
 
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.types.Value
+import org.vitrivr.cottontail.storage.engine.hare.TransactionId
 import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareCursor
 import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
 import org.vitrivr.cottontail.storage.engine.hare.buffer.Priority
@@ -12,9 +13,13 @@ import org.vitrivr.cottontail.storage.engine.hare.toSlotId
  * A [HareCursor] implementation for [FixedHareColumnFile]s. This implementation is not thread safe!
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.0.3
  */
 class FixedHareColumnCursor<T : Value>(val file: FixedHareColumnFile<T>, private val bufferPool: BufferPool, range: LongRange? = null) : HareCursor<T> {
+
+    /** The [TransactionId] this [FixedHareColumnCursor] is associated with. */
+    override val tid: TransactionId
+        get() = this.bufferPool.tid
 
     /** The [TupleId] this [FixedHareColumnCursor] is currently pointing to. */
     override var tupleId: TupleId = HareCursor.CURSOR_BOF

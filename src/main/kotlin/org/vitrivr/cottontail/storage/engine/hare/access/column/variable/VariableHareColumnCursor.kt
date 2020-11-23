@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.storage.engine.hare.access.column.variable
 
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.types.Value
+import org.vitrivr.cottontail.storage.engine.hare.TransactionId
 import org.vitrivr.cottontail.storage.engine.hare.access.column.directory.Directory
 import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnFile
 import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareCursor
@@ -13,9 +14,12 @@ import org.vitrivr.cottontail.storage.engine.hare.views.isDeleted
  * A [HareCursor] implementation for [VariableHareColumnFile]s. This implementation is not thread safe!
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.0.3
  */
 class VariableHareColumnCursor<T : Value>(val file: VariableHareColumnFile<T>, private val directory: Directory, range: LongRange? = null) : HareCursor<T> {
+    /** The [TransactionId] this [VariableHareColumnCursor] is associated with. */
+    override val tid: TransactionId
+        get() = this.bufferPool.tid
 
     /** The [TupleId] this [VariableHareColumnCursor] is currently pointing to. */
     override var tupleId: TupleId = HareCursor.CURSOR_BOF

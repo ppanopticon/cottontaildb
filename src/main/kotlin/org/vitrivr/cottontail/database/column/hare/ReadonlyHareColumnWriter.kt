@@ -3,8 +3,8 @@ package org.vitrivr.cottontail.database.column.hare
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.exceptions.TransactionException
 import org.vitrivr.cottontail.model.values.types.Value
+import org.vitrivr.cottontail.storage.engine.hare.TransactionId
 import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareColumnWriter
-import java.util.*
 
 /**
  * This is a mock implementation of [HareColumnWriter] that throws
@@ -13,7 +13,7 @@ import java.util.*
  * @author Ralph Gasser
  * @version 1.0
  */
-class ReadonlyHareColumnWriter<T : Value>(val tid: UUID) : HareColumnWriter<T> {
+class ReadonlyHareColumnWriter<T : Value>(override val tid: TransactionId) : HareColumnWriter<T> {
     override val isOpen: Boolean
         get() = false
 
@@ -42,6 +42,6 @@ class ReadonlyHareColumnWriter<T : Value>(val tid: UUID) : HareColumnWriter<T> {
     }
 
     override fun close() {
-        throw TransactionException.TransactionReadOnlyException(this.tid)
+        /* No op. */
     }
 }

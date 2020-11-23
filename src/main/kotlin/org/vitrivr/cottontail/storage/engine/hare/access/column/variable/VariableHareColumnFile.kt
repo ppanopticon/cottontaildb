@@ -18,6 +18,7 @@ import org.vitrivr.cottontail.utilities.extensions.exclusive
 import org.vitrivr.cottontail.utilities.math.BitUtil
 import java.nio.ByteBuffer
 import java.nio.file.Path
+import java.util.*
 import java.util.concurrent.locks.StampedLock
 
 /**
@@ -51,19 +52,20 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean) : HareColu
             HareDiskManager.create(path, pageShift)
 
             val manager = DirectHareDiskManager(path, 5000)
+            val tid = UUID.randomUUID()
 
             /** Allocate file header page. */
             val page = HarePage(ByteBuffer.allocate(manager.pageSize))
             HeaderPageView.initialize(page, columnDef)
-            manager.update(manager.allocate(), page)
+            manager.update(tid, manager.allocate(tid), page)
 
             /** Allocate first directory page. */
             DirectoryPageView.initialize(page.clear(), DirectoryPageView.NO_REF, 0L)
-            manager.update(manager.allocate(), page)
+            manager.update(tid, manager.allocate(tid), page)
 
             /** Allocate first slotted page. */
             SlottedPageView.initialize(page.clear())
-            manager.update(manager.allocate(), page)
+            manager.update(tid, manager.allocate(tid), page)
 
             /** Close manager. */
             manager.close()
@@ -89,11 +91,7 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean) : HareColu
     }
 
     /** Initializes the [HareDiskManager] based on the `wal` property. */
-    override val disk = if (wal) {
-        WALHareDiskManager(this.path)
-    } else {
-        DirectHareDiskManager(this.path)
-    }
+    override val disk = WALHareDiskManager(this.path)
 
     /** The [Name] of this [VariableHareColumnFile]. */
     override val name: String
@@ -118,7 +116,9 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean) : HareColu
     /* Initialize important fields. */
     init {
         val page = HarePage(ByteBuffer.allocate(this.disk.pageSize))
-        this.disk.read(FixedHareColumnFile.ROOT_PAGE_ID, page)
+        val tid = UUID.randomUUID()
+
+        this.disk.read(tid, FixedHareColumnFile.ROOT_PAGE_ID, page)
         val header = HeaderPageView(page).validate()
         this.columnType = header.type as ColumnType<T>
         this.logicalSize = header.size

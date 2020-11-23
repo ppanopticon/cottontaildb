@@ -35,8 +35,9 @@ class BufferPoolTest {
     @BeforeEach
     fun beforeEach() {
         HareDiskManager.create(this.path, this.pageShift)
+        val tid = UUID.randomUUID()
         this._manager = DirectHareDiskManager(path = this.path, preAllocatePages = 1)
-        this.pool = BufferPool(this._manager!!, 10, EvictionPolicy.LRU)
+        this.pool = BufferPool(this._manager!!, tid, 10, EvictionPolicy.LRU)
     }
 
     @AfterEach

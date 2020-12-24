@@ -1,28 +1,28 @@
 package org.vitrivr.cottontail.model.exceptions
 
 /**
- * [QueryException]s are thrown whenever a query cannot prepared properly. Potential reasons for
- * failing to prepare a query range from erroneous user input to programmer's errors.
- *
+ * A type of [DatabaseException]. [QueryException]s are thrown whenever a query cannot prepared.
  * Errors that take place during query execution are not [QueryException]s.
  *
+ * Potential reasons for failing to prepare a query range from erroneous user input to programmer's errors.
+ *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.0.1
  */
 open class QueryException(message: String) : DatabaseException(message) {
 
     /**
-     * [QuerySyntaxException] is thrown when the query does not adhere to some syntax requirement.
-     * For example, if mandatory components of the query are missing.
+     * [QuerySyntaxException] is thrown when the query does not comply with some form (syntax)
+     * requirement. For example, if mandatory components of the query are missing.
      *
      * @param message Message describing the issue.
      */
     class QuerySyntaxException(message: String) : DatabaseException(message)
 
     /**
-     * [QueryBindException] is thrown when Cottontail DB fails to bind a query to the underlying [org.vitrivr.cottontail.database.general.DBO]s.
-     * This is usually the case, if [org.vitrivr.cottontail.database.schema.Schema], [org.vitrivr.cottontail.database.entity.Entity]
-     * or [org.vitrivr.cottontail.database.column.Column] names are not spelt correctly.
+     * [QueryBindException] is thrown when Cottontail DB fails to bind a query to the
+     * underlying [org.vitrivr.cottontail.database.general.DBO]s. This is usually the case,
+     * if [org.vitrivr.cottontail.database.general.DBO] names are not spelt correctly.
      *
      * @param message Message describing the issue with the query.
      */
@@ -44,8 +44,8 @@ open class QueryException(message: String) : DatabaseException(message) {
     class UnsupportedCastException(message: String) : DatabaseException(message)
 
     /**
-     * [UnsupportedPredicateException] is thrown when a [Predicate][org.vitrivr.cottontail.database.queries.Predicate]
-     * is applied that is not supported by the data structure it is applied to.
+     * [UnsupportedPredicateException] is thrown when a [org.vitrivr.cottontail.database.queries.Predicate]
+     * is applied that is not supported by the [org.vitrivr.cottontail.database.general.DBO]  it is applied to.
      *
      * @param message Message describing the issue with the query.
      */

@@ -1,7 +1,7 @@
 package org.vitrivr.cottontail.database.queries.planning.cost
 
 import java.util.*
-import kotlin.math.roundToInt
+import kotlin.math.max
 import kotlin.system.measureNanoTime
 
 /**
@@ -19,8 +19,8 @@ data class Cost constructor(val io: Float = 0.0f, val cpu: Float = 0.0f, val mem
         /** Number of repetitions to run when estimating costs. */
         private const val ESTIMATION_REPETITION = 1_000_000
 
-        /** Constant used to estimate, how much parallelisation makes sense given CPU [Cost]s. This is a magic number :-) */
-        private const val PARALLELISATION_CONSTANT = 25.0f
+        /** Constant used to estimate, how much parallelization makes sense given CPU [Cost]s. This is a magic number :-) */
+        private const val PARALLELISATION_CONSTANT = 10.0f
 
         /** Cost read access to disk. TODO: Estimate based on local hardware. */
         const val COST_DISK_ACCESS_READ = 1e-4f
@@ -108,7 +108,7 @@ data class Cost constructor(val io: Float = 0.0f, val cpu: Float = 0.0f, val mem
      *
      * @return Parallelisation estimation for this [Cost].
      */
-    fun parallelisation() = (this.cpu / PARALLELISATION_CONSTANT).roundToInt()
+    fun parallelisation() = max(((this.cpu - this.io) / PARALLELISATION_CONSTANT).toInt(), 1)
 
 
     operator fun plus(other: Cost): Cost = Cost(this.io + other.io, this.cpu + other.cpu, this.memory + other.memory)

@@ -4,10 +4,10 @@ import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.UnaryLogicalNodeExpression
 
 /**
- * A [DeleteLogicalNodeExpression] that formalizes a delete operation on an [Entity].
+ * A [DeleteLogicalNodeExpression] that formalizes a DELETE operation on an [Entity].
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.0.0
  */
 class DeleteLogicalNodeExpression(val entity: Entity): UnaryLogicalNodeExpression() {
 

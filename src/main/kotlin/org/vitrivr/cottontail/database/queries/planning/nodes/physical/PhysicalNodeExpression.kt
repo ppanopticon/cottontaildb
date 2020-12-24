@@ -3,7 +3,7 @@ package org.vitrivr.cottontail.database.queries.planning.nodes.physical
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.planning.nodes.interfaces.NodeExpression
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.LogicalNodeExpression
-import org.vitrivr.cottontail.execution.ExecutionEngine
+import org.vitrivr.cottontail.execution.TransactionManager
 import org.vitrivr.cottontail.execution.operators.basics.Operator
 
 /**
@@ -17,7 +17,7 @@ import org.vitrivr.cottontail.execution.operators.basics.Operator
  * the optimal plan.
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.1.0
  *
  * @see NodeExpression
  * @see PhysicalNodeExpression
@@ -28,13 +28,13 @@ abstract class PhysicalNodeExpression : NodeExpression() {
     override val executable: Boolean
         get() = this.inputs.all { it.executable }
 
-    /** The estimated number of rows this [NodeExpression] generates. */
+    /** The estimated number of rows this [PhysicalNodeExpression] generates. */
     abstract val outputSize: Long
 
-    /** An estimation of the [Cost] incurred by this [NodeExpression]. */
+    /** An estimation of the [Cost] incurred by this [PhysicalNodeExpression]. */
     abstract val cost: Cost
 
-    /** An estimation of the [Cost] incurred by the tree up and until this [NodeExpression]. */
+    /** An estimation of the [Cost] incurred by the tree up and until this [PhysicalNodeExpression]. */
     val totalCost: Cost
         get() = if (this.inputs.isEmpty()) {
             this.cost
@@ -74,9 +74,10 @@ abstract class PhysicalNodeExpression : NodeExpression() {
     abstract fun partition(p: Int): List<PhysicalNodeExpression>
 
     /**
-     * Converts this [PhysicalNodeExpression] to the corresponding [ExecutionStage].
+     * Converts this [PhysicalNodeExpression] to the corresponding [Operator].
      *
-     * @return [ExecutionStage]
+     * @param engine The [TransactionManager] the [Operator] should be executed in.
+     * @return [Operator]
      */
-    abstract fun toOperator(context: ExecutionEngine.ExecutionContext): Operator
+    abstract fun toOperator(engine: TransactionManager): Operator
 }

@@ -10,7 +10,7 @@ import kotlin.math.atan2
 /**
  * Represents a complex number backed by double-precision (64bit) [Double]s
  *
- * @version 1.3.1
+ * @version 1.3.2
  * @author Ralph Gasser
  */
 inline class Complex64Value(val data: DoubleArray): ComplexValue<Double> {
@@ -93,37 +93,46 @@ inline class Complex64Value(val data: DoubleArray): ComplexValue<Double> {
         get() = -1
 
     /**
-     * Comparison to other [Value]s.
+     * Compares this [Complex32Value] to another [Value]. Returns -1, 0 or 1 of other value is smaller,
+     * equal or greater than this value. [Complex32Value] can only be compared to other [NumericValue]s.
+     *
+     * @param other Value to compare to.
+     * @return -1, 0 or 1 of other value is smaller, equal or greater than this value
      */
     override fun compareTo(other: Value): Int = when (other) {
-        is Complex32Value -> this.real.compareTo(other.real)
-        is Complex64Value -> this.real.compareTo(other.real)
-        is ByteValue -> this.real.compareTo(other)
-        is ShortValue -> this.real.compareTo(other)
-        is IntValue -> this.real.compareTo(other)
-        is LongValue -> this.real.compareTo(other)
-        is DoubleValue -> this.real.compareTo(other)
-        is FloatVectorValue -> this.real.compareTo(other)
-        else -> throw IllegalArgumentException("Complex64Value can only be compared to other numeric values.")
+        is ByteValue -> this.value.compareTo(other.value)
+        is ShortValue -> this.value.compareTo(other.value)
+        is IntValue -> this.value.compareTo(other.value)
+        is LongValue -> this.value.compareTo(other.value)
+        is DoubleValue -> this.value.compareTo(other.value)
+        is FloatValue -> this.value.compareTo(other.value)
+        is Complex32Value -> { /* Mathematically, this is not sound. But for the purpose of sorting, this should be sufficient. */
+            val real = this.real.compareTo(other.real)
+            if (real == 0) {
+                real + this.imaginary.compareTo(other.imaginary)
+            } else {
+                real
+            }
+        }
+        is Complex64Value -> { /* Mathematically, this is not sound. But for the purpose of sorting, this should be sufficient. */
+            val real = this.real.compareTo(other.real)
+            if (real == 0) {
+                real + this.imaginary.compareTo(other.imaginary)
+            } else {
+                real
+            }
+        }
+        else -> throw IllegalArgumentException("LongValues can only be compared to other numeric values.")
     }
 
     /**
-     * Comparison to other [NumericValue]s.
+     * Checks for equality between this [Complex64Value] and the other [Value]. Equality can only be
+     * established if the other [Value] is also a [Complex64Value] and holds the same value.
+     *
+     * @param other [Value] to compare to.
+     * @return True if equal, false otherwise.
      */
-    override fun compareTo(other: NumericValue<Double>): Int = this.real.compareTo(other.real)
-
-    /**
-     * Comparison to [Number]s. When compared to a [Number], then only the real part of the [Complex32Value] is considered.
-     */
-    override fun compareTo(other: Number): Int = when (other) {
-        is Byte -> this.real.compareTo(other)
-        is Short -> this.real.compareTo(other)
-        is Int -> this.real.compareTo(other)
-        is Long -> this.real.compareTo(other)
-        is Double -> this.real.compareTo(other)
-        is Float -> this.real.compareTo(other)
-        else -> throw IllegalArgumentException("Complex64Value can only be compared to other numeric values.")
-    }
+    override fun isEqual(other: Value): Boolean = (other is Complex64Value) && (this.data.contentEquals(other.data))
 
     override fun asComplex32(): Complex32Value = Complex32Value(this.data[0].toFloat(), this.data[1].toFloat())
     override fun asComplex64(): Complex64Value = this

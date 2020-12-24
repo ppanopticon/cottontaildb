@@ -1,7 +1,6 @@
 package org.vitrivr.cottontail.model.basics
 
 import org.vitrivr.cottontail.database.column.*
-import org.vitrivr.cottontail.model.exceptions.ValidationException
 import org.vitrivr.cottontail.model.values.*
 import org.vitrivr.cottontail.model.values.types.Value
 import org.vitrivr.cottontail.storage.engine.hare.serializer.Serializer
@@ -11,7 +10,7 @@ import org.vitrivr.cottontail.storage.engine.hare.serializer.Serializer
  * A definition class for a Cottontail DB column be it in a DB or in-memory context  Specifies all the properties of such a and facilitates validation.
  *
  * @author Ralph Gasser
- * @version 1.4
+ * @version 1.4.0
  */
 class ColumnDef<T: Value>(val name: Name.ColumnName, val type: ColumnType<T>, val logicalSize: Int = 1, val nullable: Boolean = true) {
 
@@ -38,31 +37,6 @@ class ColumnDef<T: Value>(val name: Name.ColumnName, val type: ColumnType<T>, va
     }
 
     /**
-     * Validates a value with regard to this [ColumnDef] and throws an Exception, if validation fails.
-     *
-     * @param value The value that should be validated.
-     * @throws ValidationException If validation fails.
-     */
-    fun validateOrThrow(value: Value?) {
-        if (value != null) {
-            if (!this.type.compatible(value)) {
-                throw ValidationException("The type $type of column '$name' is not compatible with value $value.")
-            }
-            val cast = this.type.cast(value)
-            when {
-                cast is DoubleVectorValue && cast.logicalSize != this.logicalSize -> throw ValidationException("The size of column '$name' (sc=${this.logicalSize}) is not compatible with size of value (sv=${cast.logicalSize}).")
-                cast is FloatVectorValue && cast.logicalSize != this.logicalSize -> throw ValidationException("The size of column '$name' (sc=${this.logicalSize}) is not compatible with size of value (sv=${cast.logicalSize}).")
-                cast is LongVectorValue && cast.logicalSize != this.logicalSize -> throw ValidationException("The size of column '$name' (sc=${this.logicalSize}) is not compatible with size of value (sv=${cast.logicalSize}).")
-                cast is IntVectorValue && cast.logicalSize != this.logicalSize -> throw ValidationException("The size of column '$name' (sc=${this.logicalSize}) is not compatible with size of value (sv=${cast.logicalSize}).")
-                cast is Complex32VectorValue && cast.logicalSize != this.logicalSize -> throw ValidationException("The size of column '$name' (sc=${this.logicalSize}) is not compatible with size of value (sv=${cast.logicalSize}).")
-                cast is Complex64VectorValue && cast.logicalSize != this.logicalSize -> throw ValidationException("The size of column '$name' (sc=${this.logicalSize}) is not compatible with size of value (sv=${cast.logicalSize}).")
-            }
-        } else if (!this.nullable) {
-            throw ValidationException("The column '$name' cannot be null!")
-        }
-    }
-
-    /**
      * Validates a value with regard to this [ColumnDef] return a flag indicating whether validation was passed.
      *
      * @param value The value that should be validated.
@@ -73,14 +47,13 @@ class ColumnDef<T: Value>(val name: Name.ColumnName, val type: ColumnType<T>, va
             if (!this.type.compatible(value)) {
                 return false
             }
-            val cast = this.type.cast(value)
             return when {
-                cast is DoubleVectorValue && cast.logicalSize != this.logicalSize -> false
-                cast is FloatVectorValue && cast.logicalSize != this.logicalSize -> false
-                cast is LongVectorValue && cast.logicalSize != this.logicalSize -> false
-                cast is IntVectorValue && cast.logicalSize != this.logicalSize -> false
-                cast is Complex32VectorValue && cast.logicalSize != this.logicalSize -> false
-                cast is Complex64VectorValue && cast.logicalSize != this.logicalSize -> false
+                (value is DoubleVectorValue && value.logicalSize != this.logicalSize) ||
+                        (value is FloatVectorValue && value.logicalSize != this.logicalSize) ||
+                        (value is LongVectorValue && value.logicalSize != this.logicalSize) ||
+                        (value is IntVectorValue && value.logicalSize != this.logicalSize) ||
+                        (value is Complex32VectorValue && value.logicalSize != this.logicalSize) ||
+                        (value is Complex64VectorValue && value.logicalSize != this.logicalSize) -> false
                 else -> true
             }
         } else return this.nullable

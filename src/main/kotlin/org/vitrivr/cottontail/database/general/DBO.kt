@@ -1,29 +1,34 @@
 package org.vitrivr.cottontail.database.general
 
-import org.vitrivr.cottontail.database.catalogue.Catalogue
+import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.model.basics.Name
 import java.nio.file.Path
 
 /**
- * A simple database object in Cottontail DB. Database objects are [AutoCloseable]s. Furthermore,
- * they have Cottontail DB specific attributes.
+ * A database object [DBO] in Cottontail DB (e.g. a schema, entity etc.). [DBO]s are identified by
+ * a [Name] and usually part of a [DBO] hierarchy. Furthermore, they can be used to create [Tx]
+ * objects that act on the [DBO].
  *
+ * @version 1.1.0
  * @author Ralph Gasser
- * @version 1.0.1
  */
 interface DBO : AutoCloseable {
     /** The [Name] of this [DBO]. */
     val name: Name
 
+    /** The parent DBO (if such exists). */
+    val parent: DBO?
+
     /** The [Path] to the [DBO]'s main file OR folder. */
     val path: Path
 
-    /** The [Catalogue] instance this [DBO] belongs to.*/
-    val catalogue: Catalogue
-
-    /** The parent [DBO] of this [DBO].*/
-    val parent: DBO?
-
     /** True if this [DBO] was closed, false otherwise. */
     val closed: Boolean
+
+    /**
+     * Creates a new [Tx] for the given [TransactionContext].
+     *
+     * @param context [TransactionContext] to create [Tx] for.
+     */
+    fun newTx(context: TransactionContext): Tx
 }

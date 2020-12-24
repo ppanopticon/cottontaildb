@@ -170,6 +170,10 @@ sealed class Name(vararg components: String) {
         val wildcard: Boolean
             get() = this.components.last() == "*"
 
+        /** True if this [ColumnName] is a fully qualified name. */
+        val fqn: Boolean
+            get() = this.components.size == 4
+
         /**
          * Returns [RootName] of this [EntityName].
          *

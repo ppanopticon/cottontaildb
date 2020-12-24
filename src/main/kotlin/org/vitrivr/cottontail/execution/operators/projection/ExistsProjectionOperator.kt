@@ -1,14 +1,11 @@
 package org.vitrivr.cottontail.execution.operators.projection
 
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
-import org.vitrivr.cottontail.execution.ExecutionEngine
+import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.execution.operators.basics.AbortFlowException
 import org.vitrivr.cottontail.execution.operators.basics.Operator
-import org.vitrivr.cottontail.execution.operators.basics.OperatorStatus
-import org.vitrivr.cottontail.execution.operators.basics.PipelineBreaker
 import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.Record
@@ -16,38 +13,32 @@ import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.BooleanValue
 
 /**
- * An [PipelineBreaker] used during query execution. It returns a single [Record] containing
+ * An [Operator.PipelineOperator] used during query execution. It returns a single [Record] containing
  * either true or false depending on whether there are incoming [Record]s.
  *
- * Only produces a single [Record].
+ * Only produces a single [Record]. Acts as pipeline breaker.
  *
  * @author Ralph Gasser
- * @version 1.1.0
+ * @version 1.1.1
  */
-class ExistsProjectionOperator(parent: Operator, context: ExecutionEngine.ExecutionContext) : PipelineBreaker(parent, context) {
+class ExistsProjectionOperator(parent: Operator) : Operator.PipelineOperator(parent) {
 
     /** Column returned by [ExistsProjectionOperator]. */
     override val columns: Array<ColumnDef<*>> = arrayOf(ColumnDef.withAttributes(parent.columns.first().name.entity()?.column("exists()")
             ?: Name.ColumnName("exists()"), "BOOLEAN"))
 
 
-    override fun prepareOpen() { /*NoOp. */
-    }
-
-    override fun prepareClose() { /* NoOp. */
-    }
+    /** [ExistsProjectionOperator] does act as a pipeline breaker. */
+    override val breaker: Boolean = true
 
     /**
      * Converts this [ExistsProjectionOperator] to a [Flow] and returns it.
      *
-     * @param scope The [CoroutineScope] used for execution
+     * @param context The [TransactionContext] used for execution
      * @return [Flow] representing this [ExistsProjectionOperator]
-     * @throws IllegalStateException If this [Operator.status] is not [OperatorStatus.OPEN]
      */
-    override fun toFlow(scope: CoroutineScope): Flow<Record> {
-        check(this.status == OperatorStatus.OPEN) { "Cannot convert operator $this to flow because it is in state ${this.status}." }
-
-        val parentFlow = this.parent.toFlow(scope)
+    override fun toFlow(context: TransactionContext): Flow<Record> {
+        val parentFlow = this.parent.toFlow(context)
         return flow {
             var exists = false
             try {

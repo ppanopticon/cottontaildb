@@ -1,15 +1,11 @@
 package org.vitrivr.cottontail.execution.operators.management
 
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
 import org.vitrivr.cottontail.database.entity.Entity
-import org.vitrivr.cottontail.execution.ExecutionEngine
+import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.execution.operators.basics.Operator
-import org.vitrivr.cottontail.execution.operators.basics.OperatorStatus
-import org.vitrivr.cottontail.execution.operators.basics.PipelineBreaker
-import org.vitrivr.cottontail.execution.operators.predicates.FilterOperator
 import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.Record
@@ -21,39 +17,33 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.measureTime
 
 /**
- * A [PipelineBreaker] that updates all entries in an [Entity] that it receives with the provided [Value].
+ * An [Operator.PipelineOperator] used during query execution. Updates all entries in an [Entity]
+ * that it receives with the provided [Value].
  *
  * @author Ralph Gasser
- * @version 1.0.1
+ * @version 1.0.2
  */
-class UpdateOperator(parent: Operator, context: ExecutionEngine.ExecutionContext, val entity: Entity, val values: List<Pair<ColumnDef<*>, Value?>>) : PipelineBreaker(parent, context) {
+class UpdateOperator(parent: Operator, val entity: Entity, val values: List<Pair<ColumnDef<*>, Value?>>) : Operator.PipelineOperator(parent) {
     /** Columns returned by [UpdateOperator]. */
     override val columns: Array<ColumnDef<*>> = arrayOf(
             ColumnDef.withAttributes(Name.ColumnName("updated"), "LONG", -1, false),
             ColumnDef.withAttributes(Name.ColumnName("duration_ms"), "DOUBLE", -1, false),
     )
 
-    override fun prepareOpen() {
-        this.context.prepareTransaction(this.entity, false)
-    }
-
-    override fun prepareClose() {
-        /* NoOp. */
-    }
+    /** [UpdateOperator] does not act as a pipeline breaker. */
+    override val breaker: Boolean = false
 
     /**
-     * Converts this [FilterOperator] to a [Flow] and returns it.
+     * Converts this [UpdateOperator] to a [Flow] and returns it.
      *
-     * @param scope The [CoroutineScope] used for execution
-     * @return [Flow] representing this [FilterOperator]
-     *
-     * @throws IllegalStateException If this [Operator.status] is not [OperatorStatus.OPEN]
+     * @param context The [TransactionContext] used for execution
+     * @return [Flow] representing this [UpdateOperator]
      */
     @ExperimentalTime
-    override fun toFlow(scope: CoroutineScope): Flow<Record> {
+    override fun toFlow(context: TransactionContext): Flow<Record> {
         var updated = 0L
-        val parent = this.parent.toFlow(scope)
-        val tx = this.context.getTx(this.entity)
+        val parent = this.parent.toFlow(context)
+        val tx = context.getTx(this.entity) as Entity.Tx
         return flow {
             val time = measureTime {
                 parent.collect { record ->
@@ -63,8 +53,8 @@ class UpdateOperator(parent: Operator, context: ExecutionEngine.ExecutionContext
                     tx.update(record) /* Safe, cause tuple IDs are retained for simple queries. */
                     updated += 1
                 }
+                tx.commit()
             }
-            tx.commit()
             emit(StandaloneRecord(0L, this@UpdateOperator.columns, arrayOf(LongValue(updated), DoubleValue(time.inMilliseconds))))
         }
     }

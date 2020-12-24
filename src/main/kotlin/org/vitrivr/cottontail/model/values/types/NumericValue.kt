@@ -7,10 +7,10 @@ import org.vitrivr.cottontail.model.values.*
  * an abstraction over the existing primitive types provided  by Kotlin. It allows for the advanced
  * type system implemented by Cottontail DB.
  *
- * @version 1.1
+ * @version 1.2.0
  * @author Ralph Gasser
  */
-interface NumericValue<T : Number> : ScalarValue<T>, Comparable<NumericValue<T>> {
+interface NumericValue<T : Number> : ScalarValue<T> {
 
     /** Real part of this [NumericValue]  */
     val real: RealValue<T>
@@ -112,13 +112,4 @@ interface NumericValue<T : Number> : ScalarValue<T>, Comparable<NumericValue<T>>
      * @return The arctangens n of this [NumericValue].
      */
     fun atan(): NumericValue<Double>
-
-    /**
-     * Comparison operator between a [NumericValue] and a [Number]. Returns -1, 0 or 1 of other value
-     * is smaller, equal or greater than this value.
-     *
-     * @param other [Number] to compare to.
-     * @return -1, 0 or 1 of other value is smaller, equal or greater than this value
-     */
-    operator fun compareTo(other: Number): Int
 }

@@ -1,60 +1,70 @@
 package org.vitrivr.cottontail.database.column.mapdb
 
-import org.mapdb.CottontailStoreWAL
-import org.mapdb.DBException
-import org.mapdb.Serializer
-import org.mapdb.Store
+import org.mapdb.*
 import org.vitrivr.cottontail.config.MapDBConfig
-import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.column.Column
-import org.vitrivr.cottontail.database.column.ColumnCursor
-import org.vitrivr.cottontail.database.column.ColumnTransaction
+import org.vitrivr.cottontail.database.column.ColumnTx
 import org.vitrivr.cottontail.database.column.ColumnType
 import org.vitrivr.cottontail.database.entity.Entity
-import org.vitrivr.cottontail.database.general.Transaction
-import org.vitrivr.cottontail.database.general.TransactionStatus
-import org.vitrivr.cottontail.model.basics.ColumnDef
-import org.vitrivr.cottontail.model.basics.Name
-import org.vitrivr.cottontail.model.basics.Record
-import org.vitrivr.cottontail.model.basics.TupleId
+import org.vitrivr.cottontail.database.general.AbstractTx
+import org.vitrivr.cottontail.database.general.TxStatus
+import org.vitrivr.cottontail.execution.TransactionContext
+import org.vitrivr.cottontail.model.basics.*
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
-import org.vitrivr.cottontail.model.exceptions.TransactionException
+import org.vitrivr.cottontail.model.exceptions.TxException
 import org.vitrivr.cottontail.model.values.types.Value
-import org.vitrivr.cottontail.utilities.extensions.exclusive
-import org.vitrivr.cottontail.utilities.extensions.shared
 import org.vitrivr.cottontail.utilities.extensions.write
 import java.nio.file.Path
 import java.util.*
-import java.util.concurrent.locks.ReentrantReadWriteLock
 import java.util.concurrent.locks.StampedLock
 
 /**
- * Represents a single column in the Cottontail DB model. A [MapDBColumn] record is identified by a tuple ID (long)
- * and can hold an arbitrary value. Usually, multiple [MapDBColumn]s make up an [Entity].
+ * Represents a [Column] in the Cottontail DB model that uses the Map DB storage engine.
  *
  * @see Entity
  *
  * @param <T> Type of the value held by this [MapDBColumn].
  *
  * @author Ralph Gasser
- * @version 1.4.2
+ * @version 1.4.0
  */
-class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val catalogue: Catalogue) : Column<T> {
-    /** The [Path] to the file backing this [MapDBColumn]. */
-    override val path: Path = this.catalogue.columnForName(this.name).path
+class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val parent: Entity) : Column<T> {
+    /**
+     * Companion object with some important constants.
+     */
+    companion object {
+        /** Record ID of the [ColumnHeader]. */
+        private const val HEADER_RECORD_ID: Long = 1L
 
-    /** Provides access to the [Entity] this [MapDBColumn] belongs to. */
-    override val parent: Entity
-        get() = this.catalogue.instantiateEntity(this.name.entity()!!)
+        /**
+         * Initializes a new, empty [MapDBColumn]
+         *
+         * @param definition The [ColumnDef] that specified the [MapDBColumn]
+         * @param config The [MapDBConfig] used to initialize the [MapDBColumn]
+         */
+        fun initialize(definition: ColumnDef<*>, path: Path, config: MapDBConfig) {
+            val store = StoreWAL.make(
+                    file = path.resolve("col_${definition.name.simple}.db").toString(),
+                    volumeFactory = config.volumeFactory,
+                    allocateIncrement = 1L shl config.pageShift
+            )
+            store.put(ColumnHeader(type = definition.type, size = definition.logicalSize, nullable = definition.nullable), ColumnHeaderSerializer)
+            store.commit()
+            store.close()
+        }
+    }
+
+    /** The [Path] to the [Entity]'s main folder. */
+    override val path: Path = parent.path.resolve("col_${name.simple}.db")
 
     /** Internal reference to the [Store] underpinning this [MapDBColumn]. */
     private var store: CottontailStoreWAL = try {
-        this.catalogue.config.mapdb.store(this.path)
+        this.parent.parent.parent.config.mapdb.store(this.path)
     } catch (e: DBException) {
         throw DatabaseException("Failed to open column at '$path': ${e.message}'")
     }
 
-    /** Internal reference to the [ColumnHeader] of this [MapDBColumn]. */
+    /** Internal reference to the header of this [MapDBColumn]. */
     private val header
         get() = this.store.get(HEADER_RECORD_ID, ColumnHeaderSerializer)
                 ?: throw DatabaseException.DataCorruptionException("Failed to open header of column '$name'!'")
@@ -74,9 +84,6 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val ca
     override var closed: Boolean = false
         private set
 
-    /** An internal lock that is used to synchronize concurrent read & write access to this [MapDBColumn] by different [MapDBColumn.Tx]. */
-    private val txLock = StampedLock()
-
     /** An internal lock that is used to synchronize structural changes to an [MapDBColumn] (e.g. closing or deleting) with running [MapDBColumn.Tx]. */
     private val globalLock = StampedLock()
 
@@ -90,131 +97,37 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val ca
     }
 
     /**
-     * Creates a new [MapDBColumn.Tx] and returns it.
+     * Creates and returns a new [MapDBColumn.Tx] for the given [TransactionContext].
      *
-     * @param readonly True, if the resulting [MapDBColumn.Tx] should be a read-only transaction.
-     * @param tid The ID for the new [MapDBColumn.Tx]
+     * @param context The [TransactionContext] to create the [MapDBColumn.Tx] for.
+     * @return New [MapDBColumn.Tx]
+     */
+    override fun newTx(context: TransactionContext) = Tx(context)
+
+    /**
+     * A [Tx] that affects this [MapDBColumn].
      *
-     * @return A new [ColumnTransaction] object.
+     * @author Ralph Gasser
+     * @version 1.4.0
      */
-    override fun newTransaction(readonly: Boolean, tid: UUID): ColumnTransaction<T> = Tx(readonly, tid)
+    inner class Tx constructor(context: TransactionContext) : AbstractTx(context), ColumnTx<T> {
 
-    /**
-     * Companion object with some important constants.
-     */
-    companion object {
-        /** Record ID of the [ColumnHeader]. */
-        private const val HEADER_RECORD_ID: Long = 1L
+        /** Reference to the [MapDBColumn] this [MapDBColumn.Tx] belongs to. */
+        override val dbo: Column<T>
+            get() = this@MapDBColumn
 
-        /**
-         * Initializes a new, empty [MapDBColumn]
-         *
-         * @param definition The [ColumnDef] that specified the [MapDBColumn]
-         * @param location The [Path] in which the [MapDBColumn] will be stored.
-         * @param config The [MapDBConfig] used to initialize the [MapDBColumn]
-         *
-         * @return The [Path] of the [MapDBColumn]
-         */
-        fun initialize(definition: ColumnDef<*>, location: Path, config: MapDBConfig): Path {
-            /* Prepare store. */
-            val path = location.resolve("col_${definition.name.simple}.db")
-            val store = config.store(path)
-            store.put(ColumnHeader(type = definition.type, size = definition.logicalSize, nullable = definition.nullable), ColumnHeaderSerializer)
-            store.commit()
-            store.close()
-            return path
-        }
-    }
-
-    /**
-     * Thinly veiled implementation of the [Record] interface for internal use.
-     */
-    inner class ColumnRecord(override val tupleId: Long, val value: Value?) : Record {
-        override val columns
-            get() = arrayOf(this@MapDBColumn.columnDef)
-        override val values
-            get() = arrayOf(this.value)
-
-        override fun first(): Value? = this.value
-        override fun last(): Value? = this.value
-        override fun copy(): Record = ColumnRecord(this.tupleId, this.value)
-    }
-
-    /**
-     * A [Transaction] that affects this [MapDBColumn].
-     */
-    inner class Tx constructor(override val readonly: Boolean, override val tid: UUID) : ColumnTransaction<T> {
-
-        /** Flag indicating whether or not this [Entity.Tx] was closed */
-        @Volatile
-        override var status: TransactionStatus = TransactionStatus.CLEAN
-            private set
-
-        /**
-         * The [ColumnDef] of the [Column] underlying this [ColumnTransaction].
-         *
-         * @return [ColumnTransaction]
-         */
-        override val columnDef: ColumnDef<T>
-            get() = this@MapDBColumn.columnDef
-
-        /** Tries to acquire a global read-lock on this column. */
+        /** Tries to acquire a global read-lock on the surrounding [MapDBColumn]. */
         init {
             if (this@MapDBColumn.closed) {
-                throw TransactionException.TransactionDBOClosedException(this.tid)
+                throw TxException.TxDBOClosedException(this.context.txId)
             }
         }
 
         /** The [Serializer] used for de-/serialization of [MapDBColumn] entries. */
-        private val serializer = this@MapDBColumn.columnDef.type.serializer(this@MapDBColumn.columnDef.logicalSize)
+        private val serializer = this@MapDBColumn.type.serializer(this@MapDBColumn.columnDef.logicalSize)
 
         /** Obtains a global (non-exclusive) read-lock on [MapDBColumn]. Prevents enclosing [MapDBColumn] from being closed while this [MapDBColumn.Tx] is still in use. */
         private val globalStamp = this@MapDBColumn.globalLock.readLock()
-
-        /** Obtains transaction lock on [MapDBColumn]. Prevents concurrent read & write access to the enclosing [MapDBColumn]. */
-        private val txStamp = if (this.readonly) {
-            this@MapDBColumn.txLock.readLock()
-        } else {
-            this@MapDBColumn.txLock.writeLock()
-        }
-
-        /** A [ReentrantReadWriteLock] local to this [Entity.Tx]. It makes sure, that this [Entity] cannot be committed, closed or rolled back while it is being used. */
-        private val localLock = StampedLock()
-
-        /**
-         * Commits all changes made through this [Tx] since the last commit or rollback.
-         */
-        override fun commit() = this.localLock.exclusive {
-            if (this.status == TransactionStatus.DIRTY) {
-                this@MapDBColumn.store.commit()
-                this.status = TransactionStatus.CLEAN
-            }
-        }
-
-        /**
-         * Rolls all changes made through this [Tx] back to the last commit. Can only be executed, if [Tx] is
-         * in status [TransactionStatus.DIRTY] or [TransactionStatus.ERROR].
-         */
-        override fun rollback() = this.localLock.exclusive {
-            if (this.status == TransactionStatus.DIRTY || this.status == TransactionStatus.ERROR) {
-                this@MapDBColumn.store.rollback()
-                this.status = TransactionStatus.CLEAN
-            }
-        }
-
-        /**
-         * Closes this [Tx] and relinquishes the associated [ReentrantReadWriteLock].
-         */
-        override fun close() = this.localLock.exclusive {
-            if (this.status != TransactionStatus.CLOSED) {
-                if (this.status == TransactionStatus.DIRTY || this.status == TransactionStatus.ERROR) {
-                    this.rollback()
-                }
-                this.status = TransactionStatus.CLOSED
-                this@MapDBColumn.txLock.unlock(this.txStamp)
-                this@MapDBColumn.globalLock.unlockRead(this.globalStamp)
-            }
-        }
 
         /**
          * Gets and returns an entry from this [MapDBColumn].
@@ -224,8 +137,7 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val ca
          *
          * @throws DatabaseException If the tuple with the desired ID doesn't exist OR is invalid.
          */
-        override fun read(tupleId: Long): T? = this.localLock.shared {
-            checkValidForRead()
+        override fun read(tupleId: Long): T? = this.withReadLock {
             return this@MapDBColumn.store.get(tupleId, this.serializer)
         }
 
@@ -234,55 +146,48 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val ca
          *
          * @return The number of entries in this [MapDBColumn].
          */
-        override fun count(): Long = this.localLock.shared {
-            checkValidForRead()
+        override fun count(): Long = this.withReadLock {
             return this@MapDBColumn.header.count
         }
 
         /**
-         * Returns the maximum [TupleId] for this [MapDBColumn].
-         *
-         * @return The maximum [TupleId] for this [MapDBColumn].
+         * Returns the maximum [TupleId] known by this [MapDBColumn].
          */
-        override fun maxTupleId(): TupleId = this.localLock.shared {
-            checkValidForRead()
-            return this@MapDBColumn.store.maxRecid
+        override fun maxTupleId(): TupleId = this.withReadLock {
+            this@MapDBColumn.store.maxRecid
         }
 
         /**
-         * Creates and returns a new [ColumnCursor] for this [MapDBColumn.Tx] that returns all
-         * [TupleId]s contained within the surrounding [MapDBColumn].
+         * Creates and returns a new [CloseableIterator] for this [MapDBColumn.Tx] that returns
+         * all [TupleId]s contained within the surrounding [MapDBColumn].
          *
-         * @return [ColumnCursor]
+         * @return [CloseableIterator]
          */
         override fun scan() = this.scan(1L..this.maxTupleId())
 
         /**
-         * Creates and returns a new [ColumnCursor] for this [MapDBColumn.Tx] that returns
+         * Creates and returns a new [CloseableIterator] for this [MapDBColumn.Tx] that returns
          * all [TupleId]s contained within the surrounding [MapDBColumn] and a certain range.
          *
          * @param range The [LongRange] that should be scanned.
-         * @return [ColumnCursor]
+         * @return [CloseableIterator]
          */
-        override fun scan(range: LongRange) = object : ColumnCursor<T> {
+        override fun scan(range: LongRange) = object : CloseableIterator<TupleId> {
 
             init {
-                checkValidForRead()
+                this@Tx.withWriteLock { /* No op. */ }
             }
 
-            /** Acquires a read lock on the surrounding [MapDBColumn.Tx]*/
-            private val lock = this@Tx.localLock.readLock()
-
-            /** Wraps a [TupleId] iteratore internal to the store. */
+            /** Wraps a [CottontailStoreWAL.RecordIdIterator] from the [MapDBColumn]. */
             private val wrapped = this@MapDBColumn.store.RecordIdIterator(range)
 
-            /** Flag indicating whether this [ColumnCursor] has been closed. */
+            /** Flag indicating whether this [CloseableIterator] has been closed. */
             @Volatile
             override var isOpen = true
                 private set
 
             /**
-             * Returns the next [TupleId] in the iteration.
+             * Returns the next element in the iteration.
              */
             override fun next(): TupleId {
                 check(this.isOpen) { "Illegal invocation of next(): This CloseableIterator has been closed." }
@@ -298,39 +203,28 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val ca
             }
 
             /**
-             * Reads the value at the current [ColumnCursor] position and returns it.
-             *
-             * @return The value [T] at the position of this [ColumnCursor].
-             */
-            override fun readThrough(): T? {
-                return this@MapDBColumn.store.get(this.next(), this@Tx.serializer)
-            }
-
-            /**
-             * Closes this [ColumnCursor] and releases all locks associated with it.
+             * Closes this [CloseableIterator] and releases all locks associated with it.
              */
             override fun close() {
                 if (this.isOpen) {
-                    this@Tx.localLock.unlock(this.lock)
-                    this.isOpen = false
+                    this.isOpen = true
                 }
             }
         }
 
         /**
-         * Inserts a new record in this [MapDBColumn]. This tasks will set this [MapDBColumn.Tx] to [TransactionStatus.DIRTY]
+         * Inserts a new record in this [MapDBColumn]. This tasks will set this [MapDBColumn.Tx] to [TxStatus.DIRTY]
          * and acquire a column-wide write lock until the [MapDBColumn.Tx] either commit or rollback is issued.
          *
          * @param record The record that should be inserted. Can be null!
          * @return The tupleId of the inserted record OR the allocated space in case of a null value.
          */
-        override fun insert(record: T?): Long = this.localLock.shared {
+        override fun insert(record: T?): Long = this.withWriteLock {
             try {
-                checkValidForWrite()
                 val tupleId = if (record == null) {
                     this@MapDBColumn.store.preallocate()
                 } else {
-                    this@MapDBColumn.store.put(this@MapDBColumn.columnDef.type.cast(record), this.serializer)
+                    this@MapDBColumn.store.put(this@MapDBColumn.type.cast(record), this.serializer)
                 }
 
                 /* Update header. */
@@ -338,60 +232,55 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val ca
                 header.count += 1
                 header.modified = System.currentTimeMillis()
                 this@MapDBColumn.store.update(HEADER_RECORD_ID, header, ColumnHeaderSerializer)
-                tupleId
+                return tupleId
             } catch (e: DBException) {
-                this.status = TransactionStatus.ERROR
-                throw TransactionException.TransactionStorageException(this.tid, e.message
-                        ?: "Unknown")
+                this.status = TxStatus.ERROR
+                throw TxException.TxStorageException(this.context.txId, e.message ?: "Unknown")
             }
         }
 
         /**
          * Updates the entry with the specified tuple ID and sets it to the new value. This tasks will set this [MapDBColumn.Tx]
-         * to [TransactionStatus.DIRTY] and acquire a column-wide write lock until the [MapDBColumn.Tx] either commit or rollback is issued.
+         * to [TxStatus.DIRTY] and acquire a column-wide write lock until the [MapDBColumn.Tx] either commit or rollback is issued.
          *
          * @param tupleId The ID of the record that should be updated
          * @param value The new value.
          */
-        override fun update(tupleId: Long, value: T?) = this.localLock.shared {
+        override fun update(tupleId: Long, value: T?) = this.withWriteLock {
             try {
-                checkValidForWrite()
                 this@MapDBColumn.store.update(tupleId, value, this.serializer)
             } catch (e: DBException) {
-                this.status = TransactionStatus.ERROR
-                throw TransactionException.TransactionStorageException(this.tid, e.message
+                this.status = TxStatus.ERROR
+                throw TxException.TxStorageException(this.context.txId, e.message
                         ?: "Unknown")
             }
         }
 
         /**
          * Updates the entry with the specified tuple ID and sets it to the new value. This tasks will set this [MapDBColumn.Tx]
-         * to [TransactionStatus.DIRTY] and acquire a column-wide write lock until the [MapDBColumn.Tx] either commit or rollback is issued.
+         * to [TxStatus.DIRTY] and acquire a column-wide write lock until the [MapDBColumn.Tx] either commit or rollback is issued.
          *
          * @param tupleId The ID of the record that should be updated
          * @param value The new value.
          * @param expected The value expected to be there.
          */
-        override fun compareAndUpdate(tupleId: Long, value: T?, expected: T?): Boolean = this.localLock.shared {
+        override fun compareAndUpdate(tupleId: Long, value: T?, expected: T?): Boolean = this.withWriteLock {
             try {
-                checkValidForWrite()
-                this@MapDBColumn.store.compareAndSwap(tupleId, expected, value, this.serializer)
+                return this@MapDBColumn.store.compareAndSwap(tupleId, expected, value, this.serializer)
             } catch (e: DBException) {
-                this.status = TransactionStatus.ERROR
-                throw TransactionException.TransactionStorageException(this.tid, e.message
-                        ?: "Unknown")
+                this.status = TxStatus.ERROR
+                throw TxException.TxStorageException(this.context.txId, e.message ?: "Unknown")
             }
         }
 
         /**
-         * Deletes a record from this [MapDBColumn]. This tasks will set this [MapDBColumn.Tx] to [TransactionStatus.DIRTY]
+         * Deletes a record from this [MapDBColumn]. This tasks will set this [MapDBColumn.Tx] to [TxStatus.DIRTY]
          * and acquire a column-wide write lock until the [MapDBColumn.Tx] either commit or rollback is issued.
          *
          * @param tupleId The ID of the record that should be deleted
          */
-        override fun delete(tupleId: Long) = this.localLock.shared {
+        override fun delete(tupleId: Long) = this.withWriteLock {
             try {
-                checkValidForWrite()
                 this@MapDBColumn.store.delete(tupleId, this.serializer)
 
                 /* Update header. */
@@ -400,30 +289,30 @@ class MapDBColumn<T : Value>(override val name: Name.ColumnName, override val ca
                 header.modified = System.currentTimeMillis()
                 this@MapDBColumn.store.update(HEADER_RECORD_ID, header, ColumnHeaderSerializer)
             } catch (e: DBException) {
-                this.status = TransactionStatus.ERROR
-                throw TransactionException.TransactionStorageException(this.tid, e.message
-                        ?: "Unknown")
+                this.status = TxStatus.ERROR
+                throw TxException.TxStorageException(this.context.txId, e.message ?: "Unknown")
             }
         }
 
         /**
-         * Checks if this [MapDBColumn.Tx] is still open. Otherwise, an exception will be thrown.
+         * Performs a COMMIT of all changes made through this [MapDBColumn.Tx].
          */
-        private fun checkValidForRead() {
-            if (this.status == TransactionStatus.CLOSED) throw TransactionException.TransactionClosedException(this.tid)
-            if (this.status == TransactionStatus.ERROR) throw TransactionException.TransactionInErrorException(this.tid)
+        override fun performCommit() {
+            this@MapDBColumn.store.commit()
         }
 
         /**
-         * Tries to acquire a write-lock. If method fails, an exception will be thrown
+         * Performs a ROLLBACK of all changes made through this [MapDBColumn.Tx].
          */
-        private fun checkValidForWrite() {
-            if (this.readonly) throw TransactionException.TransactionReadOnlyException(this.tid)
-            if (this.status == TransactionStatus.CLOSED) throw TransactionException.TransactionClosedException(this.tid)
-            if (this.status == TransactionStatus.ERROR) throw TransactionException.TransactionInErrorException(this.tid)
-            if (this.status != TransactionStatus.DIRTY) {
-                this.status = TransactionStatus.DIRTY
-            }
+        override fun performRollback() {
+            this@MapDBColumn.store.rollback()
+        }
+
+        /**
+         * Releases the [closeLock] on the [MapDBColumn].
+         */
+        override fun cleanup() {
+            this@MapDBColumn.globalLock.unlockRead(this.globalStamp)
         }
     }
 }

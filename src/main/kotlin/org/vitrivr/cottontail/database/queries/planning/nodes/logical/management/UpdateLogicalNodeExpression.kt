@@ -6,10 +6,10 @@ import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.values.types.Value
 
 /**
- * A [DeleteLogicalNodeExpression] that formalizes a delete operation on an [Entity].
+ * A [DeleteLogicalNodeExpression] that formalizes an UPDATE operation on an [Entity].
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.0.0
  */
 class UpdateLogicalNodeExpression(val entity: Entity, val values: List<Pair<ColumnDef<*>, Value?>>) : UnaryLogicalNodeExpression() {
 

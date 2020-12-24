@@ -4,7 +4,7 @@ import org.vitrivr.cottontail.database.queries.components.KnnPredicate
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.UnaryPhysicalNodeExpression
 import org.vitrivr.cottontail.database.queries.predicates.KnnPredicateHint
-import org.vitrivr.cottontail.execution.ExecutionEngine
+import org.vitrivr.cottontail.execution.TransactionManager
 import org.vitrivr.cottontail.execution.operators.basics.Operator
 import org.vitrivr.cottontail.execution.operators.predicates.KnnOperator
 import org.vitrivr.cottontail.execution.operators.predicates.ParallelKnnOperator
@@ -25,25 +25,22 @@ class KnnPhysicalNodeExpression(val knn: KnnPredicate<*>) : UnaryPhysicalNodeExp
         get() = Cost(cpu = this.input.outputSize * this.knn.cost, memory = (this.outputSize * this.knn.columns.map { it.physicalSize }.sum()).toFloat())
 
     override fun copy() = KnnPhysicalNodeExpression(this.knn)
-    override fun toOperator(context: ExecutionEngine.ExecutionContext): Operator {
+    override fun toOperator(engine: TransactionManager): Operator {
         val hint = this.knn.hint
-        val parallelisation = if (hint is KnnPredicateHint.ParallelKnnPredicateHint) {
-            max(hint.min, min(context.availableThreads, hint.max))
+        val pMax = engine.availableThreads / 4
+        val p = if (hint is KnnPredicateHint.ParallelKnnPredicateHint) {
+            max(hint.min, min(pMax, hint.max))
         } else {
-            min(this.cost.parallelisation(), context.availableThreads)
+            min(this.cost.parallelisation(), pMax)
         }
-        return if (parallelisation > 1) {
-            if (this.input.canBePartitioned) {
-                val partitions = this.input.partition(parallelisation)
-                val operators = partitions.map {
-                    it.toOperator(context)
-                }
-                ParallelKnnOperator(operators, context, this.knn)
-            } else {
-                KnnOperator(this.input.toOperator(context), context, this.knn)
+        return if (p > 1 && this.input.canBePartitioned) {
+            val partitions = this.input.partition(p)
+            val operators = partitions.map {
+                it.toOperator(engine)
             }
+            ParallelKnnOperator(operators, this.knn)
         } else {
-            KnnOperator(this.input.toOperator(context), context, this.knn)
+            KnnOperator(this.input.toOperator(engine), this.knn)
         }
     }
 }

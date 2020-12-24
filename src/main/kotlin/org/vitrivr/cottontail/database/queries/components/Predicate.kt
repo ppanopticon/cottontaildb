@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.database.queries.components
 
+import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.predicates.KnnPredicateHint
@@ -7,8 +8,8 @@ import org.vitrivr.cottontail.math.knn.metrics.DistanceKernel
 import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Record
 import org.vitrivr.cottontail.model.exceptions.QueryException
-import org.vitrivr.cottontail.model.values.PatternValue
-import org.vitrivr.cottontail.model.values.StringValue
+import org.vitrivr.cottontail.model.values.pattern.LikePatternValue
+import org.vitrivr.cottontail.model.values.pattern.LucenePatternValue
 import org.vitrivr.cottontail.model.values.types.Value
 import org.vitrivr.cottontail.model.values.types.VectorValue
 
@@ -33,7 +34,7 @@ sealed class Predicate {
  * @see Record
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.0.0
  */
 sealed class BooleanPredicate : Predicate() {
     /** The [AtomicBooleanPredicate]s that make up this [BooleanPredicate]. */
@@ -48,37 +49,53 @@ sealed class BooleanPredicate : Predicate() {
 }
 
 /**
- * A atomic [BooleanPredicate] that compares the column of a [Record] to a provided value (or a set of provided values).
+ * An atomic [BooleanPredicate] that compares the column of a [Record] to a provided value (or a set of provided values).
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.0.2
  */
 data class AtomicBooleanPredicate<T : Value>(private val column: ColumnDef<T>, val operator: ComparisonOperator, val not: Boolean = false, var values: Collection<Value>) : BooleanPredicate() {
     init {
+        /* Optimization; uses a set for a IN operation. */
         if (this.operator == ComparisonOperator.IN) {
-            this.values = this.values.toSet()
+            this.values = ObjectOpenHashSet(this.values)
         }
 
+        /* Optimization: Converts the incoming StringValue to a LikePatternValue. */
         if (this.operator == ComparisonOperator.LIKE) {
-            this.values = this.values.mapNotNull {
-                if (it is StringValue) {
-                    PatternValue(it.value)
-                } else {
-                    null
-                }
+            if (!this.values.all { it is LikePatternValue }) {
+                throw IllegalArgumentException("Comparison operator of type ${this.operator} requires a LikePatternValue as right operand.")
+            }
+        }
+
+        /* Optimization: Converts the incoming StringValue to a LucenePatternValue. */
+        if (this.operator == ComparisonOperator.MATCH) {
+            if (!this.values.all { it is LucenePatternValue }) {
+                throw IllegalArgumentException("Comparison operator of type ${this.operator} requires a LikePatternValue as right operand.")
             }
         }
     }
 
     /** The number of operations required by this [AtomicBooleanPredicate]. */
-    override val cost: Float = 3 * Cost.COST_MEMORY_ACCESS
+    override val cost: Float = when (this.operator) {
+        ComparisonOperator.ISNULL,
+        ComparisonOperator.ISNOTNULL -> 1.0f
+        ComparisonOperator.EQUAL,
+        ComparisonOperator.GREATER,
+        ComparisonOperator.LESS,
+        ComparisonOperator.GEQUAL,
+        ComparisonOperator.LEQUAL -> 2.0f
+        ComparisonOperator.BETWEEN -> 4.0f
+        ComparisonOperator.IN -> this.values.size + 1.0f
+        ComparisonOperator.LIKE -> 10.0f /* ToDo: Make more explicit. */
+        ComparisonOperator.MATCH -> 10.0f
+    }
 
     /** Set of [ColumnDef] that are affected by this [AtomicBooleanPredicate]. */
     override val columns: Set<ColumnDef<T>> = setOf(this.column)
 
     /** The [AtomicBooleanPredicate]s that make up this [BooleanPredicate]. */
-    override val atomics: Set<AtomicBooleanPredicate<*>>
-        get() = setOf(this)
+    override val atomics: Set<AtomicBooleanPredicate<*>> = setOf(this)
 
     /**
      * Checks if the provided [Record] matches this [AtomicBooleanPredicate] and returns true or false respectively.
@@ -86,28 +103,32 @@ data class AtomicBooleanPredicate<T : Value>(private val column: ColumnDef<T>, v
      * @param record The [Record] to check.
      * @return true if [Record] matches this [AtomicBooleanPredicate], false otherwise.
      */
-    override fun matches(record: Record): Boolean {
-        require(record.has(this.column)) { "AtomicBooleanPredicate cannot be applied to record because it does not contain the expected column ${this.column}." }
-        return if (this.not) {
-            !this.operator.match(record[this.column], this.values)
-        } else {
-            this.operator.match(record[this.column], this.values)
-        }
+    override fun matches(record: Record): Boolean = if (this.not) {
+        !this.operator.match(record[this.column], this.values)
+    } else {
+        this.operator.match(record[this.column], this.values)
+    }
+
+    override fun toString(): String = if (this.not) {
+        "!(${this.column.name} ${this.operator} :values[${this.values.size}]"
+    } else {
+        "(${this.column.name} ${this.operator} :values[${this.values.size}]"
     }
 }
 
 /**
- * A compound [BooleanPredicate] that connects two other [BooleanPredicate]s through a logical AND or OR connection.
+ * A compound [BooleanPredicate] that connects two other [BooleanPredicate]s through a logical
+ * AND or OR connection.
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.0.1
  */
 data class CompoundBooleanPredicate(val connector: ConnectionOperator, val p1: BooleanPredicate, val p2: BooleanPredicate) : BooleanPredicate() {
     /** The [AtomicBooleanPredicate]s that make up this [CompoundBooleanPredicate]. */
     override val atomics = this.p1.atomics + this.p2.atomics
 
     /** Set of [ColumnDef] that are affected by this [CompoundBooleanPredicate]. */
-    override val columns: Set<ColumnDef<*>> = p1.columns + p2.columns
+    override val columns: Set<ColumnDef<*>> = this.p1.columns + this.p2.columns
 
     /** The total number of operations required by this [CompoundBooleanPredicate]. */
     override val cost = this.p1.cost + this.p2.cost
@@ -119,9 +140,11 @@ data class CompoundBooleanPredicate(val connector: ConnectionOperator, val p1: B
      * @return true if [Record] matches this [CompoundBooleanPredicate], false otherwise.
      */
     override fun matches(record: Record): Boolean = when (connector) {
-        ConnectionOperator.AND -> p1.matches(record) && p2.matches(record)
-        ConnectionOperator.OR -> p1.matches(record) || p2.matches(record)
+        ConnectionOperator.AND -> this.p1.matches(record) && this.p2.matches(record)
+        ConnectionOperator.OR -> this.p1.matches(record) || this.p2.matches(record)
     }
+
+    override fun toString(): String = "$p1 $connector $p2"
 }
 
 /**

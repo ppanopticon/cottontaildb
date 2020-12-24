@@ -11,7 +11,7 @@ import java.util.*
  * This is an abstraction over a [BooleanArray] and it represents a vector of [Boolean]s.
  *
  * @author Ralph Gasser
- * @version 1.3.1
+ * @version 1.3.2
  */
 inline class BooleanVectorValue(val data: BooleanArray) : RealVectorValue<Int> {
 
@@ -47,10 +47,14 @@ inline class BooleanVectorValue(val data: BooleanArray) : RealVectorValue<Int> {
     override val logicalSize: Int
         get() = data.size
 
-    override fun compareTo(other: Value): Int {
-        TODO("Not yet implemented")
-    }
-
+    /**
+     * Checks for equality between this [BooleanVectorValue] and the other [Value]. Equality can only be
+     * established if the other [Value] is also a [BooleanVectorValue] and holds the same value.
+     *
+     * @param other [Value] to compare to.
+     * @return True if equal, false otherwise.
+     */
+    override fun isEqual(other: Value): Boolean = (other is BooleanVectorValue) && (this.data.contentEquals(other.data))
 
     /**
      * Returns the indices of this [BooleanVectorValue].
@@ -61,7 +65,7 @@ inline class BooleanVectorValue(val data: BooleanArray) : RealVectorValue<Int> {
         get() = this.data.indices
 
     /**
-     * Returns the i-th entry of  this [BooleanVectorValue].
+     * Returns the i-th entry of this [BooleanVectorValue].
      *
      * @param i Index of the entry.
      * @return The value at index i.

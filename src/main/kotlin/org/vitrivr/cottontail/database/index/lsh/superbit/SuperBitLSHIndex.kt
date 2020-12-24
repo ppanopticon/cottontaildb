@@ -1,18 +1,19 @@
 package org.vitrivr.cottontail.database.index.lsh.superbit
 
 import org.slf4j.LoggerFactory
-import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.column.Column
 import org.vitrivr.cottontail.database.entity.Entity
+import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.events.DataChangeEvent
 import org.vitrivr.cottontail.database.index.Index
-import org.vitrivr.cottontail.database.index.IndexTransaction
+import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.index.IndexType
 import org.vitrivr.cottontail.database.index.lsh.LSHIndex
 import org.vitrivr.cottontail.database.queries.components.AtomicBooleanPredicate
 import org.vitrivr.cottontail.database.queries.components.KnnPredicate
 import org.vitrivr.cottontail.database.queries.components.Predicate
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
+import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.math.knn.metrics.AbsoluteInnerProductDistance
 import org.vitrivr.cottontail.math.knn.metrics.CosineDistance
 import org.vitrivr.cottontail.model.basics.*
@@ -21,7 +22,6 @@ import org.vitrivr.cottontail.model.exceptions.QueryException
 import org.vitrivr.cottontail.model.recordset.Recordset
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.types.VectorValue
-import org.vitrivr.cottontail.utilities.extensions.read
 
 /**
  * Represents a LSH based index in the Cottontail DB data model. An [Index] belongs to an [Entity] and can be used to
@@ -29,9 +29,9 @@ import org.vitrivr.cottontail.utilities.extensions.read
  * [Recordset]s.
  *
  * @author Manuel Huerbin & Ralph Gasser
- * @version 1.2.2
+ * @version 1.3.0
  */
-class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, catalogue: Catalogue, columns: Array<ColumnDef<*>>, params: Map<String, String>? = null) : LSHIndex<T>(name, catalogue, columns) {
+class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, parent: Entity, columns: Array<ColumnDef<*>>, params: Map<String, String>? = null) : LSHIndex<T>(name, parent, columns) {
 
     companion object {
         const val CONFIG_NAME = "lsh_config"
@@ -89,33 +89,32 @@ class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, catalogue: Cata
     }
 
     /**
-     * Opens and returns a new [IndexTransaction] object that can be used to interact with this [Index].
+     * Opens and returns a new [IndexTx] object that can be used to interact with this [Index].
      *
-     * @param parent If the [Entity.Tx] that requested the [IndexTransaction].
+     * @param context [TransactionContext] to open the [Index.Tx] for.
      */
-    override fun begin(parent: Entity.Tx): IndexTransaction = Tx(parent)
+    override fun newTx(context: TransactionContext): IndexTx = Tx(context)
 
     /**
      * A [IndexTransaction] that affects this [Index].
      */
-    private inner class Tx(parent: Entity.Tx) : Index.Tx(parent) {
+    private inner class Tx(context: TransactionContext) : Index.Tx(context) {
 
         /**
          * (Re-)builds the [SuperBitLSHIndex].
          */
-        override fun rebuild() = this.localLock.read {
-
-            checkValidForWrite()
+        override fun rebuild() = this.withWriteLock {
 
             LOGGER.trace("Rebuilding SB-LSH index {}", this@SuperBitLSHIndex.name)
 
             /* LSH. */
-            val specimen = this.acquireSpecimen(this.parent) ?: return
+            val txn = this.context.getTx(this.dbo.parent) as EntityTx
+            val specimen = this.acquireSpecimen(txn) ?: return
             val lsh = SuperBitLSH(this@SuperBitLSHIndex.config.get().stages, this@SuperBitLSHIndex.config.get().buckets, this.columns[0].logicalSize, this@SuperBitLSHIndex.config.get().seed, specimen)
 
             /* (Re-)create index entries locally. */
             val local = Array(this@SuperBitLSHIndex.config.get().buckets) { mutableListOf<Long>() }
-            this.parent.scan(this@SuperBitLSHIndex.columns).use { s ->
+            txn.scan(this@SuperBitLSHIndex.columns).use { s ->
                 s.forEach { record ->
                     val value = record[this.columns[0]]
                     if (value is VectorValue<*>) {
@@ -136,7 +135,7 @@ class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, catalogue: Cata
          *
          * @param update Collection of [DataChangeEvent]s to process.
          */
-        override fun update(update: Collection<DataChangeEvent>) = this.localLock.read {
+        override fun update(update: Collection<DataChangeEvent>) = this.withWriteLock {
             TODO()
         }
 
@@ -162,15 +161,17 @@ class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, catalogue: Cata
 
             /* Performs some sanity checks. */
             init {
-                checkValidForRead()
-
                 if (this.predicate.columns.first() != this@SuperBitLSHIndex.columns[0] || !(this.predicate.distance is CosineDistance || this.predicate.distance is AbsoluteInnerProductDistance)) {
                     throw QueryException.UnsupportedPredicateException("Index '${this@SuperBitLSHIndex.name}' (lsh-index) does not support the provided predicate.")
                 }
+                this@Tx.withReadLock { }
             }
 
-            /** Generates a shared lock on the enclosing [Tx]. This lock is kept until the [CloseableIterator] is closed. */
-            private val stamp = this@Tx.localLock.readLock()
+
+            /** Flag indicating whether this [CloseableIterator] has been closed. */
+            @Volatile
+            override var isOpen = true
+                private set
 
             /** [SuperBitLSH] data structure to calculate the bucket index. */
             private val lsh = SuperBitLSH(this@SuperBitLSHIndex.config.get().stages, this@SuperBitLSHIndex.config.get().buckets, this@SuperBitLSHIndex.columns.first().logicalSize, this@SuperBitLSHIndex.config.get().seed, this.predicate.query.first())
@@ -181,11 +182,6 @@ class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, catalogue: Cata
             }.flatMap {
                 it.asIterable()
             }.toMutableList()
-
-            /** Flag indicating whether this [CloseableIterator] is open and ready for use. */
-            @Volatile
-            override var isOpen = true
-                private set
 
             override fun hasNext(): Boolean {
                 check(this.isOpen) { "Illegal invocation of hasNext(): This CloseableIterator has been closed." }
@@ -199,7 +195,6 @@ class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, catalogue: Cata
 
             override fun close() {
                 if (this.isOpen) {
-                    this@Tx.localLock.unlock(this.stamp)
                     this.isOpen = false
                 }
             }
@@ -225,7 +220,7 @@ class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, catalogue: Cata
          * @param tx [Entity.Tx] used to read from [Entity]
          * @return A specimen of the [VectorValue] that should be indexed.
          */
-        private fun acquireSpecimen(tx: Entity.Tx): VectorValue<*>? {
+        private fun acquireSpecimen(tx: EntityTx): VectorValue<*>? {
             for (index in 2L until tx.count()) {
                 val read = tx.read(index, this@SuperBitLSHIndex.columns)[this.columns[0]]
                 if (read is VectorValue<*>) {

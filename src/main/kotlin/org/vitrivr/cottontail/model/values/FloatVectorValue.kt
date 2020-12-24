@@ -14,7 +14,7 @@ import kotlin.math.pow
  * This is an abstraction over a [FloatArray] and it represents a vector of [Float]s.
  *
  * @author Ralph Gasser
- * @version 1.3.1
+ * @version 1.3.2
  */
 inline class FloatVectorValue(val data: FloatArray) : RealVectorValue<Float> {
 
@@ -39,7 +39,7 @@ inline class FloatVectorValue(val data: FloatArray) : RealVectorValue<Float> {
          *
          * @param size Size of the new [FloatVectorValue]
          */
-        fun zero(size: Int) =FloatVectorValue(FloatArray(size))
+        fun zero(size: Int) = FloatVectorValue(FloatArray(size))
     }
 
     constructor(input: List<Number>) : this(FloatArray(input.size) { input[it].toFloat() })
@@ -48,9 +48,14 @@ inline class FloatVectorValue(val data: FloatArray) : RealVectorValue<Float> {
     override val logicalSize: Int
         get() = this.data.size
 
-    override fun compareTo(other: Value): Int {
-        throw IllegalArgumentException("FloatVectorValues can can only be compared for equality.")
-    }
+    /**
+     * Checks for equality between this [FloatVectorValue] and the other [Value]. Equality can only be
+     * established if the other [Value] is also a [FloatVectorValue] and holds the same value.
+     *
+     * @param other [Value] to compare to.
+     * @return True if equal, false otherwise.
+     */
+    override fun isEqual(other: Value): Boolean = (other is FloatVectorValue) && (this.data.contentEquals(other.data))
 
     /**
      * Returns the indices of this [FloatVectorValue].

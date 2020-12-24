@@ -9,7 +9,7 @@ import org.vitrivr.cottontail.model.exceptions.QueryException
  * A [UnaryLogicalNodeExpression] that represents a projection operation on a [org.vitrivr.cottontail.model.recordset.Recordset].
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.0.0
  */
 class ProjectionLogicalNodeExpression(val type: Projection = Projection.SELECT, val fields: List<Pair<Name.ColumnName, Name.ColumnName?>>) : UnaryLogicalNodeExpression() {
     init {

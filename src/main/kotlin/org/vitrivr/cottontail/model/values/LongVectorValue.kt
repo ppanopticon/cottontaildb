@@ -11,7 +11,7 @@ import kotlin.math.pow
  * This is an abstraction over a [FloatArray] and it represents a vector of [Float]s.
  *
  * @author Ralph Gasser
- * @version 1.3
+ * @version 1.3.2
  */
 inline class LongVectorValue(val data: LongArray) : RealVectorValue<Long> {
 
@@ -45,9 +45,14 @@ inline class LongVectorValue(val data: LongArray) : RealVectorValue<Long> {
     override val logicalSize: Int
         get() = data.size
 
-    override fun compareTo(other: Value): Int {
-        throw IllegalArgumentException("LongVectorValues can can only be compared for equality.")
-    }
+    /**
+     * Checks for equality between this [LongVectorValue] and the other [Value]. Equality can only be
+     * established if the other [Value] is also a [LongVectorValue] and holds the same value.
+     *
+     * @param other [Value] to compare to.
+     * @return True if equal, false otherwise.
+     */
+    override fun isEqual(other: Value): Boolean = (other is LongVectorValue) && (this.data.contentEquals(other.data))
 
     /**
      * Returns the indices of this [LongVectorValue].

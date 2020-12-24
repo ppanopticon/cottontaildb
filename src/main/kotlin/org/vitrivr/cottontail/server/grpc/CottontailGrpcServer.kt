@@ -5,10 +5,11 @@ import org.apache.log4j.LogManager
 import org.apache.log4j.Logger
 import org.vitrivr.cottontail.config.ServerConfig
 import org.vitrivr.cottontail.database.catalogue.Catalogue
-import org.vitrivr.cottontail.execution.ExecutionEngine
-import org.vitrivr.cottontail.server.grpc.services.CottonDDLService
-import org.vitrivr.cottontail.server.grpc.services.CottonDMLService
-import org.vitrivr.cottontail.server.grpc.services.CottonDQLService
+import org.vitrivr.cottontail.execution.TransactionManager
+import org.vitrivr.cottontail.server.grpc.services.DDLService
+import org.vitrivr.cottontail.server.grpc.services.DMLService
+import org.vitrivr.cottontail.server.grpc.services.DQLService
+import org.vitrivr.cottontail.server.grpc.services.TXNService
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.ThreadPoolExecutor
@@ -22,7 +23,7 @@ import kotlin.time.ExperimentalTime
  * @version 1.0.2
  */
 @ExperimentalTime
-class CottontailGrpcServer(val config: ServerConfig, val catalogue: Catalogue, private val engine: ExecutionEngine) {
+class CottontailGrpcServer(val config: ServerConfig, val catalogue: Catalogue, private val engine: TransactionManager) {
 
     /** The [ThreadPoolExecutor] used for handling the individual GRPC calls. */
     private val executor: ExecutorService = ThreadPoolExecutor(this.config.coreThreads, this.config.maxThreads, this.config.keepAliveTime, TimeUnit.MILLISECONDS, SynchronousQueue())
@@ -30,9 +31,10 @@ class CottontailGrpcServer(val config: ServerConfig, val catalogue: Catalogue, p
     /** Reference to the gRPC server. */
     private val server = ServerBuilder.forPort(config.port)
             .executor(this.executor)
-            .addService(CottonDDLService(this.catalogue))
-            .addService(CottonDMLService(this.catalogue, this.engine))
-            .addService(CottonDQLService(this.catalogue, this.engine))
+            .addService(DDLService(this.catalogue, this.engine))
+            .addService(DMLService(this.catalogue, this.engine))
+            .addService(DQLService(this.catalogue, this.engine))
+            .addService(TXNService(this.engine))
             .let {
                 if (config.useTls) {
                     val certFile = config.certFile?.toFile() ?: throw Exception()

@@ -5,7 +5,7 @@ package org.vitrivr.cottontail.model.values.types
  * abstraction over the existing primitive array types provided by Kotlin. It allows for the advanced
  * type system implemented by Cottontail DB.
  *
- * @version 1.0
+ * @version 1.0.0
  * @author Ralph Gasser
  */
 interface ScalarValue<T: Any> : Value {

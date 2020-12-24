@@ -4,8 +4,8 @@ import org.vitrivr.cottontail.database.queries.components.Projection
 import org.vitrivr.cottontail.database.queries.planning.nodes.interfaces.NodeExpression
 import org.vitrivr.cottontail.database.queries.planning.nodes.interfaces.RewriteRule
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.projection.ProjectionLogicalNodeExpression
+import org.vitrivr.cottontail.database.queries.planning.nodes.logical.sources.EntityScanLogicalNodeExpression
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.sources.EntityCountPhysicalNodeExpression
-import org.vitrivr.cottontail.database.queries.planning.nodes.physical.sources.EntityScanPhysicalNodeExpression
 
 /**
  * Pushes the simple counting of entries in an [Entity] down.
@@ -18,7 +18,7 @@ object CountPushdownRule : RewriteRule {
     override fun apply(node: NodeExpression): NodeExpression? {
         if (node is ProjectionLogicalNodeExpression && node.type == Projection.COUNT) {
             val input = node.input
-            if (input is EntityScanPhysicalNodeExpression) {
+            if (input is EntityScanLogicalNodeExpression) {
                 val p = EntityCountPhysicalNodeExpression(input.entity)
                 node.copyOutput()?.addInput(p)
                 return p

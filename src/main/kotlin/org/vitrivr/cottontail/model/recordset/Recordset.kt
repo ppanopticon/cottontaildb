@@ -1,6 +1,7 @@
 package org.vitrivr.cottontail.model.recordset
 
 import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap
+import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap
 import it.unimi.dsi.fastutil.objects.ObjectBigArrayBigList
 import org.vitrivr.cottontail.database.queries.components.BooleanPredicate
 import org.vitrivr.cottontail.database.queries.components.Predicate
@@ -8,6 +9,7 @@ import org.vitrivr.cottontail.model.basics.*
 import org.vitrivr.cottontail.model.values.types.Value
 import org.vitrivr.cottontail.utilities.extensions.read
 import org.vitrivr.cottontail.utilities.extensions.write
+import java.util.*
 import java.util.concurrent.locks.StampedLock
 
 /**
@@ -75,7 +77,7 @@ class Recordset(val columns: Array<ColumnDef<*>>, capacity: Long = 250L) : Scana
      *
      * @param record The record to add to this [Recordset].
      */
-    fun addRow(record: Record) = this.addRow(record.tupleId, record.values)
+    fun addRow(record: Record) = this.addRow(record.tupleId, record.columns.map { record[it] }.toTypedArray())
 
     /**
      * Retrieves the value for the specified tuple ID from this [Recordset].
@@ -262,38 +264,90 @@ class Recordset(val columns: Array<ColumnDef<*>>, capacity: Long = 250L) : Scana
      * A [Record] implementation that depends on the existence of the enclosing [Recordset].
      *
      * @author Ralph Gasser
-     * @version 1.0
+     * @version 1.0.1
      */
-    inner class RecordsetRecord(override val tupleId: Long, override val values: Array<Value?>) : Record {
+    inner class RecordsetRecord(override var tupleId: Long, values: Array<Value?> = Array(this@Recordset.columns.size) { null }) : Record {
+        init {
+            /** Sanity check. */
+            require(values.size == this.columns.size) { "The number of values must be equal to the number of columns held by the StandaloneRecord (v = ${values.size}, c = ${this.columns.size})" }
+            this.columns.forEachIndexed { index, columnDef ->
+                if (!columnDef.validate(values[index])) {
+                    throw IllegalArgumentException("Provided value ${values[index]} is incompatible with column ${columnDef}.")
+                }
+            }
+        }
 
         /** Array of [ColumnDef]s that describes the [Column][org.vitrivr.cottontail.database.column.Column] of this [Record]. */
         override val columns: Array<ColumnDef<*>>
             get() = this@Recordset.columns
 
-        init {
-            /** Sanity check. */
-            require(this.values.size == this.columns.size) { "The number of values must be equal to the number of columns held by the StandaloneRecord (v = ${this.values.size}, c = ${this.columns.size})" }
-            this.columns.forEachIndexed { index, columnDef ->
-                columnDef.validateOrThrow(this.values[index])
-            }
+        /** Initialize internal [Object2ObjectOpenHashMap] used to map columns to values. */
+        private val map = Object2ObjectOpenHashMap(this.columns, values)
+
+        /**
+         * Copies this [RecordsetRecord] and returns the copy as [StandaloneRecord].
+         *
+         * @return Copy of this [RecordsetRecord] as [StandaloneRecord].
+         */
+        override fun copy(): Record = StandaloneRecord(this.tupleId, this.columns, this.columns.map { this.map[it] }.toTypedArray())
+
+        /**
+         * Iterates over the [ColumnDef] and [Value] pairs in this [Record] in the order specified by [columns].
+         *
+         * @param action The action to apply to each [ColumnDef], [Value] pair.
+         */
+        override fun forEach(action: (ColumnDef<*>, Value?) -> Unit) {
+            for (c in this.columns) action(c, this.map[c])
         }
 
         /**
-         * Copies this [Record] and returns the copy.
+         * Returns true, if this [StandaloneRecord] contains the specified [ColumnDef] and false otherwise.
          *
-         * @return Copy of this [Record]
+         * @param column The [ColumnDef] specifying the column
+         * @return True if record contains the [ColumnDef], false otherwise.
          */
-        override fun copy(): Record = StandaloneRecord(tupleId, columns = this.columns, this.values.copyOf())
+        override fun has(column: ColumnDef<*>): Boolean = this.map.containsKey(column)
+
+        /**
+         * Returns an unmodifiable [Map] of the data contained in this [StandaloneRecord].
+         *
+         * @return Unmodifiable [Map] of the data in this [StandaloneRecord].
+         */
+        override fun toMap(): Map<ColumnDef<*>, Value?> = Collections.unmodifiableMap(this.map)
+
+        /**
+         * Retrieves the value for the specified [ColumnDef] from this [StandaloneRecord].
+         *
+         * @param column The [ColumnDef] for which to retrieve the value.
+         * @return The value for the [ColumnDef]
+         */
+        override fun get(column: ColumnDef<*>): Value? {
+            require(this.map.contains(column)) { "The specified column ${column.name}  (type=${column.type.name}) is not contained in this record." }
+            return this.map[column]
+        }
+
+        /**
+         * Sets the value for the specified [ColumnDef] in this [StandaloneRecord].
+         *
+         * @param column The [ColumnDef] for which to set the value.
+         * @param value The new value for the [ColumnDef]
+         */
+        override fun set(column: ColumnDef<*>, value: Value?) {
+            require(this.map.contains(column)) { "The specified column ${column.name}  (type=${column.type.name}) is not contained in this record." }
+            if (!column.validate(value)) {
+                throw IllegalArgumentException("Provided value $value is incompatible with column $column.")
+            }
+            this.map[column] = value
+        }
 
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
             if (javaClass != other?.javaClass) return false
 
-            other as Record
+            other as RecordsetRecord
 
             if (tupleId != other.tupleId) return false
-            if (!columns.contentEquals(other.columns)) return false
-            if (!values.contentEquals(other.values)) return false
+            if (map != other.map) return false
 
             return true
         }
@@ -301,7 +355,7 @@ class Recordset(val columns: Array<ColumnDef<*>>, capacity: Long = 250L) : Scana
         override fun hashCode(): Int {
             var result = tupleId.hashCode()
             result = 31 * result + columns.hashCode()
-            result = 31 * result + values.contentHashCode()
+            result = 31 * result + map.hashCode()
             return result
         }
     }
@@ -313,6 +367,4 @@ class Recordset(val columns: Array<ColumnDef<*>>, capacity: Long = 250L) : Scana
     override fun scan(columns: Array<ColumnDef<*>>, range: LongRange): CloseableIterator<Record> {
         TODO("Not yet implemented")
     }
-
-
 }

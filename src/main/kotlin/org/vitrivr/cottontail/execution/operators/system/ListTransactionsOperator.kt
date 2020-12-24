@@ -1,0 +1,63 @@
+package org.vitrivr.cottontail.execution.operators.system
+
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import org.vitrivr.cottontail.execution.TransactionContext
+import org.vitrivr.cottontail.execution.TransactionManager
+import org.vitrivr.cottontail.execution.operators.basics.Operator
+import org.vitrivr.cottontail.model.basics.ColumnDef
+import org.vitrivr.cottontail.model.basics.Name
+import org.vitrivr.cottontail.model.basics.Record
+import org.vitrivr.cottontail.model.recordset.StandaloneRecord
+import org.vitrivr.cottontail.model.values.DoubleValue
+import org.vitrivr.cottontail.model.values.IntValue
+import org.vitrivr.cottontail.model.values.LongValue
+import org.vitrivr.cottontail.model.values.StringValue
+import org.vitrivr.cottontail.model.values.types.Value
+
+/**
+ * An [Operator.SourceOperator] used during query execution. Used to list all ongoing transactions.
+ *
+ * @author Ralph Gasser
+ * @version 1.0.1
+ */
+class ListTransactionsOperator(val manager: TransactionManager) : Operator.SourceOperator() {
+    override val columns: Array<ColumnDef<*>>
+        get() = arrayOf(
+                ColumnDef.withAttributes(Name.ColumnName("txId"), "LONG", -1, false),
+                ColumnDef.withAttributes(Name.ColumnName("type"), "STRING", -1, false),
+                ColumnDef.withAttributes(Name.ColumnName("state"), "STRING", -1, false),
+                ColumnDef.withAttributes(Name.ColumnName("lock_count"), "INTEGER", -1, false),
+                ColumnDef.withAttributes(Name.ColumnName("tx_count"), "INTEGER", -1, false),
+                ColumnDef.withAttributes(Name.ColumnName("created"), "LONG", -1, false),
+                ColumnDef.withAttributes(Name.ColumnName("ended"), "LONG", -1, true),
+                ColumnDef.withAttributes(Name.ColumnName("duration[s]"), "DOUBLE", -1, false)
+        )
+
+    override fun toFlow(context: TransactionContext): Flow<Record> {
+        return flow {
+            var row = 0L
+            val values = Array<Value?>(this@ListTransactionsOperator.columns.size) { null }
+            this@ListTransactionsOperator.manager.transactionHistory.forEach {
+                values[0] = LongValue(it.txId)
+                values[1] = StringValue(it.type.toString())
+                values[2] = StringValue(it.state.toString())
+                values[3] = IntValue(it.numberOfLocks)
+                values[4] = IntValue(it.numberOfTxs)
+                values[5] = LongValue(it.created)
+                values[6] = if (it.ended != null) {
+                    LongValue(it.ended!!)
+                } else {
+                    null
+                }
+                values[7] = if (it.ended != null) {
+                    DoubleValue((it.ended!! - it.created) / 1000.0)
+                } else {
+                    DoubleValue((System.currentTimeMillis() - it.created) / 1000.0)
+
+                }
+                emit(StandaloneRecord(row++, this@ListTransactionsOperator.columns, values))
+            }
+        }
+    }
+}

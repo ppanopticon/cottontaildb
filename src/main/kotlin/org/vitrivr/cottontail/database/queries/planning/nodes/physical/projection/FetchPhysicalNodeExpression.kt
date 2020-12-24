@@ -3,7 +3,7 @@ package org.vitrivr.cottontail.database.queries.planning.nodes.physical.projecti
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.UnaryPhysicalNodeExpression
-import org.vitrivr.cottontail.execution.ExecutionEngine
+import org.vitrivr.cottontail.execution.TransactionManager
 import org.vitrivr.cottontail.execution.operators.transform.FetchOperator
 import org.vitrivr.cottontail.model.basics.ColumnDef
 
@@ -14,7 +14,7 @@ import org.vitrivr.cottontail.model.basics.ColumnDef
  * This can be used for late population, which can lead to optimized performance for kNN queries
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.0.1
  */
 class FetchPhysicalNodeExpression(val entity: Entity, val fetch: Array<ColumnDef<*>>) : UnaryPhysicalNodeExpression() {
 
@@ -26,5 +26,5 @@ class FetchPhysicalNodeExpression(val entity: Entity, val fetch: Array<ColumnDef
 
     override fun copy() = FetchPhysicalNodeExpression(this.entity, this.fetch)
 
-    override fun toOperator(context: ExecutionEngine.ExecutionContext) = FetchOperator(this.input.toOperator(context), context, this.entity, this.fetch)
+    override fun toOperator(engine: TransactionManager) = FetchOperator(this.input.toOperator(engine), this.entity, this.fetch)
 }

@@ -14,7 +14,7 @@ import kotlin.math.pow
  * This is an abstraction over an [Array] and it represents a vector of [Complex32Value]s.
  *
  * @author Manuel Huerbin & Ralph Gasser
- * @version 1.3.1
+ * @version 1.3.2
  */
 inline class Complex32VectorValue(val data: FloatArray) : ComplexVectorValue<Float> {
     companion object {
@@ -91,9 +91,14 @@ inline class Complex32VectorValue(val data: FloatArray) : ComplexVectorValue<Flo
     override fun real(i: Int) = FloatValue(this.data[i shl 1])
     override fun imaginary(i: Int) = FloatValue(this.data[(i shl 1) + 1])
 
-    override fun compareTo(other: Value): Int {
-        throw IllegalArgumentException("ComplexVectorValues can can only be compared for equality.")
-    }
+    /**
+     * Checks for equality between this [Complex32VectorValue] and the other [Value]. Equality can only be
+     * established if the other [Value] is also a [Complex32VectorValue] and holds the same value.
+     *
+     * @param other [Value] to compare to.
+     * @return True if equal, false otherwise.
+     */
+    override fun isEqual(other: Value): Boolean = (other is FloatVectorValue) && (this.data.contentEquals(other.data))
 
     /**
      * Returns the indices of this [Complex32VectorValue].

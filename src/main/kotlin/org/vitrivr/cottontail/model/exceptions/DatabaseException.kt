@@ -18,7 +18,7 @@ open class DatabaseException(message: String) : Throwable(message) {
      *
      * @param schema [Name] of the [Schema][org.vitrivr.cottontail.database.schema.Schema].
      */
-    class SchemaDoesNotExistException(schema: Name.SchemaName) : DatabaseException("Schema '$schema' does not exist!")
+    class SchemaDoesNotExistException(val schema: Name.SchemaName) : DatabaseException("Schema '$schema' does not exist!")
 
     /**
      * Thrown when trying to create an [Entity][org.vitrivr.cottontail.database.entity.Entity]
@@ -34,7 +34,7 @@ open class DatabaseException(message: String) : Throwable(message) {
      *
      * @param entity [Name] of the [Entity][org.vitrivr.cottontail.database.entity.Entity].
      */
-    class EntityDoesNotExistException(entity: Name.EntityName) : DatabaseException("Entity '$entity' does not exist!")
+    class EntityDoesNotExistException(val entity: Name.EntityName) : DatabaseException("Entity '$entity' does not exist!")
 
     /**
      * Thrown whenever trying to create an [Index][org.vitrivr.cottontail.database.index.Index]

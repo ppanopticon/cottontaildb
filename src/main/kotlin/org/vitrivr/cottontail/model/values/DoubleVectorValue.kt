@@ -10,7 +10,7 @@ import kotlin.math.pow
  * This is an abstraction over a [DoubleArray] and it represents a vector of [Double]s.
  *
  * @author Ralph Gasser
- * @version 1.3.1
+ * @version 1.3.2
  */
 inline class DoubleVectorValue(val data: DoubleArray) : RealVectorValue<Double> {
 
@@ -44,9 +44,14 @@ inline class DoubleVectorValue(val data: DoubleArray) : RealVectorValue<Double> 
     override val logicalSize: Int
         get() = this.data.size
 
-    override fun compareTo(other: Value): Int {
-        throw IllegalArgumentException("DoubleVectorValues can can only be compared for equality.")
-    }
+    /**
+     * Checks for equality between this [DoubleVectorValue] and the other [Value]. Equality can only be
+     * established if the other [Value] is also a [DoubleVectorValue] and holds the same value.
+     *
+     * @param other [Value] to compare to.
+     * @return True if equal, false otherwise.
+     */
+    override fun isEqual(other: Value): Boolean = (other is DoubleVectorValue) && (this.data.contentEquals(other.data))
 
     /**
      * Returns the indices of this [DoubleVectorValue].

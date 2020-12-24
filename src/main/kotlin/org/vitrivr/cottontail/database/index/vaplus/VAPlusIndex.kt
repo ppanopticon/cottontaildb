@@ -3,20 +3,21 @@ package org.vitrivr.cottontail.database.index.vaplus
 import org.apache.commons.math3.linear.MatrixUtils
 import org.mapdb.Atomic
 import org.slf4j.LoggerFactory
-import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.column.Column
 import org.vitrivr.cottontail.database.column.ColumnType
 import org.vitrivr.cottontail.database.entity.Entity
+import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.events.DataChangeEvent
 import org.vitrivr.cottontail.database.index.Index
-import org.vitrivr.cottontail.database.index.IndexTransaction
+import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.index.IndexType
-import org.vitrivr.cottontail.database.index.hash.UniqueHashIndex
+import org.vitrivr.cottontail.database.index.hash.NonUniqueHashIndex
 import org.vitrivr.cottontail.database.index.lsh.superbit.SuperBitLSHIndex
 import org.vitrivr.cottontail.database.queries.components.AtomicBooleanPredicate
 import org.vitrivr.cottontail.database.queries.components.KnnPredicate
 import org.vitrivr.cottontail.database.queries.components.Predicate
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
+import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.math.knn.selection.ComparablePair
 import org.vitrivr.cottontail.math.knn.selection.MinHeapSelection
 import org.vitrivr.cottontail.model.basics.*
@@ -24,7 +25,6 @@ import org.vitrivr.cottontail.model.exceptions.QueryException
 import org.vitrivr.cottontail.model.recordset.Recordset
 import org.vitrivr.cottontail.model.values.DoubleValue
 import org.vitrivr.cottontail.model.values.types.VectorValue
-import org.vitrivr.cottontail.utilities.extensions.read
 import org.vitrivr.cottontail.utilities.extensions.write
 import java.nio.file.Path
 
@@ -38,7 +38,7 @@ import java.nio.file.Path
  * @author Manuel Huerbin
  * @version 1.1.2
  */
-class VAPlusIndex(override val name: Name.IndexName, override val catalogue: Catalogue, override val columns: Array<ColumnDef<*>>) : Index() {
+class VAPlusIndex(override val name: Name.IndexName, override val parent: Entity, override val columns: Array<ColumnDef<*>>) : Index() {
 
     /**
      * Index-wide constants.
@@ -50,7 +50,7 @@ class VAPlusIndex(override val name: Name.IndexName, override val catalogue: Cat
     }
 
     /** Path to the [VAPlusIndex] file. */
-    override val path: Path = this.catalogue.indexForName(this.name).path
+    override val path: Path = this.parent.path.resolve("idx_vaf_$name.db")
 
     /** The type of [Index] */
     override val type: IndexType = IndexType.VAF
@@ -59,10 +59,10 @@ class VAPlusIndex(override val name: Name.IndexName, override val catalogue: Cat
     override val supportsIncrementalUpdate: Boolean = true
 
     /** The [VAPlusIndex] implementation returns exactly the columns that is indexed. */
-    override val produces: Array<ColumnDef<*>> = arrayOf(ColumnDef(this.name.entity().column("distance"), ColumnType.forName("DOUBLE")))
+    override val produces: Array<ColumnDef<*>> = arrayOf(ColumnDef(this.parent.name.column("distance"), ColumnType.forName("DOUBLE")))
 
     /** The internal [DB] reference. */
-    private val db = this.catalogue.config.mapdb.db(this.path)
+    private val db = parent.parent.parent.config.mapdb.db(this.path)
 
     /** Map structure used for [VAPlusIndex]. */
     private val meta: Atomic.Var<VAPlusMeta> = this.db.atomicVar(META_FIELD_NAME, VAPlusMetaSerializer).createOrOpen()
@@ -116,16 +116,16 @@ class VAPlusIndex(override val name: Name.IndexName, override val catalogue: Cat
     }.sum()
 
     /**
-     * Opens and returns a new [IndexTransaction] object that can be used to interact with this [Index].
+     * Opens and returns a new [IndexTx] object that can be used to interact with this [Index].
      *
-     * @param parent If the [Entity.Tx] that requested the [IndexTransaction].
+     * @param context [TransactionContext] that requested the [IndexTx].
      */
-    override fun begin(parent: Entity.Tx): IndexTransaction = Tx(parent)
+    override fun newTx(context: TransactionContext): IndexTx = Tx(context)
 
     /**
      * Closes this [VAPlusIndex] and the associated data structures.
      */
-    override fun close() = this.globalLock.write {
+    override fun close() = this.closeLock.write {
         if (!this.closed) {
             this.db.close()
             this.closed = true
@@ -133,16 +133,17 @@ class VAPlusIndex(override val name: Name.IndexName, override val catalogue: Cat
     }
 
     /**
-     * A [IndexTransaction] that affects this [UniqueHashIndex].
+     * An [IndexTx] that affects this [NonUniqueHashIndex].
+     *
+     * @author Ralph Gasser
+     * @version 1.3.0
      */
-    private inner class Tx(parent: Entity.Tx) : Index.Tx(parent) {
+    private inner class Tx(context: TransactionContext) : Index.Tx(context) {
 
         /**
          * (Re-)builds the [VAPlusIndex].
          */
-        override fun rebuild() = this.localLock.read {
-            checkValidForWrite()
-
+        override fun rebuild() = this.withWriteLock {
             /* Clear existing map. */
             this@VAPlusIndex.signatures.clear()
 
@@ -152,8 +153,11 @@ class VAPlusIndex(override val name: Name.IndexName, override val catalogue: Cat
             val minimumNumberOfTuples = 1000
             val dimension = this.columns[0].logicalSize
 
+            /* Get transaction on entity. */
+            val txn = this.context.getTx(this.dbo.parent) as EntityTx
+
             // VA-file get data sample
-            val dataSampleTmp = vaPlus.getDataSample(this.parent, this.columns, maxOf(trainingSize, minimumNumberOfTuples))
+            val dataSampleTmp = vaPlus.getDataSample(txn, this.columns, maxOf(trainingSize, minimumNumberOfTuples))
 
             // VA-file in KLT domain
             val (dataSample, kltMatrix) = vaPlus.transformToKLTDomain(dataSampleTmp)
@@ -167,7 +171,7 @@ class VAPlusIndex(override val name: Name.IndexName, override val catalogue: Cat
 
             // Indexing
             val kltMatrixBar = kltMatrix.transpose()
-            this.parent.scan(this@VAPlusIndex.columns).forEach { record ->
+            txn.scan(this@VAPlusIndex.columns).forEach { record ->
                 val doubleArray = vaPlus.convertToDoubleArray(record[this.columns[0]] as VectorValue<*>)
                 val dataMatrix = MatrixUtils.createRealMatrix(arrayOf(doubleArray))
                 val vector = kltMatrixBar.multiply(dataMatrix.transpose()).getColumnVector(0).toArray()
@@ -185,8 +189,7 @@ class VAPlusIndex(override val name: Name.IndexName, override val catalogue: Cat
          *
          * @param update Collection of [DataChangeEvent]s to process.
          */
-        override fun update(update: Collection<DataChangeEvent>) = this.localLock.read {
-            checkValidForWrite()
+        override fun update(update: Collection<DataChangeEvent>) = this.withWriteLock {
             TODO()
         }
 
@@ -213,15 +216,16 @@ class VAPlusIndex(override val name: Name.IndexName, override val catalogue: Cat
 
             /* Performs some sanity checks. */
             init {
-                checkValidForRead()
-
                 if (this.predicate.columns.first() == this@VAPlusIndex.columns[0]) {
                     throw QueryException.UnsupportedPredicateException("Index '${this@VAPlusIndex.name}' (vaf-index) does not support the provided predicate.")
                 }
+                this@Tx.withReadLock { /* No op. */ }
             }
 
-            /** Generates a shared lock on the enclosing [Tx]. This lock is kept until the [CloseableIterator] is closed. */
-            private val stamp = this@Tx.localLock.readLock()
+            /** Flag indicating whether this [CloseableIterator] has been closed. */
+            @Volatile
+            override var isOpen = true
+                private set
 
             /** [VAPlus] instance . */
             private val vaPlus = VAPlus()
@@ -257,11 +261,6 @@ class VAPlusIndex(override val name: Name.IndexName, override val catalogue: Cat
                 Pair(Pair(lbIndex, lbBounds), Pair(ubIndex, ubBounds))
             }
 
-            /** Flag indicating whether this [CloseableIterator] is open and ready for use. */
-            @Volatile
-            override var isOpen = true
-                private set
-
             override fun hasNext(): Boolean {
                 check(this.isOpen) { "Illegal invocation of hasNext(): This CloseableIterator has been closed." }
                 TODO("Not yet implemented")
@@ -273,8 +272,7 @@ class VAPlusIndex(override val name: Name.IndexName, override val catalogue: Cat
             }
 
             override fun close() {
-                if (!this.isOpen) {
-                    this@Tx.localLock.unlock(this.stamp)
+                if (this.isOpen) {
                     this.isOpen = false
                 }
             }
@@ -288,10 +286,6 @@ class VAPlusIndex(override val name: Name.IndexName, override val catalogue: Cat
         /** Performs the actual ROLLBACK operation by rolling back the [DB]. */
         override fun performRollback() {
             this@VAPlusIndex.db.rollback()
-        }
-
-        override fun cleanup() {
-            /* No Op. */
         }
     }
 }

@@ -10,7 +10,7 @@ import java.util.*
  * This is an abstraction over a [Short].
  *
  * @author Ralph Gasser
- * @version 1.3.1
+ * @version 1.3.2
  */
 inline class ShortValue(override val value: Short): RealValue<Short> {
     companion object {
@@ -49,6 +49,13 @@ inline class ShortValue(override val value: Short): RealValue<Short> {
     override val imaginary: RealValue<Short>
         get() = ZERO
 
+    /**
+     * Compares this [ShortValue] to another [Value]. Returns -1, 0 or 1 of other value is smaller,
+     * equal or greater than this value. [ShortValue] can only be compared to other [NumericValue]s.
+     *
+     * @param other Value to compare to.
+     * @return -1, 0 or 1 of other value is smaller, equal or greater than this value
+     */
     override fun compareTo(other: Value): Int = when (other) {
         is ByteValue -> this.value.compareTo(other.value)
         is ShortValue -> this.value.compareTo(other.value)
@@ -56,18 +63,19 @@ inline class ShortValue(override val value: Short): RealValue<Short> {
         is LongValue -> this.value.compareTo(other.value)
         is DoubleValue -> this.value.compareTo(other.value)
         is FloatValue -> this.value.compareTo(other.value)
-        else -> throw IllegalArgumentException("ShortValues can only be compared to other numeric values.")
+        is Complex32Value -> this.value.compareTo(other.data[0])
+        is Complex64Value -> this.value.compareTo(other.data[0])
+        else -> throw IllegalArgumentException("LongValues can only be compared to other numeric values.")
     }
 
-    override fun compareTo(other: Number): Int = when (other) {
-        is Byte -> this.value.compareTo(other)
-        is Short -> this.value.compareTo(other)
-        is Int -> this.value.compareTo(other)
-        is Long -> this.value.compareTo(other)
-        is Double -> this.value.compareTo(other)
-        is Float -> this.value.compareTo(other)
-        else -> throw IllegalArgumentException("ShortValues can only be compared to other numeric values.")
-    }
+    /**
+     * Checks for equality between this [LongValue] and the other [Value]. Equality can only be
+     * established if the other [Value] is also a [LongValue] and holds the same value.
+     *
+     * @param other [Value] to compare to.
+     * @return True if equal, false otherwise.
+     */
+    override fun isEqual(other: Value): Boolean = (other is ShortValue) && (other.value == this.value)
 
     override fun asDouble(): DoubleValue = DoubleValue(this.value.toDouble())
     override fun asFloat(): FloatValue = FloatValue(this.value.toFloat())
@@ -97,6 +105,4 @@ inline class ShortValue(override val value: Short): RealValue<Short> {
     override fun sin() = this.asDouble().sin()
     override fun tan() = this.asDouble().tan()
     override fun atan() = this.asDouble().atan()
-
-    override fun compareTo(other: NumericValue<Short>): Int = this.value.compareTo(other.value)
 }

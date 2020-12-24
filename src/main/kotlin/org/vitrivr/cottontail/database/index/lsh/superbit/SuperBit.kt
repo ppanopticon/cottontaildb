@@ -99,7 +99,7 @@ class SuperBit(d: Int, N: Int, L: Int, seed: Long, species: VectorValue<*>) : Se
     fun signature(vector: VectorValue<*>): BooleanArray {
         val signature = BooleanArray(this.hyperplanes.size)
         for (i in hyperplanes.indices) {
-            signature[i] = this.hyperplanes[i].dot(vector) >= 0
+            signature[i] = this.hyperplanes[i].dot(vector).value.toInt() >= 0
         }
         return signature
     }

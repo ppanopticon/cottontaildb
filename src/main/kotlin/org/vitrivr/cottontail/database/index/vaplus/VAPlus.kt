@@ -9,6 +9,7 @@ import org.apache.commons.math3.linear.MatrixUtils
 import org.apache.commons.math3.linear.RealMatrix
 import org.apache.commons.math3.stat.correlation.Covariance
 import org.vitrivr.cottontail.database.entity.Entity
+import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.values.types.VectorValue
 import java.io.Serializable
@@ -38,7 +39,7 @@ class VAPlus : Serializable {
      * @param size  The size of the data sample.
      * @return  An subset from data.
      */
-    fun getDataSample(tx: Entity.Tx, columns: Array<ColumnDef<*>>, size: Int): Array<DoubleArray> {
+    fun getDataSample(tx: EntityTx, columns: Array<ColumnDef<*>>, size: Int): Array<DoubleArray> {
         val p = size / tx.count().toDouble()
         val dataSample = ArrayList<DoubleArray>(size + 100)
         val random = SplittableRandom(System.currentTimeMillis())

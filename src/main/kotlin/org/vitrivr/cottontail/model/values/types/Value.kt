@@ -7,9 +7,9 @@ import java.util.*
  * advanced type system implemented by Cottontail DB.
  *
  * @author Ralph Gasser
- * @version 1.2.1
+ * @version 1.3.0
  */
-interface Value {
+interface Value : Comparable<Value> {
     companion object {
         /** Internal, [SplittableRandom] instance used for generation of random [Value]s. */
         @JvmStatic
@@ -20,11 +20,13 @@ interface Value {
     val logicalSize: Int
 
     /**
-     * Comparison operator between two values. Returns -1, 0 or 1 of other value is smaller, equal
-     * or greater than this value.
+     * Compares two [Value]s. Returns true, if they are equal, and false otherwise.
+     *
+     * TODO: This method is required because it is currently not possible to override
+     * equals() in Kotlin inline classes. Once this changes, this method should be removed.
      *
      * @param other Value to compare to.
-     * @return -1, 0 or 1 of other value is smaller, equal or greater than this value
+     * @return true if equal, false otherwise.
      */
-    operator fun compareTo(other: Value): Int
+    fun isEqual(other: Value): Boolean
 }

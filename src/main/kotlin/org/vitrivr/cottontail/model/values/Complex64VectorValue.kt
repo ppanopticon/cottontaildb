@@ -13,7 +13,7 @@ import kotlin.math.pow
  * This is an abstraction over an [Array] and it represents a vector of [Complex64Value]s.
  *
  * @author Manuel Huerbin & Ralph Gasser
- * @version 1.3.1
+ * @version 1.3.2
  */
 inline class Complex64VectorValue(val data: DoubleArray) : ComplexVectorValue<Double> {
     companion object {
@@ -90,9 +90,14 @@ inline class Complex64VectorValue(val data: DoubleArray) : ComplexVectorValue<Do
     override fun real(i: Int) = DoubleValue(this.data[i shl 1])
     override fun imaginary(i: Int) = DoubleValue(this.data[(i shl 1) + 1])
 
-    override fun compareTo(other: Value): Int {
-        throw IllegalArgumentException("ComplexVectorValues can can only be compared for equality.")
-    }
+    /**
+     * Checks for equality between this [Complex64VectorValue] and the other [Value]. Equality can only be
+     * established if the other [Value] is also a [Complex64VectorValue] and holds the same value.
+     *
+     * @param other [Value] to compare to.
+     * @return True if equal, false otherwise.
+     */
+    override fun isEqual(other: Value): Boolean = (other is DoubleVectorValue) && (this.data.contentEquals(other.data))
 
     /**
      * Returns the indices of this [Complex64VectorValue].

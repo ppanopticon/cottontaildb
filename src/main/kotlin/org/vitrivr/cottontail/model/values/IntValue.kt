@@ -49,6 +49,13 @@ inline class IntValue(override val value: Int): RealValue<Int> {
     override val imaginary: RealValue<Int>
         get() = ZERO
 
+    /**
+     * Compares this [IntValue] to another [Value]. Returns -1, 0 or 1 of other value is smaller,
+     * equal or greater than this value. [IntValue] can only be compared to other [NumericValue]s.
+     *
+     * @param other Value to compare to.
+     * @return -1, 0 or 1 of other value is smaller, equal or greater than this value
+     */
     override fun compareTo(other: Value): Int = when (other) {
         is ByteValue -> this.value.compareTo(other.value)
         is ShortValue -> this.value.compareTo(other.value)
@@ -56,18 +63,19 @@ inline class IntValue(override val value: Int): RealValue<Int> {
         is LongValue -> this.value.compareTo(other.value)
         is DoubleValue -> this.value.compareTo(other.value)
         is FloatValue -> this.value.compareTo(other.value)
-        else -> throw IllegalArgumentException("IntValues can only be compared to other numeric values.")
+        is Complex32Value -> this.value.compareTo(other.data[0])
+        is Complex64Value -> this.value.compareTo(other.data[0])
+        else -> throw IllegalArgumentException("LongValues can only be compared to other numeric values.")
     }
 
-    override fun compareTo(other: Number): Int = when (other) {
-        is Byte -> this.value.compareTo(other)
-        is Short -> this.value.compareTo(other)
-        is Int -> this.value.compareTo(other)
-        is Long -> this.value.compareTo(other)
-        is Double -> this.value.compareTo(other)
-        is Float -> this.value.compareTo(other)
-        else -> throw IllegalArgumentException("IntValues can only be compared to other numeric values.")
-    }
+    /**
+     * Checks for equality between this [IntValue] and the other [Value]. Equality can only be
+     * established if the other [Value] is also a [IntValue] and holds the same value.
+     *
+     * @param other [Value] to compare to.
+     * @return True if equal, false otherwise.
+     */
+    override fun isEqual(other: Value): Boolean = (other is IntValue) && (other.value == this.value)
 
     override fun asDouble(): DoubleValue = DoubleValue(this.value.toDouble())
     override fun asFloat(): FloatValue = FloatValue(this.value.toFloat())
@@ -97,6 +105,4 @@ inline class IntValue(override val value: Int): RealValue<Int> {
     override fun sin() = this.asDouble().sin()
     override fun tan() = this.asDouble().tan()
     override fun atan() = this.asDouble().atan()
-
-    override fun compareTo(other: NumericValue<Int>): Int = this.value.compareTo(other.value)
 }

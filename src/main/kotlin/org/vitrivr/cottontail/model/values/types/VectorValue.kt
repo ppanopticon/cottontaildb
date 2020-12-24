@@ -7,10 +7,24 @@ import org.vitrivr.cottontail.model.values.IntValue
  * values are always numeric! This  is an abstraction over the existing primitive array types provided
  * by Kotlin. It allows for the advanced type system implemented by Cottontail DB.
  *
- * @version 1.3
+ * @version 1.3.2
  * @author Ralph Gasser
  */
 interface VectorValue<T : Number> : Value {
+
+    /**
+     * Compares this [VectorValue] to another [Value]. Returns -1, 0 or 1 of other value is smaller,
+     * equal or greater than this value. [VectorValue] can only be compared to other [VectorValue]s
+     * and the norm of the [VectorValue] is used for comparison.
+     *
+     * @param other Value to compare to.
+     * @return -1, 0 or 1 of other value is smaller, equal or greater than this value
+     */
+    override fun compareTo(other: Value): Int = when (other) {
+        is VectorValue<*> -> this.norm2().compareTo(other.norm2())
+        else -> throw IllegalArgumentException("VectorValue can can only be compared to other vector values.")
+    }
+
     /**
      * Returns the i-th entry of  this [VectorValue].
      *

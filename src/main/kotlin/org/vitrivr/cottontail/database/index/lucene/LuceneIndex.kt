@@ -2,33 +2,33 @@ package org.vitrivr.cottontail.database.index.lucene
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer
 import org.apache.lucene.document.*
-import org.apache.lucene.index.DirectoryReader
-import org.apache.lucene.index.IndexReader
-import org.apache.lucene.index.IndexWriter
-import org.apache.lucene.index.IndexWriterConfig
-import org.apache.lucene.search.IndexSearcher
+import org.apache.lucene.index.*
+import org.apache.lucene.queryparser.flexible.standard.QueryParserUtil
+import org.apache.lucene.search.*
 import org.apache.lucene.store.Directory
 import org.apache.lucene.store.FSDirectory
 import org.apache.lucene.store.NativeFSLockFactory
 import org.slf4j.LoggerFactory
-import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.column.ColumnType
 import org.vitrivr.cottontail.database.entity.Entity
+import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.events.DataChangeEvent
 import org.vitrivr.cottontail.database.events.DataChangeEventType
 import org.vitrivr.cottontail.database.index.Index
-import org.vitrivr.cottontail.database.index.IndexTransaction
+import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.index.IndexType
 import org.vitrivr.cottontail.database.index.hash.UniqueHashIndex
 import org.vitrivr.cottontail.database.index.lsh.superbit.SuperBitLSHIndex
 import org.vitrivr.cottontail.database.queries.components.*
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
+import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.model.basics.*
 import org.vitrivr.cottontail.model.exceptions.QueryException
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.FloatValue
 import org.vitrivr.cottontail.model.values.StringValue
-import org.vitrivr.cottontail.utilities.extensions.read
+import org.vitrivr.cottontail.model.values.pattern.LikePatternValue
+import org.vitrivr.cottontail.model.values.pattern.LucenePatternValue
 import org.vitrivr.cottontail.utilities.extensions.write
 import java.nio.file.Path
 
@@ -37,13 +37,16 @@ import java.nio.file.Path
  * for string comparisons using the EQUAL or LIKE operator.
  *
  * @author Luca Rossetto & Ralph Gasser
- * @version 1.2.3
+ * @version 1.3.1
  */
-class LuceneIndex(override val name: Name.IndexName, override val catalogue: Catalogue, override val columns: Array<ColumnDef<*>>) : Index() {
+class LuceneIndex(override val name: Name.IndexName, override val parent: Entity, override val columns: Array<ColumnDef<*>>) : Index() {
 
     companion object {
         /** [ColumnDef] of the _tid column. */
         const val TID_COLUMN = "_tid"
+
+        /** The [ComparisonOperator]s supported by this [LuceneIndex]. */
+        private val SUPPORTS = arrayOf(ComparisonOperator.LIKE, ComparisonOperator.EQUAL, ComparisonOperator.MATCH)
 
         /**
          * Maps a [Record] to a [Document] that can be processed by Lucene.
@@ -67,10 +70,10 @@ class LuceneIndex(override val name: Name.IndexName, override val catalogue: Cat
     }
 
     /** The [LuceneIndex] implementation produces an additional score column. */
-    override val produces: Array<ColumnDef<*>> = arrayOf(ColumnDef(this.name.entity().column("score"), ColumnType.forName("FLOAT")))
+    override val produces: Array<ColumnDef<*>> = arrayOf(ColumnDef(this.parent.name.column("score"), ColumnType.forName("FLOAT")))
 
     /** The path to the directory that contains the data for this [LuceneIndex]. */
-    override val path: Path = this.catalogue.indexForName(this.name).path
+    override val path: Path = this.parent.path.resolve("idx_lucene_${name.simple}")
 
     /** True since [SuperBitLSHIndex] supports incremental updates. */
     override val supportsIncrementalUpdate: Boolean = true
@@ -101,11 +104,10 @@ class LuceneIndex(override val name: Name.IndexName, override val catalogue: Cat
      * @param predicate [Predicate] to test.
      * @return True if [Predicate] can be processed, false otherwise.
      */
-    override fun canProcess(predicate: Predicate): Boolean = if (predicate is BooleanPredicate) {
-        predicate.columns.all { this.columns.contains(it) } && predicate.atomics.all { it.operator == ComparisonOperator.LIKE || it.operator == ComparisonOperator.EQUAL }
-    } else {
-        false
-    }
+    override fun canProcess(predicate: Predicate): Boolean =
+            predicate is BooleanPredicate &&
+                    predicate.columns.all { it in this.columns } &&
+                    predicate.atomics.all { it.operator in SUPPORTS }
 
     /**
      * Calculates the cost estimate of this [UniqueHashIndex] processing the provided [Predicate].
@@ -126,16 +128,16 @@ class LuceneIndex(override val name: Name.IndexName, override val catalogue: Cat
     }
 
     /**
-     * Opens and returns a new [IndexTransaction] object that can be used to interact with this [Index].
+     * Opens and returns a new [IndexTx] object that can be used to interact with this [Index].
      *
-     * @param parent If the [Entity.Tx] that requested the [IndexTransaction].
+     * @param context If the [TransactionContext] to create the [IndexTx] for.
      */
-    override fun begin(parent: Entity.Tx): IndexTransaction = Tx(parent)
+    override fun newTx(context: TransactionContext): IndexTx = Tx(context)
 
     /**
      * Closes this [LuceneIndex] and the associated data structures.
      */
-    override fun close() = this.globalLock.write {
+    override fun close() = this.closeLock.write {
         if (!this.closed) {
             this.indexReader.close()
             this.directory.close()
@@ -144,34 +146,96 @@ class LuceneIndex(override val name: Name.IndexName, override val catalogue: Cat
     }
 
     /**
-     * A [IndexTransaction] that affects this [Index].
+     * Converts a [BooleanPredicate] to a [Query] supported by Apache Lucene.
+     *
+     * @return [Query]
      */
-    private inner class Tx(parent: Entity.Tx) : Index.Tx(parent) {
+    private fun BooleanPredicate.toLuceneQuery(): Query = when (this) {
+        is AtomicBooleanPredicate<*> -> this.toLuceneQuery()
+        is CompoundBooleanPredicate -> this.toLuceneQuery()
+    }
+
+    /**
+     * Converts an [AtomicBooleanPredicate] to a [Query] supported by Apache Lucene. Conversion differs
+     * slightly depending on the [ComparisonOperator].
+     *
+     * @return [Query]
+     */
+    private fun AtomicBooleanPredicate<*>.toLuceneQuery(): Query = when (this.operator) {
+        ComparisonOperator.EQUAL -> {
+            val column = this.columns.first()
+            val string = this.values.first()
+            if (string is StringValue) {
+                TermQuery(Term("${column.name}_str", string.value))
+            } else {
+                throw throw QueryException("Conversion to Lucene query failed: EQUAL queries strictly require a StringValue as second operand!")
+            }
+        }
+        ComparisonOperator.LIKE -> {
+            val column = this.columns.first()
+            val pattern = this.values.first()
+            if (pattern is LucenePatternValue) {
+                QueryParserUtil.parse(arrayOf(pattern.value), arrayOf("${column.name}_txt"), StandardAnalyzer())
+            } else if (pattern is LikePatternValue) {
+                QueryParserUtil.parse(arrayOf(pattern.toLucene().value), arrayOf("${column.name}_txt"), StandardAnalyzer())
+            } else {
+                throw throw QueryException("Conversion to Lucene query failed: LIKE queries require a LucenePatternValue OR LikePatternValue as second operand!")
+            }
+        }
+        ComparisonOperator.MATCH -> {
+            val column = this.columns.first()
+            val pattern = this.values.first()
+            if (pattern is LucenePatternValue) {
+                QueryParserUtil.parse(arrayOf(pattern.value), arrayOf("${column.name}_txt"), StandardAnalyzer())
+            } else {
+                throw throw QueryException("Conversion to Lucene query failed: MATCH queries strictly require a LucenePatternValue as second operand!")
+            }
+        }
+        else -> throw QueryException("Lucene Query Conversion failed: Only EQUAL, MATCH and LIKE queries can be mapped to a Apache Lucene!")
+    }
+
+    /**
+     * Converts a [CompoundBooleanPredicate] to a [Query] supported by Apache Lucene.
+     *
+     * @return [Query]
+     */
+    private fun CompoundBooleanPredicate.toLuceneQuery(): Query {
+        val clause = when (this.connector) {
+            ConnectionOperator.AND -> BooleanClause.Occur.MUST
+            ConnectionOperator.OR -> BooleanClause.Occur.SHOULD
+        }
+        val builder = BooleanQuery.Builder()
+        builder.add(this.p1.toLuceneQuery(), clause)
+        builder.add(this.p2.toLuceneQuery(), clause)
+        return builder.build()
+    }
+
+    /**
+     * An [IndexTx] that affects this [LuceneIndex].
+     *
+     * @author Ralph Gasser
+     * @version 1.3.0
+     */
+    private inner class Tx(context: TransactionContext) : Index.Tx(context) {
 
         /** The [IndexWriter] instance used to access this [LuceneIndex]. */
-        private val writer = if (!this.readonly) {
-            IndexWriter(this@LuceneIndex.directory, IndexWriterConfig(StandardAnalyzer()).setOpenMode(IndexWriterConfig.OpenMode.APPEND).setMaxBufferedDocs(100_000).setCommitOnClose(false))
-        } else {
-            null
-        }
+        private val writer = IndexWriter(this@LuceneIndex.directory, IndexWriterConfig(StandardAnalyzer()).setOpenMode(IndexWriterConfig.OpenMode.APPEND).setMaxBufferedDocs(100_000).setCommitOnClose(false))
 
         /**
          * (Re-)builds the [LuceneIndex].
          */
-        override fun rebuild() = this.localLock.read {
-            checkValidForWrite()
-
+        override fun rebuild() = this.withWriteLock {
             LOGGER.trace("Rebuilding lucene index {}", this@LuceneIndex.name)
 
-            this.writer?.deleteAll()
+            this.writer.deleteAll()
             var count = 0
-            this.parent.scan(this@LuceneIndex.columns).use { s ->
+            val txn = this.context.getTx(this.dbo.parent) as EntityTx
+            txn.scan(this@LuceneIndex.columns).use { s ->
                 s.forEach { record ->
-                    this.writer?.addDocument(documentFromRecord(record))
+                    this.writer.addDocument(documentFromRecord(record))
                     count++
                 }
             }
-
             LOGGER.trace("Rebuilding lucene index complete!", this@LuceneIndex.name)
         }
 
@@ -181,18 +245,16 @@ class LuceneIndex(override val name: Name.IndexName, override val catalogue: Cat
          *
          * @param update Collection of [DataChangeEvent]s to process.
          */
-        override fun update(update: Collection<DataChangeEvent>) = this.localLock.read {
-            this.checkValidForWrite()
-
+        override fun update(update: Collection<DataChangeEvent>) = this.withWriteLock {
             /* Define action for inserting an entry based on a DataChangeEvent. */
             fun atomicInsert(event: DataChangeEvent) {
-                this.writer?.addDocument(documentFromRecord(event.new!!))
+                this.writer.addDocument(documentFromRecord(event.new!!))
             }
 
 
             /* Define action for deleting an entry based on a DataChangeEvent. */
             fun atomicDelete(event: DataChangeEvent) {
-                this.writer?.deleteDocuments(NumericDocValuesField.newSlowExactQuery(TID_COLUMN, event.old!!.tupleId))
+                this.writer.deleteDocuments(NumericDocValuesField.newSlowExactQuery(TID_COLUMN, event.old!!.tupleId))
             }
 
             /* Process the DataChangeEvents. */
@@ -238,38 +300,29 @@ class LuceneIndex(override val name: Name.IndexName, override val catalogue: Cat
 
             /* Performs some sanity checks. */
             init {
-                checkValidForRead()
-
-                if (!this.predicate.columns.all { this@LuceneIndex.columns.contains(it) })
-                    throw QueryException.UnsupportedPredicateException("Index '${this@LuceneIndex.name}' (lucene-index) is lacking certain fields the provided predicate requires.")
-
-                if (!this.predicate.atomics.all { it.operator == ComparisonOperator.LIKE || it.operator == ComparisonOperator.EQUAL })
-                    throw QueryException.UnsupportedPredicateException("Index '${this@LuceneIndex.name}' (lucene-index) can only process LIKE comparisons.")
+                if (!this@LuceneIndex.canProcess(predicate)) {
+                    throw QueryException.UnsupportedPredicateException("Index '${this@LuceneIndex.name}' (lucene-index) cannot process the provided predicate.")
+                }
+                this@Tx.withReadLock { }
             }
-
-            /** Generates a shared lock on the enclosing [Tx]. This lock is kept until the [CloseableIterator] is closed. */
-            private val stamp = this@Tx.localLock.readLock()
 
             /** Number of [TupleId]s returned by this [CloseableIterator]. */
             @Volatile
             private var returned = 0
 
-            /** Lucene query. */
-            private val query = when (this.predicate) {
-                is AtomicBooleanPredicate<*> -> this.predicate.toLuceneQuery()
-                is CompoundBooleanPredicate -> this.predicate.toLuceneQuery()
-            }
+            /** Flag indicating whether this [CloseableIterator] has been closed. */
+            @Volatile
+            override var isOpen = true
+                private set
+
+            /** Lucene [Query] representation of [BooleanPredicate] . */
+            private val query: Query = this.predicate.toLuceneQuery()
 
             /** [IndexSearcher] instance used for lookup. */
             private val searcher = IndexSearcher(this@LuceneIndex.indexReader)
 
-            /** Execute query and add results. */
+            /* Execute query and add results. */
             private val results = this.searcher.search(this.query, Integer.MAX_VALUE)
-
-            /** Flag indicating whether this [CloseableIterator] is open and ready for use. */
-            @Volatile
-            override var isOpen = true
-                private set
 
             /**
              * Returns `true` if the iteration has more elements.
@@ -294,7 +347,6 @@ class LuceneIndex(override val name: Name.IndexName, override val catalogue: Cat
              */
             override fun close() {
                 if (this.isOpen) {
-                    this@Tx.localLock.unlock(this.stamp)
                     this.isOpen = false
                 }
             }
@@ -303,7 +355,7 @@ class LuceneIndex(override val name: Name.IndexName, override val catalogue: Cat
         /** Performs the actual COMMIT operation by committing the [IndexWriter] and updating the [IndexReader]. */
         override fun performCommit() {
             /* Commits changes made through the LuceneWriter. */
-            this.writer?.commit()
+            this.writer.commit()
 
             /* Opens new IndexReader and close new one. */
             val oldReader = this@LuceneIndex.indexReader
@@ -313,12 +365,13 @@ class LuceneIndex(override val name: Name.IndexName, override val catalogue: Cat
 
         /** Performs the actual ROLLBACK operation by rolling back the [IndexWriter]. */
         override fun performRollback() {
-            this.writer?.rollback()
+            this.writer.rollback()
         }
 
         /** Makes the necessary cleanup by closing the [IndexWriter]. */
         override fun cleanup() {
-            this.writer?.close()
+            this.writer.close()
+            super.cleanup()
         }
     }
 }

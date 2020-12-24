@@ -9,6 +9,7 @@ import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.Record
 import org.vitrivr.cottontail.model.recordset.Recordset
 import org.vitrivr.cottontail.model.values.DoubleValue
+import org.vitrivr.cottontail.model.values.types.Value
 
 /**
  * Utilities and constants used for nearest neighbor search.
@@ -42,8 +43,12 @@ object KnnUtilities {
      */
     fun selectionToRecordset(columns: Array<ColumnDef<*>>, selection: Selection<ComparablePair<Record, DoubleValue>>): Recordset {
         val dataset = Recordset(columns, capacity = selection.size.toLong())
+        val buffer = ArrayList<Value?>(columns.size)
         for (i in 0 until selection.size) {
-            dataset.addRow(selection[i].first.tupleId, arrayOf(*selection[i].first.values, DoubleValue(selection[i].second)))
+            buffer.clear()
+            selection[i].first.forEach { _, v -> buffer.add(v) }
+            buffer.add(DoubleValue(selection[i].second))
+            dataset.addRow(selection[i].first.tupleId, buffer.toTypedArray())
         }
         return dataset
     }
@@ -57,9 +62,13 @@ object KnnUtilities {
      */
     fun selectionsToRecordset(columns: Array<ColumnDef<*>>, list: Collection<Selection<ComparablePair<Record, DoubleValue>>>): Recordset {
         val dataset = Recordset(columns, capacity = (list.size * list.first().size).toLong())
+        val buffer = ArrayList<Value?>(columns.size)
         for (knn in list) {
             for (i in 0 until knn.size) {
-                dataset.addRow(knn[i].first.tupleId, arrayOf(*knn[i].first.values, DoubleValue(knn[i].second)))
+                buffer.clear()
+                knn[i].first.forEach { _, v -> buffer.add(v) }
+                buffer.add(DoubleValue(knn[i].second))
+                dataset.addRow(knn[i].first.tupleId, buffer.toTypedArray())
             }
         }
         return dataset

@@ -1,29 +1,31 @@
 package org.vitrivr.cottontail.execution.operators.sources
 
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import org.vitrivr.cottontail.database.entity.Entity
+import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.index.Index
+import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.queries.components.Predicate
-import org.vitrivr.cottontail.execution.ExecutionEngine
-import org.vitrivr.cottontail.execution.exceptions.ExecutionException
-import org.vitrivr.cottontail.execution.operators.basics.OperatorStatus
+import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.model.basics.Record
 
 /**
  * An [AbstractEntityOperator] that scans an [Entity.Index] and streams all [Record]s found within.
  *
  * @author Ralph Gasser
- * @version 1.1.4
+ * @version 1.1.5
  */
-class EntityIndexScanOperator(context: ExecutionEngine.ExecutionContext, val index: Index, private val predicate: Predicate) : AbstractEntityOperator(context, index.parent, index.produces) {
-    override fun toFlow(scope: CoroutineScope): Flow<Record> {
-        check(this.status == OperatorStatus.OPEN) { "Cannot convert operator $this to flow because it is in state ${this.status}." }
-        val tx = this.context.getTx(this.entity)
-        val indexTx = tx.index(this.index.name)
-                ?: throw ExecutionException("Could not find desired index ${this.index.name}.")
-
+class EntityIndexScanOperator(val index: Index, private val predicate: Predicate) : AbstractEntityOperator(index.parent, index.produces) {
+    /**
+     * Converts this [EntityIndexScanOperator] to a [Flow] and returns it.
+     *
+     * @param context The [ransactionContext] used for execution.
+     * @return [Flow] representing this [EntityIndexScanOperator]
+     */
+    override fun toFlow(context: TransactionContext): Flow<Record> {
+        val tx = context.getTx(this.entity) as EntityTx
+        val indexTx = context.getTx(tx.indexForName(this.index.name)) as IndexTx
         return flow {
             indexTx.filter(this@EntityIndexScanOperator.predicate).use { iterator ->
                 for (record in iterator) {

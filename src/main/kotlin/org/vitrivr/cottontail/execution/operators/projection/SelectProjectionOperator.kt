@@ -1,27 +1,24 @@
 package org.vitrivr.cottontail.execution.operators.projection
 
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import org.vitrivr.cottontail.execution.ExecutionEngine
+import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.execution.operators.basics.Operator
-import org.vitrivr.cottontail.execution.operators.basics.OperatorStatus
-import org.vitrivr.cottontail.execution.operators.basics.PipelineOperator
 import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.Record
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 
 /**
- * An [PipelineOperator] used during query execution. It generates new [Record]s for each incoming
- * [Record] and removes / renames field according to the [fields] definition provided.
+ * An [Operator.PipelineOperator] used during query execution. It generates new [Record]s for
+ * each incoming [Record] and removes / renames field according to the [fields] definition provided.
  *
  * Only produces a single [Record].
  *
  * @author Ralph Gasser
- * @version 1.1.0
+ * @version 1.1.1
  */
-class SelectProjectionOperator(parent: Operator, context: ExecutionEngine.ExecutionContext, val fields: List<Pair<Name.ColumnName, Name.ColumnName?>>) : PipelineOperator(parent, context) {
+class SelectProjectionOperator(parent: Operator, val fields: List<Pair<Name.ColumnName, Name.ColumnName?>>) : Operator.PipelineOperator(parent) {
 
     /** True if names should be flattened, i.e., prefixes should be removed. */
     private val flattenNames = this.fields.all { it.first.schema() == this.fields.first().first.schema() }
@@ -53,22 +50,17 @@ class SelectProjectionOperator(parent: Operator, context: ExecutionEngine.Execut
         ColumnDef.withAttributes(it.value, it.key.type.name, it.key.logicalSize, it.key.nullable)
     }.toTypedArray()
 
-    override fun prepareOpen() { /*NoOp */
-    }
-
-    override fun prepareClose() { /*NoOp */
-    }
+    /** [MinProjectionOperator] does not act as a pipeline breaker. */
+    override val breaker: Boolean = false
 
     /**
      * Converts this [SelectProjectionOperator] to a [Flow] and returns it.
      *
-     * @param scope The [CoroutineScope] used for execution
+     * @param context The [TransactionContext] used for execution
      * @return [Flow] representing this [SelectProjectionOperator]
-     * @throws IllegalStateException If this [Operator.status] is not [OperatorStatus.OPEN]
      */
-    override fun toFlow(scope: CoroutineScope): Flow<Record> {
-        check(this.status == OperatorStatus.OPEN) { "Cannot convert operator $this to flow because it is in state ${this.status}." }
-        return this.parent.toFlow(scope).map { r ->
+    override fun toFlow(context: TransactionContext): Flow<Record> {
+        return this.parent.toFlow(context).map { r ->
             StandaloneRecord(r.tupleId, this.columns, this.mapping.map { r[it.key] }.toTypedArray())
         }
     }

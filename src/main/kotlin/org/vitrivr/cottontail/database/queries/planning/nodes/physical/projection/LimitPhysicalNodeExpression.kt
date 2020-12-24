@@ -2,7 +2,7 @@ package org.vitrivr.cottontail.database.queries.planning.nodes.physical.projecti
 
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.UnaryPhysicalNodeExpression
-import org.vitrivr.cottontail.execution.ExecutionEngine
+import org.vitrivr.cottontail.execution.TransactionManager
 import org.vitrivr.cottontail.execution.operators.transform.LimitOperator
 import kotlin.math.min
 
@@ -10,7 +10,7 @@ import kotlin.math.min
  * A [UnaryPhysicalNodeExpression] that represents the application of a LIMIT or SKIP clause on the result.
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.0.1
  */
 class LimitPhysicalNodeExpression(limit: Long, skip: Long) : UnaryPhysicalNodeExpression() {
 
@@ -34,5 +34,5 @@ class LimitPhysicalNodeExpression(limit: Long, skip: Long) : UnaryPhysicalNodeEx
 
     override fun copy() = LimitPhysicalNodeExpression(this.limit, this.skip)
 
-    override fun toOperator(context: ExecutionEngine.ExecutionContext) = LimitOperator(this.input.toOperator(context), context, this.skip, this.limit)
+    override fun toOperator(engine: TransactionManager) = LimitOperator(this.input.toOperator(engine), this.skip, this.limit)
 }

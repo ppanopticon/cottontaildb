@@ -82,6 +82,7 @@ class HareDoubleCursorTest {
         val diskSize = this.hareFile!!.disk.size `in` Units.MEGABYTE
 
         /* Close writer. */
+        writer.commit()
         writer.close()
 
         println("Writing $written doubles ($diskSize) took $writeTime (${diskSize.value / writeTime.inSeconds} MB/s).")

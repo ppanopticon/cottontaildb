@@ -74,7 +74,8 @@ class HareDoubleArrayCursorTest : AbstractCursorTest() {
         }
         val physSize = (bufferPool.diskSize `in` Units.MEGABYTE)
 
-        /* Close writer. */
+        /* Commit & close writer. */
+        writer.commit()
         writer.close()
 
         println("Writing ${TestConstants.collectionSize} doubles vectors (d=$dimensions) to a total of $physSize took $writeTime (${physSize.value / writeTime.inSeconds} MB/s).")

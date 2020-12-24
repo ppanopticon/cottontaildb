@@ -20,7 +20,6 @@ import org.vitrivr.cottontail.utilities.extensions.read
 import org.vitrivr.cottontail.utilities.extensions.shared
 import org.vitrivr.cottontail.utilities.extensions.write
 import java.nio.ByteBuffer
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import java.util.concurrent.locks.StampedLock
@@ -164,9 +163,7 @@ class BufferPool(val disk: HareDiskManager, val tid: TransactionId, val size: In
         check(this.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
         this.directoryLock.shared {
             for (p in this.pageDirectory.values) {
-                if (p.dirty) {
-                    this.disk.update(this.tid, p.id, p)
-                }
+                p.flushIfDirty()
             }
         }
     }
@@ -179,9 +176,7 @@ class BufferPool(val disk: HareDiskManager, val tid: TransactionId, val size: In
         check(this.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
         this.directoryLock.shared {
             for (p in this.pageDirectory.values) {
-                if (p.dirty) {
-                    this.disk.read(this.tid, p.id, p)
-                }
+                p.synchronizeIfDirty()
             }
         }
     }
@@ -220,9 +215,9 @@ class BufferPool(val disk: HareDiskManager, val tid: TransactionId, val size: In
     inner class PageReference(override val id: PageId, override val priority: Priority, data: ByteBuffer): HarePage(data), PageRef {
 
         /** Flag indicating whether or not this [PageReference] is dirty. */
-        private val _dirty = AtomicBoolean(false)
-        override val dirty
-            get() = this._dirty.get()
+        @Volatile
+        override var dirty = false
+            private set
 
         /** Internal reference count for this [PageReference]. */
         private val _refCount = AtomicInteger()
@@ -236,99 +231,120 @@ class BufferPool(val disk: HareDiskManager, val tid: TransactionId, val size: In
         override val token: EvictionQueueToken = this@BufferPool.evictionQueue.token()
 
         override fun putBytes(index: Int, value: ByteArray): PageReference {
-            this._dirty.set(true)
+            this.dirty = true
             super.putBytes(index, value)
             return this
         }
 
         override fun putShorts(index: Int, value: ShortArray): PageReference {
-            this._dirty.set(true)
+            this.dirty = true
             super.putShorts(index, value)
             return this
         }
 
         override fun putChars(index: Int, value: CharArray): PageReference {
-            this._dirty.set(true)
+            this.dirty = true
             super.putChars(index, value)
             return this
         }
 
         override fun putInts(index: Int, value: IntArray): PageReference {
-            this._dirty.set(true)
+            this.dirty = true
             super.putInts(index, value)
             return this
         }
 
         override fun putLongs(index: Int, value: LongArray): PageReference {
-            this._dirty.set(true)
+            this.dirty = true
             super.putLongs(index, value)
             return this
         }
 
         override fun putFloats(index: Int, value: FloatArray): PageReference {
-            this._dirty.set(true)
+            this.dirty = true
             super.putFloats(index, value)
             return this
         }
 
         override fun putDoubles(index: Int, value: DoubleArray): PageReference {
-            this._dirty.set(true)
+            this.dirty = true
             super.putDoubles(index, value)
             return this
         }
 
         override fun putBytes(index: Int, value: ByteBuffer): PageReference {
-            this._dirty.set(true)
+            this.dirty = true
             super.putBytes(index, value)
             return this
         }
 
         override fun putByte(index: Int, value: Byte): PageReference {
-            this._dirty.set(true)
+            this.dirty = true
             super.putByte(index, value)
             return this
         }
 
         override fun putShort(index: Int, value: Short): PageReference {
-            this._dirty.set(true)
+            this.dirty = true
             super.putShort(index, value)
             return this
         }
 
         override fun putChar(index: Int, value: Char): PageReference {
-            this._dirty.set(true)
+            this.dirty = true
             super.putChar(index, value)
             return this
         }
 
         override fun putInt(index: Int, value: Int): PageReference {
-            this._dirty.set(true)
+            this.dirty = true
             super.putInt(index, value)
             return this
         }
 
         override fun putLong(index: Int, value: Long): PageReference {
-            this._dirty.set(true)
+            this.dirty = true
             super.putLong(index, value)
             return this
         }
 
         override fun putFloat(index: Int, value: Float): PageReference {
-            this._dirty.set(true)
+            this.dirty = true
             super.putFloat(index, value)
             return this
         }
 
         override fun putDouble(index: Int, value: Double): PageReference {
-            this._dirty.set(true)
+            this.dirty = true
             super.putDouble(index, value)
             return this
         }
 
         override fun clear(): PageReference {
-            this._dirty.set(true)
+            this.dirty = true
             super.clear()
             return this
+        }
+
+
+        /**
+         * Flushes this [PageReference] to disk if it has been changed and resets the dirty flag.
+         */
+        fun flushIfDirty() {
+            if (this.dirty) {
+                this@BufferPool.disk.update(this@BufferPool.tid, this.id, this)
+                this.dirty = false
+            }
+        }
+
+        /**
+         * Synchronizes this [PageReference] with the disk if it has been changed and resets the dirty flag.
+         */
+        fun synchronizeIfDirty() {
+            if (this.dirty) {
+                this@BufferPool.disk.read(this@BufferPool.tid, this.id, this)
+                this.dirty = false
+            }
         }
 
         /**
@@ -376,10 +392,7 @@ class BufferPool(val disk: HareDiskManager, val tid: TransactionId, val size: In
         internal fun dispose(): Boolean = this.evictionLock.exclusive {
             return if (this._refCount.compareAndSet(0, ReferenceCounted.REF_COUNT_DISPOSED)) {
                 this@BufferPool.pageDirectory.remove(this.id)
-                if (this.dirty) {
-                    /* Update dirty pages. */
-                    this@BufferPool.disk.update(this@BufferPool.tid, this.id, this)
-                }
+                this.flushIfDirty()
                 true
             } else {
                 false

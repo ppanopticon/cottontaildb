@@ -23,13 +23,10 @@ abstract class AbstractDistanceTest {
         fun dimensions(): Stream<Arguments> = Stream.of(
                 Arguments.of(TestConstants.smallVectorMaxDimension),
                 Arguments.of(RANDOM.nextInt(TestConstants.smallVectorMaxDimension)),
-                Arguments.of(RANDOM.nextInt(TestConstants.smallVectorMaxDimension)),
                 Arguments.of(TestConstants.mediumVectorMaxDimension),
                 Arguments.of(RANDOM.nextInt(TestConstants.mediumVectorMaxDimension)),
                 Arguments.of(RANDOM.nextInt(TestConstants.mediumVectorMaxDimension)),
-                Arguments.of(RANDOM.nextInt(TestConstants.mediumVectorMaxDimension)),
                 Arguments.of(TestConstants.largeVectorMaxDimension),
-                Arguments.of(RANDOM.nextInt(TestConstants.largeVectorMaxDimension)),
                 Arguments.of(RANDOM.nextInt(TestConstants.largeVectorMaxDimension)),
                 Arguments.of(RANDOM.nextInt(TestConstants.largeVectorMaxDimension)),
                 Arguments.of(RANDOM.nextInt(TestConstants.largeVectorMaxDimension))

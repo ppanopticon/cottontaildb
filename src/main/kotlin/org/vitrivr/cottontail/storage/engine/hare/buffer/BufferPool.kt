@@ -5,8 +5,8 @@ import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.jmx.JmxConfig
 import io.micrometer.jmx.JmxMeterRegistry
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap
+import org.vitrivr.cottontail.model.basics.TransactionId
 import org.vitrivr.cottontail.storage.engine.hare.PageId
-import org.vitrivr.cottontail.storage.engine.hare.TransactionId
 import org.vitrivr.cottontail.storage.engine.hare.basics.PageRef
 import org.vitrivr.cottontail.storage.engine.hare.basics.ReferenceCounted
 import org.vitrivr.cottontail.storage.engine.hare.basics.Resource

@@ -1,9 +1,9 @@
 package org.vitrivr.cottontail.storage.engine.hare.disk
 
+import org.vitrivr.cottontail.model.basics.TransactionId
 import org.vitrivr.cottontail.storage.basics.MemorySize
 import org.vitrivr.cottontail.storage.basics.Units
 import org.vitrivr.cottontail.storage.engine.hare.PageId
-import org.vitrivr.cottontail.storage.engine.hare.TransactionId
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
 import org.vitrivr.cottontail.storage.engine.hare.basics.PageConstants
 import org.vitrivr.cottontail.storage.engine.hare.basics.Resource

@@ -1,10 +1,5 @@
 package org.vitrivr.cottontail.storage.engine.hare
 
-import java.util.*
-
-/** Unique identifier for a transaction. */
-typealias TransactionId = UUID
-
 /**  A [Address], which is a [Long] encoding the [PageId] and [SlotId]. 56 bits are used to encode the [PageId] and 8 bits are used to encode the [SlotId]. */
 typealias Address = Long
 

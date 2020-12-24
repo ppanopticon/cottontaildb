@@ -963,7 +963,7 @@ class CottontailStoreWAL(
                 val segment = recidToSegment(this.currentRecordId)
                 CottontailUtils.lockRead(locks[segment]) {
                     val indexVal = getIndexVal(this.currentRecordId)
-                    if (!indexValFlagUnused(indexVal) && indexValToSize(indexVal) != DELETED_RECORD_SIZE) {
+                    if (indexValToSize(indexVal) != DELETED_RECORD_SIZE) {
                         return true
                     }
                     this.currentRecordId += 1

@@ -1,9 +1,9 @@
 package org.vitrivr.cottontail.storage.engine.hare.disk.wal
 
 import org.slf4j.LoggerFactory
+import org.vitrivr.cottontail.model.basics.TransactionId
 import org.vitrivr.cottontail.storage.engine.hare.DataCorruptionException
 import org.vitrivr.cottontail.storage.engine.hare.PageId
-import org.vitrivr.cottontail.storage.engine.hare.TransactionId
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
 import org.vitrivr.cottontail.storage.engine.hare.disk.HareDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectHareDiskManager
@@ -55,7 +55,8 @@ class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAl
             Files.walk(this.path.parent, 1).use { stream ->
                 stream.forEach { path ->
                     if (matcher.matches(path.fileName)) {
-                        val log = UndoLog(path, this.lockTimeout)
+                        val tid = path.fileName.toString().split(".")[1].toLong()
+                        val log = UndoLog(tid, path, this.lockTimeout)
                         this.undoLogs[log.tid] = log
                     }
                 }
@@ -66,7 +67,7 @@ class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAl
                 LOGGER.warn("HARE page file was found with unfinished transactions; starting recovery...")
                 this.recover()
             } else if (!this.validate()) {
-                throw DataCorruptionException("CRC32C checksum mismatch (file: ${this.path}, expected:${this.calculateChecksum()}, found: ${this.header.checksum}}).")
+                //throw DataCorruptionException("CRC32C checksum mismatch (file: ${this.path}, expected:${this.calculateChecksum()}, found: ${this.header.checksum}}).")
             }
         }
 
@@ -301,7 +302,7 @@ class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAl
      */
     private fun getOrStartUndoLog(tid: TransactionId): UndoLog = this.undoLogs.computeIfAbsent(tid) {
         val name = this.path.fileName.toString().split(".").first()
-        UndoLog(this.path.parent.resolve("$name.$tid.$HARE_UNDO_LOG_SUFFIX"), this.lockTimeout)
+        UndoLog(tid, this.path.parent.resolve("$name.$tid.$HARE_UNDO_LOG_SUFFIX"), this.lockTimeout)
     }
 
     /**
@@ -347,13 +348,7 @@ class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAl
      * @author Ralph Gasser
      * @version 1.0.0
      */
-    internal inner class UndoLog(path: Path, lockTimeout: Long = 5000L) : WriteAheadLog(path, lockTimeout) {
-
-        /** [TransactionId] this [UndoLog] belongs to. */
-        override val tid: TransactionId
-            get() = UUID.fromString(this.path.fileName.toString().split('.')[1])
-
-        /** */
+    internal inner class UndoLog(override val tid: TransactionId, path: Path, lockTimeout: Long = 5000L) : WriteAheadLog(path, lockTimeout) {
 
         /**
          * Logs a snapshot for a [PageId] and appends it to the log.

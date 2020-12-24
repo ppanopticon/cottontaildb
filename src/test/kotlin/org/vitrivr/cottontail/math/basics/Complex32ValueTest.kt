@@ -49,7 +49,7 @@ class Complex32ValueTest {
 
     private val random = SplittableRandom()
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testAdd() {
         val c1 = Complex32Value.random(random)
         val c2 = Complex32Value.random(random)
@@ -68,7 +68,7 @@ class Complex32ValueTest {
 
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testUnaryMinus() {
         val c1 = Complex32Value.random(random)
 
@@ -78,7 +78,7 @@ class Complex32ValueTest {
         isCorrect(c1p.multiply(-1), -c1)
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testMinus() {
         val c1 = Complex32Value.random(random)
         val c2 = Complex32Value.random(random)
@@ -99,7 +99,7 @@ class Complex32ValueTest {
         isCorrect(subpr, subr)
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testMultiply() {
         val c1 = Complex32Value.random(random)
         val c2 = Complex32Value.random(random)
@@ -117,7 +117,7 @@ class Complex32ValueTest {
         isCorrect(multp, mult64)
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testMultiplyReal() {
         val c1 = Complex32Value.random(random)
         val c2 = FloatValue.random(random)
@@ -135,7 +135,7 @@ class Complex32ValueTest {
         isCorrect(multp, multd)
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testDivision() {
         val c1 = Complex32Value.random(random)
         val c2 = Complex32Value.random(random)
@@ -152,7 +152,7 @@ class Complex32ValueTest {
         isCorrect(divp, div64)
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testDivReal() {
         val c1 = Complex32Value.random(random)
         val c2 = FloatValue.random(random)
@@ -169,7 +169,7 @@ class Complex32ValueTest {
         isCorrect(divp, divd)
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testInverse() {
         val c1 = Complex32Value.random(random)
         val c1p = Complex(c1.real.asDouble().value, c1.imaginary.asDouble().value)
@@ -180,7 +180,7 @@ class Complex32ValueTest {
         isCorrect(invp, inv)
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testConjugate() {
         val c1 = Complex32Value.random(random)
         val c1p = Complex(c1.real.asDouble().value, c1.imaginary.asDouble().value)
@@ -191,7 +191,7 @@ class Complex32ValueTest {
         isCorrect(conjp, conj)
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testExp() {
         val c1 = Complex32Value.random(random)
         val c1p = Complex(c1.real.asDouble().value, c1.imaginary.asDouble().value)
@@ -202,7 +202,7 @@ class Complex32ValueTest {
         isCorrect(expp, exp)
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testLn() {
         val c1 = Complex32Value.random(random)
         val c1p = Complex(c1.real.asDouble().value, c1.imaginary.asDouble().value)
@@ -214,7 +214,7 @@ class Complex32ValueTest {
     }
 
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testPow() {
         val c1 = Complex32Value.random(random)
         val c1p = Complex(c1.real.asDouble().value, c1.imaginary.asDouble().value)
@@ -226,7 +226,7 @@ class Complex32ValueTest {
         isCorrect(powp, pow)
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testSqrt() {
         val c1 = Complex32Value.random(random)
         val c1p = Complex(c1.real.asDouble().value, c1.imaginary.asDouble().value)
@@ -238,7 +238,7 @@ class Complex32ValueTest {
         isCorrect(sqrtp, sqrt)
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testCos() {
         val c1 = Complex32Value.random(random)
         val c1p = Complex(c1.real.asDouble().value, c1.imaginary.asDouble().value)
@@ -249,7 +249,7 @@ class Complex32ValueTest {
         isCorrect(cosp, cos)
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testSin() {
         val c1 = Complex32Value.random(random)
         val c1p = Complex(c1.real.asDouble().value, c1.imaginary.asDouble().value)
@@ -260,7 +260,7 @@ class Complex32ValueTest {
         isCorrect(sinp, sin)
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testTan() {
         val c1 = Complex32Value.random(random)
         val c1p = Complex(c1.real.asDouble().value, c1.imaginary.asDouble().value)
@@ -271,7 +271,7 @@ class Complex32ValueTest {
         isCorrect(tanp, tan)
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     internal fun testTanLargeIm() {
         val c1 = Complex32Value(FloatValue.random(random).value, FloatValue.random(random).value + 25.0f)
         val c2 = Complex32Value(FloatValue.random(random).value, FloatValue.random(random).value - 25.0f)
@@ -289,7 +289,7 @@ class Complex32ValueTest {
         isCorrect(tan2p, tan2)
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testAtan() {
         val c1 = Complex32Value.random(random)
         val c1p = Complex(c1.real.asDouble().value, c1.imaginary.asDouble().value)
@@ -300,7 +300,7 @@ class Complex32ValueTest {
         isCorrect(atanp, atan)
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testAddConjugate() {
         val c1 = Complex32Value.random(random)
         val c2 = c1.conjugate()
@@ -311,7 +311,7 @@ class Complex32ValueTest {
         Assertions.assertEquals(0.0f, add.imaginary.value)
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testAbs() {
         val c1 = Complex32Value.random(random)
         val c1p = Complex(c1.real.asDouble().value, c1.imaginary.asDouble().value)

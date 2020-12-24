@@ -17,7 +17,7 @@ class DoubleVectorValueTest {
 
     private val random = SplittableRandom()
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testAdd() {
         val size = random.nextInt(2048)
 
@@ -31,11 +31,11 @@ class DoubleVectorValueTest {
         val addp = c1p.add(c2p)
 
         for (i in 0 until size) {
-            isApproximatelyTheSame(addp.getEntry(i).toFloat(), add[i].value)
+            isApproximatelyTheSame(addp.getEntry(i), add[i].value)
         }
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testSub() {
         val size = random.nextInt(2048)
 
@@ -49,11 +49,11 @@ class DoubleVectorValueTest {
         val subp = c1p.subtract(c2p)
 
         for (i in 0 until size) {
-            isApproximatelyTheSame(subp.getEntry(i).toFloat(), sub[i].value)
+            isApproximatelyTheSame(subp.getEntry(i), sub[i].value)
         }
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testMul() {
         val size = random.nextInt(2048)
 
@@ -67,11 +67,11 @@ class DoubleVectorValueTest {
         val mulp = c1p.ebeMultiply(c2p)
 
         for (i in 0 until size) {
-            isApproximatelyTheSame(mulp.getEntry(i).toFloat(), mul[i].value)
+            isApproximatelyTheSame(mulp.getEntry(i), mul[i].value)
         }
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testDiv() {
         val size = random.nextInt(2048)
 
@@ -85,11 +85,11 @@ class DoubleVectorValueTest {
         val divp = c1p.ebeDivide(c2p)
 
         for (i in 0 until size) {
-            isApproximatelyTheSame(divp.getEntry(i).toFloat(), div[i].value)
+            isApproximatelyTheSame(divp.getEntry(i), div[i].value)
         }
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testPow() {
         val size = random.nextInt(2048)
         val exp = random.nextInt(10)
@@ -101,11 +101,11 @@ class DoubleVectorValueTest {
         val powp = c1p.map { it.pow(exp) }
 
         for (i in 0 until size) {
-            isApproximatelyTheSame(powp.getEntry(i).toFloat(), pow[i].value.toFloat())
+            isApproximatelyTheSame(powp.getEntry(i), pow[i].value)
         }
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testSqrt() {
         val size = random.nextInt(2048)
 
@@ -116,11 +116,11 @@ class DoubleVectorValueTest {
         val sqrtp = c1p.map { kotlin.math.sqrt(it) }
 
         for (i in 0 until size) {
-            isApproximatelyTheSame(sqrtp.getEntry(i).toFloat(), sqrt[i].value.toFloat())
+            isApproximatelyTheSame(sqrtp.getEntry(i), sqrt[i].value)
         }
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testL1() {
         val size = random.nextInt(2048)
 
@@ -133,10 +133,10 @@ class DoubleVectorValueTest {
         val l1 = c1.l1(c2)
         val l1p = c1p.getL1Distance(c2p)
 
-        isApproximatelyTheSame(l1p.toFloat(), l1.value.toFloat())
+        isApproximatelyTheSame(l1p, l1.value)
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(10)
     fun testL2() {
         val size = random.nextInt(2048)
 
@@ -149,10 +149,10 @@ class DoubleVectorValueTest {
         val l2 = c1.l2(c2)
         val l2p = c1p.getDistance(c2p)
 
-        isApproximatelyTheSame(l2p.toFloat(), l2.value.toFloat())
+        isApproximatelyTheSame(l2p, l2.value)
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(10)
     fun testDot() {
         val size = random.nextInt(2048)
 
@@ -165,10 +165,10 @@ class DoubleVectorValueTest {
         val dot = c1.dot(c2)
         val dotp = c1p.dotProduct(c2p)
 
-        isApproximatelyTheSame(dotp.toFloat(), dot.value.toFloat())
+        isApproximatelyTheSame(dotp, dot.value)
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(10)
     fun testNorm2() {
         val size = random.nextInt(2048)
 
@@ -179,6 +179,6 @@ class DoubleVectorValueTest {
         val norm = c1.norm2()
         val normp = c1p.norm
 
-        isApproximatelyTheSame(normp.toFloat(), norm.value)
+        isApproximatelyTheSame(normp, norm.value)
     }
 }

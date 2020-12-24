@@ -1,8 +1,8 @@
 package org.vitrivr.cottontail.storage.engine.hare.access.column.fixed
 
+import org.vitrivr.cottontail.model.basics.TransactionId
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.types.Value
-import org.vitrivr.cottontail.storage.engine.hare.TransactionId
 import org.vitrivr.cottontail.storage.engine.hare.access.EntryDeletedException
 import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareColumnFile
 import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareColumnReader

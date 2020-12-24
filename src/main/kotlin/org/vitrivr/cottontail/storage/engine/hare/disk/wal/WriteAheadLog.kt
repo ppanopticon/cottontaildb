@@ -1,6 +1,6 @@
 package org.vitrivr.cottontail.storage.engine.hare.disk.wal
 
-import org.vitrivr.cottontail.storage.engine.hare.TransactionId
+import org.vitrivr.cottontail.model.basics.TransactionId
 import org.vitrivr.cottontail.storage.engine.hare.disk.FileUtilities
 import org.vitrivr.cottontail.storage.engine.hare.disk.HareDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.wal.WALHareDiskManager.UndoLog

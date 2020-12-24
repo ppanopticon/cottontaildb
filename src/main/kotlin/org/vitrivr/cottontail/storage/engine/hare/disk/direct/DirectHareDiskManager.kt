@@ -1,9 +1,9 @@
 package org.vitrivr.cottontail.storage.engine.hare.disk.direct
 
 import org.slf4j.LoggerFactory
+import org.vitrivr.cottontail.model.basics.TransactionId
 import org.vitrivr.cottontail.storage.engine.hare.DataCorruptionException
 import org.vitrivr.cottontail.storage.engine.hare.PageId
-import org.vitrivr.cottontail.storage.engine.hare.TransactionId
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
 import org.vitrivr.cottontail.storage.engine.hare.disk.HareDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage

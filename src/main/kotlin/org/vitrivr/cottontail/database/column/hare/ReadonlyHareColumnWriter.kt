@@ -1,9 +1,9 @@
 package org.vitrivr.cottontail.database.column.hare
 
+import org.vitrivr.cottontail.model.basics.TransactionId
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.exceptions.TransactionException
 import org.vitrivr.cottontail.model.values.types.Value
-import org.vitrivr.cottontail.storage.engine.hare.TransactionId
 import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareColumnWriter
 
 /**
@@ -18,27 +18,27 @@ class ReadonlyHareColumnWriter<T : Value>(override val tid: TransactionId) : Har
         get() = false
 
     override fun update(tupleId: TupleId, value: T?) {
-        throw TransactionException.TransactionReadOnlyException(this.tid)
+        throw IllegalStateException("Transaction $tid is read-only.")
     }
 
     override fun compareAndUpdate(tupleId: TupleId, expectedValue: T?, newValue: T?): Boolean {
-        throw TransactionException.TransactionReadOnlyException(this.tid)
+        throw IllegalStateException("Transaction $tid is read-only.")
     }
 
     override fun delete(tupleId: TupleId): T? {
-        throw TransactionException.TransactionReadOnlyException(this.tid)
+        throw IllegalStateException("Transaction $tid is read-only.")
     }
 
     override fun append(value: T?): TupleId {
-        throw TransactionException.TransactionReadOnlyException(this.tid)
+        throw IllegalStateException("Transaction $tid is read-only.")
     }
 
     override fun commit() {
-        throw TransactionException.TransactionReadOnlyException(this.tid)
+        throw IllegalStateException("Transaction $tid is read-only.")
     }
 
     override fun rollback() {
-        throw TransactionException.TransactionReadOnlyException(this.tid)
+        throw IllegalStateException("Transaction $tid is read-only.")
     }
 
     override fun close() {

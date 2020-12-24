@@ -6,7 +6,6 @@ import org.junit.jupiter.api.RepeatedTest
 
 import org.vitrivr.cottontail.TestConstants
 import org.vitrivr.cottontail.database.column.ColumnType
-import org.vitrivr.cottontail.database.general.begin
 import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.*

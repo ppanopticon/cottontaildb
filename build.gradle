@@ -1,39 +1,42 @@
-group 'org.vitrivr'
-version '0.9'
-
 buildscript {
     ext.luceneVersion = '7.7.1'
-    ext.kotlinVersion = '1.4.10'
-
-    repositories {
-        jcenter()
-    }
-    dependencies {
-        classpath "com.google.protobuf:protobuf-gradle-plugin:0.8.8"
-        classpath "org.jetbrains.kotlin:kotlin-stdlib:$kotlinVersion"
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion"
-        classpath "org.jetbrains.kotlin:kotlin-serialization:$kotlinVersion"
-        classpath 'com.github.jengelman.gradle.plugins:shadow:6.0.0'
-    }
+    ext.kotlinVersion = '1.4.20'
 }
 
-apply plugin: 'com.github.johnrengelman.shadow'
-apply plugin: 'application'
+plugins {
+    id "org.jetbrains.kotlin.jvm" version "$kotlinVersion"
+    id "org.jetbrains.kotlin.plugin.serialization" version "$kotlinVersion"
+
+    id "com.github.johnrengelman.shadow" version "6.1.0"
+}
+
 apply plugin: 'java'
 apply plugin: 'kotlin'
 apply plugin: 'kotlinx-serialization'
-apply plugin: 'com.google.protobuf'
 apply plugin: 'idea'
+apply plugin: 'application'
+apply plugin: 'java-library'
 apply plugin: 'maven-publish'
+apply plugin: 'signing'
+apply plugin: 'com.github.johnrengelman.shadow'
 
+/* Group and SNAPSHOT version. Update version for each major and minor release. */
+group 'org.vitrivr'
+version '0.11-SNAPSHOT'
+
+/* General application attributes. */
 mainClassName = 'org.vitrivr.cottontail.CottontailKt'
 applicationDefaultJvmArgs = ["-Xms2G", "-Xmx4G"]
-
-sourceCompatibility = 1.8
+sourceCompatibility = 1.11
 
 repositories {
     mavenCentral()
-    maven { url "https://kotlin.bintray.com/kotlinx" }
+    maven {
+        url "https://kotlin.bintray.com/kotlinx"
+    }
+    maven {
+        url "https://oss.sonatype.org/content/repositories/snapshots/"
+    }
 }
 
 compileKotlin {
@@ -46,58 +49,73 @@ compileTestKotlin {
     kotlinOptions.jvmTarget = "1.8"
 }
 
+java {
+    withJavadocJar()
+    withSourcesJar()
+}
+
 publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            groupId = 'org.vitrivr'
+            artifactId = 'cottontaildb'
+            version = System.getenv().getOrDefault("MAVEN_PUBLICATION_VERSION", version.toString())
+            from components.java
+            pom {
+                name = 'Cottontail DB'
+                description = 'Cottontail DB as java library, for use in embedded mode.'
+                url = 'https://github.com/vitrivr/cottontaildb/'
+                licenses {
+                    license {
+                        name = 'MIT License'
+                    }
+                }
+                developers {
+                    developer {
+                        id = 'ppanopticon'
+                        name = 'Ralph Gasser'
+                        email = 'ralph.gasser@unibas.ch'
+                    }
+                }
+                scm {
+                    connection = 'scm:git:https://github.com/vitrivr/cottontaildb.git'
+                    url = 'https://github.com/vitrivr/cottontaildb'
+                }
+            }
+        }
+    }
     repositories {
-        maven {
-            name = "GitHubPackages"
-            url = "https://maven.pkg.github.com/vitrivr/cottontaildb"
-            credentials {
-                username = System.getenv("GITHUB_ACTOR")
-                password = System.getenv("GITHUB_TOKEN")
+        repositories {
+            maven {
+                def releasesRepoUrl = 'https://oss.sonatype.org/service/local/staging/deploy/maven2/'
+                def snapshotsRepoUrl = 'https://oss.sonatype.org/content/repositories/snapshots/'
+                name = "OSSRH"
+                url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
+                credentials {
+                    username = System.getenv("MAVEN_USERNAME")
+                    password = System.getenv("MAVEN_PASSWORD")
+                }
             }
         }
     }
 }
 
-sourceSets {
-    main {
-        proto {
-            srcDirs += "$projectDir/cottontaildb-proto/src/main/protobuf"
-        }
-        kotlin {
-            srcDirs += "$projectDir/build/generated/source/proto/main/java"
-        }
-    }
-}
-
-protobuf {
-    generatedFilesBaseDir = "$projectDir/build/generated/source/proto"
-    plugins {
-        grpc {
-            artifact = 'io.grpc:protoc-gen-grpc-java:1.29.0'
-        }
-    }
-    protoc {
-        artifact = 'com.google.protobuf:protoc:3.12.3'
-    }
-    generateProtoTasks {
-        all()*.plugins { grpc {
-            outputSubDir = 'java'
-        }}
-    }
+signing {
+    def signingKey = findProperty("signingKey")
+    def signingPassword = findProperty("signingPassword")
+    useInMemoryPgpKeys(signingKey, signingPassword)
+    sign publishing.publications.mavenJava
 }
 
 dependencies {
+    ///// Cottontail DB Driver
+    compile group: 'org.vitrivr', name: 'cottontaildb-proto', version: '0.12.1-SNAPSHOT'
+
     ///// MapDB dependency
     compile group: 'org.mapdb', name: 'mapdb', version: '3.0.8'
 
     ///// FastUtil
     compile group: 'it.unimi.dsi', name: 'fastutil', version: '8.4.3'
-
-    /////// gRPC & Protobuf
-    compile group: 'javax.annotation', name: 'javax.annotation-api', version: '1.2'
-    compile group: 'com.google.protobuf', name: 'protobuf-java', version: '3.13.0'
-    compile group: 'io.grpc', name: 'grpc-all', version: '1.33.1'
 
     ////// Log4J
     compile group: 'org.apache.logging.log4j', name: 'log4j-api', version: '2.13.3'
@@ -111,7 +129,7 @@ dependencies {
     compile group: 'org.apache.lucene', name: 'lucene-queryparser', version: luceneVersion
 
     ////// CLI & Terminal
-    compile group: 'com.github.ajalt', name: 'clikt', version: '2.8.0'
+    compile group: 'com.github.ajalt.clikt', name: 'clikt', version: '3.0.1'
     compile group: 'com.jakewharton.picnic', name: 'picnic', version: '0.5.0'
     compile group: 'org.jline', name: 'jline', version: '3.16.0'
 
@@ -119,15 +137,15 @@ dependencies {
     testCompile group: 'org.junit.jupiter', name: 'junit-jupiter-api', version: '5.7.0'
     testCompile group: 'org.junit.jupiter', name: 'junit-jupiter-engine', version: '5.7.0'
     testCompile group: 'org.junit.jupiter', name: 'junit-jupiter-params', version: '5.7.0'
+    testImplementation group: 'org.junit.platform', name: 'junit-platform-commons', version: '1.7.0'
 
     ///// Kotlin
     compile group: 'org.jetbrains.kotlin', name: 'kotlin-stdlib', version: kotlinVersion
     compile group: 'org.jetbrains.kotlin', name: 'kotlin-reflect', version: kotlinVersion
-    compile group: 'org.jetbrains.kotlinx', name: 'kotlinx-coroutines-core', version: '1.4.1'
+    compile group: 'org.jetbrains.kotlinx', name: 'kotlinx-coroutines-core', version: '1.4.2'
     compile group: 'org.jetbrains.kotlinx', name: 'kotlinx-serialization-json', version: '1.0.1'
 
     ///// Apache Commons Math » 3.6
-    ///// https://mvnrepository.com/artifact/org.apache.commons/commons-math3
     compile group: 'org.apache.commons', name: 'commons-math3', version: '3.6.1'
 
     ///// Micrometer API
@@ -144,6 +162,11 @@ idea {
         downloadJavadoc = true
         excludeDirs += file('cottontaildb-data')
     }
+}
+
+tasks.withType(Test) {
+    useJUnitPlatform()
+    jvmArgs '--enable-preview'
 }
 
 ///// Default names for distributions

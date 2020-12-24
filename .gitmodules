@@ -1,3 +1,0 @@
-[submodule "cottontaildb-proto"]
-	path = cottontaildb-proto
-	url = https://github.com/ppanopticon/cottontaildb-proto.git

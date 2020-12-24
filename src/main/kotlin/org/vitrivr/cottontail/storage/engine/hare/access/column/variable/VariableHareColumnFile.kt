@@ -18,7 +18,6 @@ import org.vitrivr.cottontail.utilities.extensions.exclusive
 import org.vitrivr.cottontail.utilities.math.BitUtil
 import java.nio.ByteBuffer
 import java.nio.file.Path
-import java.util.*
 import java.util.concurrent.locks.StampedLock
 
 /**
@@ -52,7 +51,7 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean) : HareColu
             HareDiskManager.create(path, pageShift)
 
             val manager = DirectHareDiskManager(path, 5000)
-            val tid = UUID.randomUUID()
+            val tid = -1L
 
             /** Allocate file header page. */
             val page = HarePage(ByteBuffer.allocate(manager.pageSize))
@@ -116,7 +115,7 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean) : HareColu
     /* Initialize important fields. */
     init {
         val page = HarePage(ByteBuffer.allocate(this.disk.pageSize))
-        val tid = UUID.randomUUID()
+        val tid = -1L
 
         this.disk.read(tid, FixedHareColumnFile.ROOT_PAGE_ID, page)
         val header = HeaderPageView(page).validate()

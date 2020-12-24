@@ -19,7 +19,7 @@ class BooleanVectorValueTest {
 
     private val random = SplittableRandom()
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testAdd() {
         val size = random.nextInt(2048)
 
@@ -37,7 +37,7 @@ class BooleanVectorValueTest {
         }
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testSub() {
         val size = random.nextInt(2048)
 
@@ -55,7 +55,7 @@ class BooleanVectorValueTest {
         }
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testMul() {
         val size = random.nextInt(2048)
 
@@ -73,7 +73,7 @@ class BooleanVectorValueTest {
         }
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testPow() {
         val size = random.nextInt(2048)
         val exp = random.nextInt(10)
@@ -89,7 +89,7 @@ class BooleanVectorValueTest {
         }
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testSqrt() {
         val size = random.nextInt(2048)
 
@@ -104,7 +104,7 @@ class BooleanVectorValueTest {
         }
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testL1() {
         val size = random.nextInt(2048)
 
@@ -120,7 +120,7 @@ class BooleanVectorValueTest {
         isApproximatelyTheSame(l1p.toFloat(), l1.value.toFloat())
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testL2() {
         val size = random.nextInt(2048)
 
@@ -136,7 +136,7 @@ class BooleanVectorValueTest {
         isApproximatelyTheSame(l2p.toFloat(), l2.value.toFloat())
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testDot() {
         val size = random.nextInt(2048)
 
@@ -152,7 +152,7 @@ class BooleanVectorValueTest {
         assertEquals(dotp, dot.value)
     }
 
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testNorm2() {
         val size = random.nextInt(2048)
 

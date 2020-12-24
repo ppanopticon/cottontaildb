@@ -40,7 +40,7 @@ class HareFloatArrayCursorTest : AbstractCursorTest() {
     fun test(dimensions: Int) {
         val columnDef = ColumnDef(Name.ColumnName("test"), FloatVectorColumnType, logicalSize = dimensions)
         FixedHareColumnFile.createDirect(this.path, columnDef)
-        val tid = UUID.randomUUID()
+        val tid = 0L
         val hareFile: FixedHareColumnFile<FloatVectorValue> = FixedHareColumnFile(this.path)
         val bufferPool = BufferPool(hareFile.disk, tid, 25, EvictionPolicy.LRU)
 

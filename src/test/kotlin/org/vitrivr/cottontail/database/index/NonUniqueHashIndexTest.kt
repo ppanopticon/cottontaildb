@@ -1,16 +1,16 @@
 package org.vitrivr.cottontail.database.index
 
 import org.junit.jupiter.api.*
-import org.junit.jupiter.api.Assertions.*
 import org.vitrivr.cottontail.TestConstants
 import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.queries.components.AtomicBooleanPredicate
 import org.vitrivr.cottontail.database.queries.components.ComparisonOperator
+import org.vitrivr.cottontail.database.schema.Schema
 import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
-import org.vitrivr.cottontail.model.values.FloatVectorValue
+import org.vitrivr.cottontail.model.values.LongValue
 import org.vitrivr.cottontail.model.values.StringValue
 import org.vitrivr.cottontail.model.values.types.Value
 import java.nio.file.Files
@@ -25,7 +25,7 @@ import kotlin.collections.HashMap
  * @param 1.1.1
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class UniqueHashIndexTest {
+class NonUniqueHashIndexTest {
 
     private val collectionSize = 1_000_000
     private val schemaName = Name.SchemaName("test")
@@ -34,11 +34,14 @@ class UniqueHashIndexTest {
 
     private val columns = arrayOf(
             ColumnDef.withAttributes(entityName.column("id"), "STRING", -1, false),
-            ColumnDef.withAttributes(entityName.column("feature"), "FLOAT_VEC", 128, false)
+            ColumnDef.withAttributes(entityName.column("value"), "LONG", -1, false)
     )
 
     /** Catalogue used for testing. */
     private var catalogue: Catalogue = Catalogue(TestConstants.config)
+
+    /** Schema used for testing. */
+    private var schema: Schema? = null
 
     /** Schema used for testing. */
     private var entity: Entity? = null
@@ -47,17 +50,20 @@ class UniqueHashIndexTest {
     private var index: Index? = null
 
     /** List of values stored in this [UniqueHashIndexTest]. */
-    private var list = HashMap<StringValue, FloatVectorValue>(1000)
+    private var list = HashMap<StringValue, MutableList<LongValue>>(100)
 
     @BeforeAll
     fun initialize() {
         /* Create schema. */
-        this.catalogue.createSchema(this.schemaName)
-        this.catalogue.createEntity(this.entityName, *this.columns)
-        this.catalogue.createIndex(this.indexName, IndexType.HASH_UQ, arrayOf(this.columns[0]))
+        this.catalogue.createSchema(schemaName)
+        this.schema = this.catalogue.schemaForName(schemaName)
 
-        /* Obtain entity and index. */
-        this.entity = this.catalogue.instantiateEntity(this.entityName)
+        /* Create entity. */
+        this.schema?.createEntity(this.entityName, *this.columns)
+        this.entity = this.schema?.entityForName(this.entityName)
+
+        /* Create index. */
+        this.entity?.createIndex(indexName, IndexType.HASH, arrayOf(this.columns[0]))
         this.index = entity?.allIndexes()?.find { it.name == indexName }
 
         /* Populates the database with test values. */
@@ -78,10 +84,10 @@ class UniqueHashIndexTest {
      */
     @Test
     fun testMetadata() {
-        assertNotNull(this.index)
-        assertArrayEquals(arrayOf(this.columns[0]), this.index?.columns)
-        assertArrayEquals(arrayOf(this.columns[0]), this.index?.produces)
-        assertEquals(this.indexName, this.index?.name)
+        Assertions.assertNotNull(this.index)
+        Assertions.assertArrayEquals(arrayOf(this.columns[0]), this.index?.columns)
+        Assertions.assertArrayEquals(arrayOf(this.columns[0]), this.index?.produces)
+        Assertions.assertEquals(this.indexName, this.index?.name)
     }
 
     /**
@@ -96,8 +102,9 @@ class UniqueHashIndexTest {
                 index.filter(predicate).use {
                     it.forEach { r ->
                         val rec = tx.read(r.tupleId, this.columns)
-                        assertEquals(entry.key, rec[this.columns[0]])
-                        assertArrayEquals(entry.value.data, (rec[this.columns[1]] as FloatVectorValue).data)
+                        val id = rec[this.columns[0]] as StringValue
+                        Assertions.assertEquals(entry.key, id)
+                        Assertions.assertTrue(list[id]!!.contains(rec[this.columns[1]] as LongValue))
                     }
                 }
             }
@@ -116,7 +123,7 @@ class UniqueHashIndexTest {
             index.filter(AtomicBooleanPredicate(this.columns[0] as ColumnDef<StringValue>, ComparisonOperator.EQUAL, false, listOf(StringValue(UUID.randomUUID().toString())))).use {
                 it.forEach { count += 1 }
             }
-            assertEquals(0, count)
+            Assertions.assertEquals(0, count)
             true
         }
     }
@@ -128,14 +135,14 @@ class UniqueHashIndexTest {
         val random = SplittableRandom()
         this.entity?.Tx(readonly = false)?.begin { tx ->
             /* Insert data and track how many entries have been stored for the test later. */
-            var stored = 0
             for (i in 0..this.collectionSize) {
-                val uuid = StringValue(UUID.randomUUID().toString())
-                val vector = FloatVectorValue.random(128, random)
-                val values: Array<Value?> = arrayOf(uuid, vector)
-                if (random.nextBoolean() && stored <= 1000) {
-                    this.list[uuid] = vector
-                    stored++
+                val id = StringValue.random(3)
+                val value = LongValue(random.nextLong())
+                val values: Array<Value?> = arrayOf(id, value)
+                if (this.list.containsKey(id)) {
+                    this.list[id]!!.add(value)
+                } else {
+                    this.list[id] = mutableListOf(value)
                 }
                 tx.insert(StandaloneRecord(columns = this.columns, values = values))
             }

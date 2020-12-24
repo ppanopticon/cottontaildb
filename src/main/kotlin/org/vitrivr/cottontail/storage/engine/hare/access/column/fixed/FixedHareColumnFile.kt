@@ -55,7 +55,7 @@ class FixedHareColumnFile<T : Value>(val path: Path) : HareColumnFile<T> {
             HareDiskManager.create(path, pageShift)
 
             val manager = DirectHareDiskManager(path, 5000)
-            val tid = UUID.randomUUID()
+            val tid = -1L
 
             /** Allocate file header page. */
             val page = HarePage(ByteBuffer.allocate(manager.pageSize))
@@ -119,7 +119,7 @@ class FixedHareColumnFile<T : Value>(val path: Path) : HareColumnFile<T> {
 
     /* Initialize important fields. */
     init {
-        val tid = UUID.randomUUID()
+        val tid = -1L
         val page = HarePage(ByteBuffer.allocate(this.disk.pageSize))
         this.disk.read(tid, ROOT_PAGE_ID, page)
         val header = HeaderPageView(page).validate()

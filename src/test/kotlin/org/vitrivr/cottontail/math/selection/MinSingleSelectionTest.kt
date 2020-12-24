@@ -20,7 +20,7 @@ class MinSingleSelectionTest {
     /**
      * Test [MinSingleSelection] with (primitive) [Double]s.
      */
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testPrimitive() {
         val list = (0 until RANDOM.nextInt(MAX_SIZE)).map { RANDOM.nextDouble() }
         val selection = MinSingleSelection<Double>()
@@ -39,7 +39,7 @@ class MinSingleSelectionTest {
     /**
      * Test [MinSingleSelection] with [ComparablePair]s.
      */
-    @RepeatedTest(100)
+    @RepeatedTest(25)
     fun testDistanceComparable() {
         val list = (0 until RANDOM.nextInt(MAX_SIZE)).map { ComparablePair(RANDOM.nextLong(), RANDOM.nextDouble()) }
         val selection = MinSingleSelection<ComparablePair<Long, Double>>()

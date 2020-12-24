@@ -7,9 +7,9 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import org.vitrivr.cottontail.TestConstants
+import org.vitrivr.cottontail.model.basics.TransactionId
 import org.vitrivr.cottontail.storage.basics.Units
 import org.vitrivr.cottontail.storage.engine.hare.PageId
-import org.vitrivr.cottontail.storage.engine.hare.TransactionId
 import org.vitrivr.cottontail.storage.engine.hare.basics.PageConstants
 import org.vitrivr.cottontail.storage.engine.hare.disk.HareDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectHareDiskManager
@@ -94,7 +94,7 @@ class DirectHareDiskManagerTest {
     fun testUpdatePage(size: Int) {
         val page = HarePage(ByteBuffer.allocateDirect(pageSize))
         val data = this.initWithData(size)
-        val tid: TransactionId = UUID.randomUUID()
+        val tid: TransactionId = 0L
 
         val newData = Array(data.size) {
             val bytes = ByteArray(pageSize)
@@ -130,7 +130,7 @@ class DirectHareDiskManagerTest {
         val data = this.initWithData(size)
         val random = SplittableRandom()
         val pageIds = mutableListOf<PageId>()
-        val tid: TransactionId = UUID.randomUUID()
+        val tid: TransactionId = 0L
 
         /* Truncate last page and compare sizes. */
         for (i in 0 until 100) {
@@ -163,7 +163,7 @@ class DirectHareDiskManagerTest {
         val data = this.initWithData(size)
         val random = SplittableRandom()
         val pageIds = mutableListOf<PageId>()
-        val tid: TransactionId = UUID.randomUUID()
+        val tid: TransactionId = 0L
 
         /* Truncate last page and compare sizes. */
         for (i in 0 until 100) {
@@ -190,7 +190,7 @@ class DirectHareDiskManagerTest {
     @ExperimentalTime
     private fun compareSingleRead(ref: Array<ByteArray>) {
         val page = HarePage(ByteBuffer.allocateDirect(pageSize))
-        val tid: TransactionId = UUID.randomUUID()
+        val tid: TransactionId = 0L
 
         var readTime = Duration.ZERO
         for (i in ref.indices) {
@@ -212,7 +212,7 @@ class DirectHareDiskManagerTest {
         val page2 = HarePage(ByteBuffer.allocateDirect(pageSize))
         val page3 = HarePage(ByteBuffer.allocateDirect(pageSize))
         val page4 = HarePage(ByteBuffer.allocateDirect(pageSize))
-        val tid: TransactionId = UUID.randomUUID()
+        val tid: TransactionId = 0L
 
         var readTime = Duration.ZERO
         for (i in ref.indices step 4) {
@@ -236,7 +236,7 @@ class DirectHareDiskManagerTest {
     @ExperimentalTime
     private fun initWithData(size: Int) : Array<ByteArray> {
         val page = HarePage(ByteBuffer.allocateDirect(pageSize))
-        val tid: TransactionId = UUID.randomUUID()
+        val tid: TransactionId = 0L
 
         var writeTime = Duration.ZERO
         val data = Array(size) {

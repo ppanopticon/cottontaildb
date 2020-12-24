@@ -1,9 +1,8 @@
 package org.vitrivr.cottontail
 
 import io.grpc.ManagedChannelBuilder
-import org.vitrivr.cottontail.database.queries.predicates.KnnPredicateHint
-import org.vitrivr.cottontail.grpc.CottonDQLGrpc
 import org.vitrivr.cottontail.grpc.CottontailGrpc
+import org.vitrivr.cottontail.grpc.DQLGrpc
 import org.vitrivr.cottontail.model.values.FloatVectorValue
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -15,22 +14,21 @@ import kotlin.time.measureTime
 
 object Benchmark {
     val channel = ManagedChannelBuilder.forAddress("127.0.0.1", 1865).usePlaintext().build()
-    val dqlService = CottonDQLGrpc.newBlockingStub(this.channel)
+    val dqlService = DQLGrpc.newBlockingStub(this.channel)
 
 
-    val schema = CottontailGrpc.Schema.newBuilder().setName("cineast").build()
-    val entity = CottontailGrpc.Entity.newBuilder()
+    val schema = CottontailGrpc.SchemaName.newBuilder().setName("cineast").build()
+    val entity = CottontailGrpc.EntityName.newBuilder()
             .setSchema(schema)
             .setName("cineast_metadata")
             .build()
-
 
 
     @ExperimentalTime
     @JvmStatic
     fun main(args: Array<String>) {
         val entities = listOf(
-            Pair(CottontailGrpc.Entity.newBuilder().setSchema(schema).setName("features_conceptmasksade20k").build(), 2048),
+                Pair(CottontailGrpc.EntityName.newBuilder().setSchema(schema).setName("features_conceptmasksade20k").build(), 2048),
         )
         val ps = arrayOf(1,2,4,8)
         val k = 100
@@ -53,7 +51,7 @@ object Benchmark {
     /**
      * Executes warmup queries.
      */
-    fun runWarmup(entity: CottontailGrpc.Entity, dimension: Int, k: Int = 100, p: Int = 1) {
+    fun runWarmup(entity: CottontailGrpc.EntityName, dimension: Int, k: Int = 100, p: Int = 1) {
         println("Starting warmup (e = ${entity.name}, d = $dimension, k = $k, p = $p)...")
         repeat(3) {
             val vector = FloatVectorValue.random(dimension).let {
@@ -62,12 +60,12 @@ object Benchmark {
             val query = CottontailGrpc.QueryMessage.newBuilder().setQuery(
                     CottontailGrpc.Query.newBuilder()
                             .setFrom(CottontailGrpc.From.newBuilder().setEntity(entity))
-                            .setKnn(CottontailGrpc.Knn.newBuilder().addQuery(vector).setDistance(CottontailGrpc.Knn.Distance.L2).setK(k).setAttribute("feature").setHint(CottontailGrpc.KnnHint.newBuilder().setParallelIndexHint(CottontailGrpc.KnnHint.ParallelKnnHint.newBuilder().setMin(p).setMax(p))))
-                            .setProjection(CottontailGrpc.Projection.newBuilder().putAttributes("id", "").putAttributes("distance", ""))
+                            .setKnn(CottontailGrpc.Knn.newBuilder().addQuery(vector).setDistance(CottontailGrpc.Knn.Distance.L2).setK(k).setAttribute(CottontailGrpc.ColumnName.newBuilder().setName("feature")).setHint(CottontailGrpc.KnnHint.newBuilder().setParallelIndexHint(CottontailGrpc.KnnHint.ParallelKnnHint.newBuilder().setMin(p).setMax(p))))
+                            .setProjection(CottontailGrpc.Projection.newBuilder().addColumns(CottontailGrpc.Projection.ProjectionElement.newBuilder().setColumn(CottontailGrpc.ColumnName.newBuilder().setName("id"))).addColumns(CottontailGrpc.Projection.ProjectionElement.newBuilder().setColumn(CottontailGrpc.ColumnName.newBuilder().setName("distance"))))
             )
             val results = this.dqlService.query(query.build())
             results.forEach {
-                it.resultsList.forEach { _ -> }
+                it.tuplesList.forEach { _ -> }
             }
         }
     }
@@ -77,7 +75,7 @@ object Benchmark {
      * Executes benchmark queries
      */
     @ExperimentalTime
-    fun runBenchmark(entity: CottontailGrpc.Entity, dimension: Int, k: Int = 100, p: Int = 1, r: Int = 10): List<Duration> {
+    fun runBenchmark(entity: CottontailGrpc.EntityName, dimension: Int, k: Int = 100, p: Int = 1, r: Int = 10): List<Duration> {
         println("Starting benchmark (e = ${entity.name}, d = $dimension, k = $k, p = $p)...")
         val durations = mutableListOf<Duration>()
         repeat(r) {
@@ -87,17 +85,17 @@ object Benchmark {
             val query = CottontailGrpc.QueryMessage.newBuilder().setQuery(
                     CottontailGrpc.Query.newBuilder()
                             .setFrom(CottontailGrpc.From.newBuilder().setEntity(entity))
-                            .setKnn(CottontailGrpc.Knn.newBuilder().addQuery(vector).setDistance(CottontailGrpc.Knn.Distance.L2).setK(k).setAttribute("feature").setHint(CottontailGrpc.KnnHint.newBuilder().setParallelIndexHint(CottontailGrpc.KnnHint.ParallelKnnHint.newBuilder().setMin(p).setMax(p))))
-                            .setProjection(CottontailGrpc.Projection.newBuilder().putAttributes("id", "").putAttributes("distance", ""))
+                            .setKnn(CottontailGrpc.Knn.newBuilder().addQuery(vector).setDistance(CottontailGrpc.Knn.Distance.L2).setK(k).setAttribute(CottontailGrpc.ColumnName.newBuilder().setName("feature")).setHint(CottontailGrpc.KnnHint.newBuilder().setParallelIndexHint(CottontailGrpc.KnnHint.ParallelKnnHint.newBuilder().setMin(p).setMax(p))))
+                            .setProjection(CottontailGrpc.Projection.newBuilder().addColumns(CottontailGrpc.Projection.ProjectionElement.newBuilder().setColumn(CottontailGrpc.ColumnName.newBuilder().setName("id"))).addColumns(CottontailGrpc.Projection.ProjectionElement.newBuilder().setColumn(CottontailGrpc.ColumnName.newBuilder().setName("distance"))))
             )
 
             durations.add(
-                measureTime {
-                    val results = this.dqlService.query(query.build())
-                    results.forEach {
-                        it.resultsList.forEach { _ -> }
+                    measureTime {
+                        val results = this.dqlService.query(query.build())
+                        results.forEach {
+                            it.tuplesList.forEach { _ -> }
+                        }
                     }
-                }
             )
         }
         return durations

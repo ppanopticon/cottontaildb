@@ -1,6 +1,5 @@
 package org.vitrivr.cottontail.database.index
 
-import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.index.hash.NonUniqueHashIndex
 import org.vitrivr.cottontail.database.index.hash.UniqueHashIndex
@@ -25,13 +24,14 @@ enum class IndexType(val inexact: Boolean) {
      * Opens an index of this [IndexType] using the given name and [Entity].
      *
      * @param name [Name.IndexName] of the [Index]
-     * @param catalogue The [Catalogue] the desired [Index] belongs to.
+     * @param entity The [Entity] the desired [Index] belongs to.
+     * @param columns The [ColumnDef] for which to open the [Index]
      */
-    fun open(name: Name.IndexName, catalogue: Catalogue, columns: Array<ColumnDef<*>>): Index = when (this) {
-        HASH_UQ -> UniqueHashIndex(name, catalogue, columns)
-        HASH -> NonUniqueHashIndex(name, catalogue, columns)
-        LUCENE -> LuceneIndex(name, catalogue, columns)
-        SUPERBIT_LSH -> SuperBitLSHIndex<VectorValue<*>>(name, catalogue, columns, null)
+    fun open(name: Name.IndexName, entity: Entity, columns: Array<ColumnDef<*>>): Index = when (this) {
+        HASH_UQ -> UniqueHashIndex(name, entity, columns)
+        HASH -> NonUniqueHashIndex(name, entity, columns)
+        LUCENE -> LuceneIndex(name, entity, columns)
+        SUPERBIT_LSH -> SuperBitLSHIndex<VectorValue<*>>(name, entity, columns, null)
         else -> TODO()
     }
 
@@ -39,15 +39,15 @@ enum class IndexType(val inexact: Boolean) {
      * Creates an index of this [IndexType] using the given name and [Entity].
      *
      * @param name [Name.IndexName] of the [Index]
-     * @param catalogue The [Catalogue] the desired [Index] belongs to.
+     * @param entity The [Entity] the desired [Index] belongs to.
      * @param columns The [ColumnDef] for which to create the [Index]
      * @param params Additions configuration params.
      */
-    fun create(name: Name.IndexName, catalogue: Catalogue, columns: Array<ColumnDef<*>>, params: Map<String, String> = emptyMap()) = when (this) {
-        HASH_UQ -> UniqueHashIndex(name, catalogue, columns)
-        HASH -> NonUniqueHashIndex(name, catalogue, columns)
-        LUCENE -> LuceneIndex(name, catalogue, columns)
-        SUPERBIT_LSH -> SuperBitLSHIndex<VectorValue<*>>(name, catalogue, columns, params)
+    fun create(name: Name.IndexName, entity: Entity, columns: Array<ColumnDef<*>>, params: Map<String, String> = emptyMap()) = when (this) {
+        HASH_UQ -> UniqueHashIndex(name, entity, columns)
+        HASH -> NonUniqueHashIndex(name, entity, columns)
+        LUCENE -> LuceneIndex(name, entity, columns)
+        SUPERBIT_LSH -> SuperBitLSHIndex<VectorValue<*>>(name, entity, columns, params)
         else -> TODO()
     }
 }

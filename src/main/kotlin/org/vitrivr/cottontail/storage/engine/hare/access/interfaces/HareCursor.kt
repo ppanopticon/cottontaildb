@@ -1,9 +1,9 @@
 package org.vitrivr.cottontail.storage.engine.hare.access.interfaces
 
 import org.vitrivr.cottontail.model.basics.CloseableIterator
+import org.vitrivr.cottontail.model.basics.TransactionId
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.types.Value
-import org.vitrivr.cottontail.storage.engine.hare.TransactionId
 
 /**
  * A [HareCursor] is a data structure that allows for navigation in a sequence of [TupleId]s

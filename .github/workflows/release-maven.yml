@@ -1,4 +1,4 @@
-name: Publish Cottontail DB to the Maven Central Repository
+name: Publish Cottontail DB to Maven Central Repository
 on:
   push:
     tags:
@@ -15,7 +15,14 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: 11.0.6
+      - name: Extract publication version from tag.
+        run: echo "VERSION=${GITHUB_REF/refs\/tags\/v/}" >> $GITHUB_ENV
       - name: Publish package
         run: gradle publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
+          MAVEN_PUBLICATION_VERSION: ${{ env.VERSION }}
+          ORG_GRADLE_PROJECT_signingKey: ${{ secrets.OSSRH_GPG_SECRET_KEY }}
+          ORG_GRADLE_PROJECT_signingPassword: ${{ secrets.OSSRH_GPG_SECRET_KEY_PASSWORD }}

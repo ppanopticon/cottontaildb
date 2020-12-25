@@ -141,7 +141,7 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val par
         override fun scan(range: LongRange) = object : ColumnCursor<T> {
 
             init {
-                this@Tx.withWriteLock { /* No op. */ }
+                this@Tx.withReadLock { /* No op. */ }
             }
 
             /** [FixedHareColumnCursor] instance used for this [ColumnCursor]. */

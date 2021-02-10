@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.database.queries.components
 
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.RepeatedTest
+import org.vitrivr.cottontail.database.queries.predicates.bool.ComparisonOperator
 import org.vitrivr.cottontail.model.values.*
 import org.vitrivr.cottontail.model.values.types.Value
 

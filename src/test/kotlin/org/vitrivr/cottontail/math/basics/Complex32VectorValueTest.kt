@@ -9,6 +9,12 @@ import org.junit.jupiter.api.assertThrows
 import org.vitrivr.cottontail.math.*
 import org.vitrivr.cottontail.model.values.*
 import java.util.*
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.time.Duration
+import kotlin.time.ExperimentalTime
+import kotlin.time.measureTime
 
 /**
  * Some basic test cases that test for correctness of [Complex32VectorValue] arithmetic operations.
@@ -373,6 +379,31 @@ class Complex32VectorValueTest {
         assertThrows<DimensionMismatchException> { c1p.dotProduct(c2p) }
         assertThrows<IllegalArgumentException> { c1 dot c2 }
         assertThrows<IllegalArgumentException> { c2 dot c1 }
+
+    }
+
+    @ExperimentalTime
+    @Test
+    fun testSetArgSum0() {
+        val size = 20
+        val n = 4096
+        val vecs = Array(n) { Complex32VectorValue.random(size, this.random) }
+        var t = Duration.ZERO
+        vecs.forEachIndexed { i, v ->
+            t += measureTime {
+                val s = v.sum()
+                val arg = atan2(s.imaginary.value, s.real.value)
+                vecs[i] = v * Complex32Value(cos(-arg), sin(-arg))
+            }
+        }
+        vecs.forEach {
+            isApproximatelyTheSame(
+                0.0f as Number,
+                atan2(it.sum().imaginary.value, it.sum().real.value)
+            )
+        }
+        println("Setting phase of sum to 0 for $n vectors of dim $size took ${t.inMilliseconds} ms")
+        println("(${t.inMicroseconds / n} us per vector)")
 
     }
 }

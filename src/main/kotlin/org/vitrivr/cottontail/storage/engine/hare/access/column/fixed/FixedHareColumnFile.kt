@@ -1,6 +1,6 @@
 package org.vitrivr.cottontail.storage.engine.hare.access.column.fixed
 
-import org.vitrivr.cottontail.database.column.ColumnType
+import org.vitrivr.cottontail.database.column.Type
 import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.TupleId
@@ -50,7 +50,7 @@ class FixedHareColumnFile<T : Value>(val path: Path) : HareColumnFile<T> {
          * @param columnDef The [ColumnDef] that describes this [FixedHareColumnFile].
          */
         fun createDirect(path: Path, columnDef: ColumnDef<*>) {
-            val entrySize = columnDef.serializer.physicalSize + ENTRY_HEADER_SIZE
+            val entrySize = columnDef.type.physicalSize + ENTRY_HEADER_SIZE
             val pageShift = determinePageSize(entrySize)
             HareDiskManager.create(path, pageShift)
 
@@ -95,11 +95,8 @@ class FixedHareColumnFile<T : Value>(val path: Path) : HareColumnFile<T> {
     override val name: String
         get() = this.path.fileName.toString().replace(".${HareColumnFile.SUFFIX}", "")
 
-    /** The [ColumnType] describing the column managed by this [FixedHareColumnFile]. */
-    override val columnType: ColumnType<T>
-
-    /** The logical size of the values contained in this [FixedHareColumnFile]. */
-    override val logicalSize: Int
+    /** The [Type] describing the column managed by this [FixedHareColumnFile]. */
+    override val type: Type<T>
 
     /** Flag indicating whether this [FixedHareColumnFile] supports null entries or not. */
     override val nullable: Boolean
@@ -123,8 +120,7 @@ class FixedHareColumnFile<T : Value>(val path: Path) : HareColumnFile<T> {
         val page = HarePage(ByteBuffer.allocate(this.disk.pageSize))
         this.disk.read(tid, ROOT_PAGE_ID, page)
         val header = HeaderPageView(page).validate()
-        this.columnType = header.type as ColumnType<T>
-        this.logicalSize = header.size
+        this.type = header.type
         this.nullable = header.nullable
         this.entrySize = header.entrySize
         this.slotsPerPage = floorDiv(1 shl this@FixedHareColumnFile.disk.pageShift, (header.entrySize + ENTRY_HEADER_SIZE))

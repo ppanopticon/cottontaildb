@@ -46,6 +46,7 @@ class TXNService(override val manager: TransactionManager) : TXNGrpc.TXNImplBase
     override fun commit(request: CottontailGrpc.TransactionId, responseObserver: StreamObserver<Empty>) = try {
         this.withTransactionContext(request) { tx, q ->
             tx.commit()
+            responseObserver.onNext(Empty.getDefaultInstance())
             responseObserver.onCompleted()
         }
     } catch (e: TransactionException.TransactionNotFoundException) {
@@ -60,6 +61,7 @@ class TXNService(override val manager: TransactionManager) : TXNGrpc.TXNImplBase
     override fun rollback(request: CottontailGrpc.TransactionId, responseObserver: StreamObserver<Empty>) = try {
         this.withTransactionContext(request) { tx, q ->
             tx.rollback()
+            responseObserver.onNext(Empty.getDefaultInstance())
             responseObserver.onCompleted()
         }
     } catch (e: TransactionException.TransactionNotFoundException) {

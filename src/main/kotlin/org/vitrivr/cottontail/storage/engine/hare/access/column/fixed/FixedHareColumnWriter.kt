@@ -35,7 +35,7 @@ class FixedHareColumnWriter<T : Value>(val file: FixedHareColumnFile<T>, private
         private set
 
     /** The [Serializer] used to read data through this [FixedHareColumnReader]. */
-    private val serializer: Serializer<T> = this.file.columnType.serializer(this.file.logicalSize)
+    private val serializer: Serializer<T> = this.file.type.serializer()
 
     /** A [StampedLock] that mediates access to methods of this [FixedHareColumnWriter]. */
     private val localLock = StampedLock()

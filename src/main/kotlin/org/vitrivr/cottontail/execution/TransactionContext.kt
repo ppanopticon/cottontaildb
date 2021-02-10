@@ -13,15 +13,21 @@ import org.vitrivr.cottontail.model.basics.TransactionId
  * A [TransactionContext] used by operators and their [Txn]s to execute and obtain necessary locks
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.1.0
  */
 interface TransactionContext {
 
     /** The [TransactionId] for this [TransactionContext]. */
     val txId: TransactionId
 
+    /** The [TransactionType] for this [TransactionContext]. */
+    val type: TransactionType
+
     /** Reference to the [TransactionManager]s [CoroutineDispatcher].*/
     val dispatcher: CoroutineDispatcher
+
+    /** The number of threads available for execution. */
+    val availableThreads: Int
 
     /**
      * Obtains a [Tx] for the given [DBO]. This method should make sure, that only one [Tx] per [DBO] is created.

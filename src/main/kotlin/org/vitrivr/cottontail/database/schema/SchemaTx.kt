@@ -34,8 +34,9 @@ interface SchemaTx : Tx {
      * Creates a new [Entity] in this [Schema].
      *
      * @param name The name of the [Entity] that should be created.
+     * @return Newly created [Entity] for use in context of this [Tx]
      */
-    fun createEntity(name: Name.EntityName, vararg columns: ColumnDef<*>)
+    fun createEntity(name: Name.EntityName, vararg columns: ColumnDef<*>): Entity
 
     /**
      * Drops an [Entity] in this [Schema].

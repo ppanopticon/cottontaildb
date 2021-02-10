@@ -34,7 +34,7 @@ class VariableHareColumnWriter<T : Value>(val file: VariableHareColumnFile<T>, p
         private set
 
     /** The [Serializer] used to read data through this [VariableHareColumnFile]. */
-    private val serializer: Serializer<T> = this.file.columnType.serializer(this.file.logicalSize)
+    private val serializer: Serializer<T> = this.file.type.serializer()
 
     /** The [BufferPool] instance used by this [VariableHareColumnWriter] is always shared with the [Directory]. */
     private val bufferPool: BufferPool = this.directory.bufferPool

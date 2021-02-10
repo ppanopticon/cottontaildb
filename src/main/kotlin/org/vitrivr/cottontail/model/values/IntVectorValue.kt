@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.model.values
 
+import org.vitrivr.cottontail.database.column.Type
 import org.vitrivr.cottontail.model.values.types.NumericValue
 import org.vitrivr.cottontail.model.values.types.RealVectorValue
 import org.vitrivr.cottontail.model.values.types.Value
@@ -11,7 +12,7 @@ import kotlin.math.pow
  * This is an abstraction over an [IntArray] and it represents a vector of [Int]s.
  *
  * @author Ralph Gasser
- * @version 1.3.2
+ * @version 1.5.0
  */
 inline class IntVectorValue(val data: IntArray) : RealVectorValue<Int> {
 
@@ -42,8 +43,13 @@ inline class IntVectorValue(val data: IntArray) : RealVectorValue<Int> {
     constructor(input: List<Number>) : this(IntArray(input.size) { input[it].toInt() })
     constructor(input: Array<Number>) : this(IntArray(input.size) { input[it].toInt() })
 
+    /** The logical size of this [IntVectorValue]. */
     override val logicalSize: Int
         get() = this.data.size
+
+    /** The [Type] of this [IntVectorValue]. */
+    override val type: Type<*>
+        get() = Type.IntVector(this.logicalSize)
 
     /**
      * Checks for equality between this [IntVectorValue] and the other [Value]. Equality can only be
@@ -52,7 +58,8 @@ inline class IntVectorValue(val data: IntArray) : RealVectorValue<Int> {
      * @param other [Value] to compare to.
      * @return True if equal, false otherwise.
      */
-    override fun isEqual(other: Value): Boolean = (other is IntVectorValue) && (this.data.contentEquals(other.data))
+    override fun isEqual(other: Value): Boolean =
+        (other is IntVectorValue) && (this.data.contentEquals(other.data))
 
     /**
      * Returns the indices of this [IntVectorValue].
@@ -97,6 +104,13 @@ inline class IntVectorValue(val data: IntArray) : RealVectorValue<Int> {
      * @return Exact copy of this [IntVectorValue].
      */
     override fun copy(): IntVectorValue = IntVectorValue(this.data.copyOf(this.logicalSize))
+
+    /**
+     * Creates and returns a new instance of [IntVectorValue] of the same size.
+     *
+     * @return New instance of [IntVectorValue]
+     */
+    override fun new(): IntVectorValue = IntVectorValue(IntArray(this.data.size))
 
     override fun plus(other: VectorValue<*>) = when (other) {
         is IntVectorValue -> IntVectorValue(IntArray(this.data.size) {
@@ -256,4 +270,16 @@ inline class IntVectorValue(val data: IntArray) : RealVectorValue<Int> {
         }
         else -> IntValue(this.data.size)
     }
+
+    /**
+     * Returns a sub vector of this [IntVectorValue] starting at the component [start] and
+     * containing [length] components.
+     *
+     * @param start Index of the first entry of the returned vector.
+     * @param length how many elements, including start, to return
+     *
+     * @return The [IntVectorValue] representing the sub-vector.
+     */
+    override fun subvector(start: Int, length: Int) =
+        IntVectorValue(this.data.copyOfRange(start, start + length))
 }

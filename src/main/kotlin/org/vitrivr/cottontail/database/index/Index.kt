@@ -4,8 +4,8 @@ import org.vitrivr.cottontail.database.column.Column
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.general.AbstractTx
 import org.vitrivr.cottontail.database.general.DBO
-import org.vitrivr.cottontail.database.queries.components.Predicate
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
+import org.vitrivr.cottontail.database.queries.predicates.Predicate
 import org.vitrivr.cottontail.database.schema.Schema
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.model.basics.ColumnDef
@@ -24,7 +24,7 @@ import java.util.concurrent.locks.StampedLock
  * @see Entity.Tx
  *
  * @author Ralph Gasser
- * @version 1.7.0
+ * @version 1.8.0
  */
 abstract class Index : DBO {
 
@@ -52,6 +52,12 @@ abstract class Index : DBO {
 
     /** True, if the [Index] supports incremental updates, and false otherwise. */
     abstract val supportsIncrementalUpdate: Boolean
+
+    /** True, if the [Index] supports querying filtering an indexable range of the data. */
+    abstract val supportsPartitioning: Boolean
+
+    /** Flag indicating, if this [Index] reflects all changes done to the [Entity]it belongs to. */
+    abstract val dirty: Boolean
 
     /**
      * Checks if this [Index] can process the provided [Predicate] and returns true if so and false otherwise.
@@ -118,10 +124,6 @@ abstract class Index : DBO {
         override val type: IndexType
             get() = this@Index.type
 
-        /** Returns true, if the [Index] underpinning this [IndexTx] supports incremental updates, and false otherwise. */
-        override val supportsIncrementalUpdate: Boolean
-            get() = this@Index.supportsIncrementalUpdate
-
         /**
          * Checks if this [IndexTx] can process the provided [Predicate].
          *
@@ -129,7 +131,6 @@ abstract class Index : DBO {
          * @return True if [Predicate] can be processed, false otherwise.
          */
         override fun canProcess(predicate: Predicate): Boolean = this@Index.canProcess(predicate)
-
 
         /**
          * Releases the [closeLock] in the [Index].

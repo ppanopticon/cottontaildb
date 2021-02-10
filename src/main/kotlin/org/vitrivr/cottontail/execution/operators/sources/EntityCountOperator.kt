@@ -2,8 +2,10 @@ package org.vitrivr.cottontail.execution.operators.sources
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import org.vitrivr.cottontail.database.column.Type
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
+import org.vitrivr.cottontail.database.queries.projection.Projection
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Record
@@ -19,7 +21,9 @@ import org.vitrivr.cottontail.model.values.LongValue
 class EntityCountOperator(entity: Entity) : AbstractEntityOperator(entity, arrayOf(entity.allColumns().first())) {
 
     /** The [ColumnDef] returned by this [EntitySampleOperator]. */
-    override val columns: Array<ColumnDef<*>> = arrayOf(ColumnDef.withAttributes(entity.name.column("count()"), "LONG"))
+    override val columns: Array<ColumnDef<*>> = arrayOf(
+        ColumnDef(entity.name.column(Projection.COUNT.label()), Type.Long)
+    )
 
     /**
      * Converts this [EntityCountOperator] to a [Flow] and returns it.

@@ -4,6 +4,7 @@ import org.vitrivr.cottontail.model.values.Complex32VectorValue
 import org.vitrivr.cottontail.model.values.Complex64VectorValue
 import org.vitrivr.cottontail.model.values.DoubleVectorValue
 import org.vitrivr.cottontail.model.values.FloatVectorValue
+import org.vitrivr.cottontail.model.values.types.ComplexVectorValue
 import org.vitrivr.cottontail.model.values.types.VectorValue
 import java.io.Serializable
 import java.util.*
@@ -18,7 +19,6 @@ import java.util.*
  * <p>
  * This class is inspired by Thibault Debatty (https://github.com/tdebatty/java-LSH).
  *
- * @param d     dimension, R^n
  * @param N     Super-Bit depth (must be [1 .. d])
  * @param L     number of Super-Bits (must be [1 ..)
  * @param seed  to use for the random number generator
@@ -27,10 +27,21 @@ import java.util.*
  * @author Manuel Huerbin & Ralph Gasser
  * @version 1.1
  */
-class SuperBit(d: Int, N: Int, L: Int, seed: Long, species: VectorValue<*>) : Serializable {
+class SuperBit(
+    val N: Int,
+    val L: Int,
+    val seed: Long,
+    val samplingMethod: SamplingMethod,
+    species: VectorValue<*>
+) : Serializable {
+
+    /** The logical size of the species [VectorValue]. */
+    val d = species.logicalSize
 
     /** List of hyperplanes held by this [SuperBit]. */
-    private val hyperplanes: Array<VectorValue<*>>
+    private val _hyperplanes: Array<VectorValue<*>>
+    val hyperplanes
+        get() = _hyperplanes.copyOf()
 
     /**
      * The K vectors are orthogonalized in L batches of N vectors.
@@ -38,11 +49,6 @@ class SuperBit(d: Int, N: Int, L: Int, seed: Long, species: VectorValue<*>) : Se
      * Super-Bit depth N must be [1 .. d]
      * Number of Super-Bits L must be [1 ..
      * The resulting code length is K = N * L (size of signature)
-     *
-     * @param d         dimension, R^n
-     * @param N         Super-Bit depth (must be [1 .. d])
-     * @param L         number of Super-Bits (must be [1 ..)
-     * @param random    to use for the random number generator
      */
 
     init {
@@ -63,31 +69,54 @@ class SuperBit(d: Int, N: Int, L: Int, seed: Long, species: VectorValue<*>) : Se
         Output: H ̃ = [w ,w ,...,w ].
         */
 
-        val random = SplittableRandom(seed)
         val K = N * L
-        val v = Array(K) {
-            val rnd = when(species) {
-                is DoubleVectorValue -> DoubleVectorValue.random(species.logicalSize, random)
-                is FloatVectorValue -> FloatVectorValue.random(species.logicalSize, random)
-                is Complex32VectorValue -> Complex32VectorValue.random(species.logicalSize, random)
-                is Complex64VectorValue -> Complex64VectorValue.random(species.logicalSize, random)
-                else -> throw IllegalArgumentException("")
-            } as VectorValue<*>
-            rnd / rnd.norm2()
-        } // H
+        val v = when (samplingMethod) {
+            SamplingMethod.UNIFORM -> {
+                val random = SplittableRandom(seed)
+                Array(K) {
+                    val rnd =
+                        when (species) { // centering components at 0 (subtract 0.5) looks more favorable in terms of hamming dist vs. cosine dist plots
+                            is DoubleVectorValue -> DoubleVectorValue(DoubleArray(species.logicalSize) { random.nextDouble() - 0.5 })
+                            is FloatVectorValue -> FloatVectorValue(FloatArray(species.logicalSize) { (random.nextDouble() - 0.5).toFloat() })
+                            is Complex32VectorValue -> Complex32VectorValue(FloatArray(species.logicalSize * 2) { (random.nextDouble() - 0.5).toFloat() })
+                            is Complex64VectorValue -> Complex64VectorValue(DoubleArray(species.logicalSize * 2) { random.nextDouble() - 0.5 })
+                            else -> throw IllegalArgumentException("Unsupported vector type")
+                        } as VectorValue<*>
+                    rnd / rnd.norm2()
+                } // H
+            }
+            SamplingMethod.GAUSSIAN -> {
+                val random = Random(seed)
+                Array(K) {
+                    val rnd = when (species) {
+                        is DoubleVectorValue -> DoubleVectorValue(DoubleArray(species.logicalSize) { random.nextGaussian() })
+                        is FloatVectorValue -> FloatVectorValue(FloatArray(species.logicalSize) {
+                            random.nextGaussian().toFloat()
+                        })
+                        is Complex32VectorValue -> Complex32VectorValue(FloatArray(species.logicalSize * 2) {
+                            random.nextGaussian().toFloat()
+                        })
+                        is Complex64VectorValue -> Complex64VectorValue(DoubleArray(species.logicalSize * 2) { random.nextGaussian() })
+                        else -> throw IllegalArgumentException("Unsupported vector type")
+                    } as VectorValue<*>
+                    rnd / rnd.norm2()
+                }
+            }
+        }
 
         val w = Array(K) { v[it] }
 
         for (i in 0 until L) {
             for (j in 1..N) {
                 for (k in 1 until j) {
-                    w[i * N + j - 1] = w[i * N + j - 1] - (w[i * N + k - 1] * w[i * N + k - 1].dot(v[i * N + j - 1]))
+                    w[i * N + j - 1] =
+                        w[i * N + j - 1] - (w[i * N + k - 1] * w[i * N + j - 1].dot(v[i * N + k - 1])) // order of dot product matters for complex vectors!
                 }
                 w[i * N + j - 1] = w[i * N + j - 1] / w[i * N + j - 1].norm2()
             }
         }
 
-        this.hyperplanes = w // H ̃
+        this._hyperplanes = w // H ̃
     }
 
     /**
@@ -97,10 +126,29 @@ class SuperBit(d: Int, N: Int, L: Int, seed: Long, species: VectorValue<*>) : Se
      * @return The signature.
      */
     fun signature(vector: VectorValue<*>): BooleanArray {
-        val signature = BooleanArray(this.hyperplanes.size)
-        for (i in hyperplanes.indices) {
-            signature[i] = this.hyperplanes[i].dot(vector).value.toInt() >= 0
+        val signature = BooleanArray(this._hyperplanes.size)
+        for (i in this._hyperplanes.indices) {
+            signature[i] = this._hyperplanes[i].dot(vector).asInt().value >= 0
         }
         return signature
+    }
+
+    /**
+     * Compute the signature of a complex vector. Take every even hyperplane for the real part, every odd one for the imaginary part.
+     *
+     * todo: are there better ways to incorporate the imaginary part?
+     *       if in the end the distance measure is the absolute IP, could we maybe do something like this here?
+     *
+     * @param vector
+     * @return The signature.
+     */
+    fun signatureComplex(vector: ComplexVectorValue<*>): BooleanArray {
+        return BooleanArray(this._hyperplanes.size) {
+            if (it % 2 == 0) {
+                this._hyperplanes[it].dot(vector).real.asInt().value >= 0
+            } else {
+                this._hyperplanes[it].dot(vector).imaginary.asInt().value >= 0
+            }
+        }
     }
 }

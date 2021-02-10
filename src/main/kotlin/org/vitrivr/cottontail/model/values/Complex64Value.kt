@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.model.values
 
+import org.vitrivr.cottontail.database.column.Type
 import org.vitrivr.cottontail.model.values.types.ComplexValue
 import org.vitrivr.cottontail.model.values.types.NumericValue
 import org.vitrivr.cottontail.model.values.types.RealValue
@@ -10,7 +11,7 @@ import kotlin.math.atan2
 /**
  * Represents a complex number backed by double-precision (64bit) [Double]s
  *
- * @version 1.3.2
+ * @version 1.5.0
  * @author Ralph Gasser
  */
 inline class Complex64Value(val data: DoubleArray): ComplexValue<Double> {
@@ -89,8 +90,13 @@ inline class Complex64Value(val data: DoubleArray): ComplexValue<Double> {
     override val imaginary: DoubleValue
         get() = DoubleValue(this.data[1])
 
+    /** The logical size of this [Complex64Value]. */
     override val logicalSize: Int
-        get() = -1
+        get() = 1
+
+    /** The [Type] of this [Complex64Value]. */
+    override val type: Type<*>
+        get() = Type.Complex64
 
     /**
      * Compares this [Complex32Value] to another [Value]. Returns -1, 0 or 1 of other value is smaller,

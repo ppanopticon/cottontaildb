@@ -7,13 +7,15 @@ import org.vitrivr.cottontail.model.basics.ColumnDef
  * A [EntitySourceLogicalNodeExpression] that formalizes the scan of a physical [Entity] in Cottontail DB.
  *
  * @author Ralph Gasser
- * @version 1.1.0
+ * @version 1.1.2
  */
-class EntityScanLogicalNodeExpression(entity: Entity, columns: Array<ColumnDef<*>> = entity.allColumns().toTypedArray()) : EntitySourceLogicalNodeExpression(entity, columns) {
+class EntityScanLogicalNodeExpression(entity: Entity, columns: Array<ColumnDef<*>>) :
+    EntitySourceLogicalNodeExpression(entity, columns) {
     /**
      * Returns a copy of this [EntityScanLogicalNodeExpression]
      *
      * @return Copy of this [EntityScanLogicalNodeExpression]
      */
-    override fun copy(): EntityScanLogicalNodeExpression = EntityScanLogicalNodeExpression(this.entity, this.columns)
+    override fun copy(): EntityScanLogicalNodeExpression =
+        EntityScanLogicalNodeExpression(this.entity, this.columns)
 }

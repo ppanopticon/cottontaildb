@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.model.values
 
+import org.vitrivr.cottontail.database.column.Type
 import org.vitrivr.cottontail.model.values.types.NumericValue
 import org.vitrivr.cottontail.model.values.types.RealVectorValue
 import org.vitrivr.cottontail.model.values.types.Value
@@ -11,7 +12,7 @@ import kotlin.math.pow
  * This is an abstraction over a [FloatArray] and it represents a vector of [Float]s.
  *
  * @author Ralph Gasser
- * @version 1.3.2
+ * @version 1.5.0
  */
 inline class LongVectorValue(val data: LongArray) : RealVectorValue<Long> {
 
@@ -42,8 +43,13 @@ inline class LongVectorValue(val data: LongArray) : RealVectorValue<Long> {
     constructor(input: List<Number>) : this(LongArray(input.size) { input[it].toLong() })
     constructor(input: Array<Number>) : this(LongArray(input.size) { input[it].toLong() })
 
+    /** The logical size of this [LongVectorValue]. */
     override val logicalSize: Int
-        get() = data.size
+        get() = this.data.size
+
+    /** The [Type] of this [LongVectorValue]. */
+    override val type: Type<*>
+        get() = Type.LongVector(this.logicalSize)
 
     /**
      * Checks for equality between this [LongVectorValue] and the other [Value]. Equality can only be
@@ -52,7 +58,8 @@ inline class LongVectorValue(val data: LongArray) : RealVectorValue<Long> {
      * @param other [Value] to compare to.
      * @return True if equal, false otherwise.
      */
-    override fun isEqual(other: Value): Boolean = (other is LongVectorValue) && (this.data.contentEquals(other.data))
+    override fun isEqual(other: Value): Boolean =
+        (other is LongVectorValue) && (this.data.contentEquals(other.data))
 
     /**
      * Returns the indices of this [LongVectorValue].
@@ -98,6 +105,13 @@ inline class LongVectorValue(val data: LongArray) : RealVectorValue<Long> {
      * @return Exact copy of this [LongVectorValue].
      */
     override fun copy(): LongVectorValue = LongVectorValue(this.data.copyOf(this.logicalSize))
+
+    /**
+     * Creates and returns a new instance of [LongVectorValue] of the same size.
+     *
+     * @return New instance of [LongVectorValue]
+     */
+    override fun new(): LongVectorValue = LongVectorValue(LongArray(this.data.size))
 
     override fun plus(other: VectorValue<*>): LongVectorValue = when (other) {
         is LongVectorValue -> LongVectorValue(LongArray(this.data.size) {
@@ -257,4 +271,16 @@ inline class LongVectorValue(val data: LongArray) : RealVectorValue<Long> {
         }
         else -> LongValue(this.data.size)
     }
+
+    /**
+     * Returns a sub vector of this [LongVectorValue] starting at the component [start] and
+     * containing [length] components.
+     *
+     * @param start Index of the first entry of the returned vector.
+     * @param length how many elements, including start, to return
+     *
+     * @return The [LongVectorValue] representing the sub-vector.
+     */
+    override fun subvector(start: Int, length: Int) =
+        LongVectorValue(this.data.copyOfRange(start, start + length))
 }

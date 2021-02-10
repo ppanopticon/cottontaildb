@@ -62,7 +62,8 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val par
     private val column = FixedHareColumnFile<T>(this.path)
 
     /** This [HareColumn]'s [ColumnDef]. */
-    override val columnDef: ColumnDef<T> = ColumnDef(this.name, this.column.columnType, this.column.logicalSize, this.column.nullable)
+    override val columnDef: ColumnDef<T> =
+        ColumnDef(this.name, this.column.type, this.column.nullable)
 
     /** An internal lock that is used to synchronize structural changes to an [MapDBColumn] (e.g. closing or deleting) with running [MapDBColumn.Tx]. */
     private val closeLock = StampedLock()

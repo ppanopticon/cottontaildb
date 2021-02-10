@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.model.values
 
+import org.vitrivr.cottontail.database.column.Type
 import org.vitrivr.cottontail.model.values.types.NumericValue
 import org.vitrivr.cottontail.model.values.types.RealValue
 import org.vitrivr.cottontail.model.values.types.Value
@@ -9,7 +10,7 @@ import java.util.*
  * This is an abstraction over an [Int].
  *
  * @author Ralph Gasser
- * @version 1.3.1
+ * @version 1.5.0
  */
 inline class IntValue(override val value: Int): RealValue<Int> {
 
@@ -40,8 +41,13 @@ inline class IntValue(override val value: Int): RealValue<Int> {
      */
     constructor(number: NumericValue<*>) : this(number.value.toInt())
 
+    /** The logical size of this [IntValue]*/
     override val logicalSize: Int
-        get() = -1
+        get() = 1
+
+    /** The [Type] of this [IntValue]. */
+    override val type: Type<*>
+        get() = Type.Int
 
     override val real: RealValue<Int>
         get() = this

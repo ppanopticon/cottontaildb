@@ -22,7 +22,7 @@ interface Record {
     /** The [TupleId] of this [Record]. Can be updated! */
     var tupleId: TupleId
 
-    /** [Collection] of [ColumnDef]s that describes the [org.vitrivr.cottontail.database.column.Column]s of this [Record]. */
+    /** [Array] of [ColumnDef]s contained in this [Record]. */
     val columns: Array<ColumnDef<*>>
 
     /** Size of this [Record] in terms of [ColumnDef] it encompasses. */

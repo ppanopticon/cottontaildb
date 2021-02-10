@@ -4,8 +4,9 @@ import io.grpc.Status
 import io.grpc.stub.StreamObserver
 import org.slf4j.LoggerFactory
 import org.vitrivr.cottontail.database.catalogue.Catalogue
-import org.vitrivr.cottontail.database.column.ColumnType
+import org.vitrivr.cottontail.database.column.Type
 import org.vitrivr.cottontail.database.index.IndexType
+import org.vitrivr.cottontail.database.queries.binding.extensions.fqn
 import org.vitrivr.cottontail.execution.TransactionManager
 import org.vitrivr.cottontail.execution.operators.definition.*
 import org.vitrivr.cottontail.grpc.CottontailGrpc
@@ -13,7 +14,6 @@ import org.vitrivr.cottontail.grpc.DDLGrpc
 import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.model.exceptions.TransactionException
-import org.vitrivr.cottontail.server.grpc.helper.fqn
 import org.vitrivr.cottontail.server.grpc.operators.SpoolerSinkOperator
 import java.util.*
 import kotlin.time.ExperimentalTime
@@ -74,22 +74,41 @@ class DDLService(val catalogue: Catalogue, override val manager: TransactionMana
             try {
                 /* Execute operation. */
                 LOGGER.info("Creating schema '$schemaName'...")
-                val op = SpoolerSinkOperator(CreateSchemaOperator(this.catalogue, schemaName), q, 0, responseObserver)
+                val op = SpoolerSinkOperator(
+                    CreateSchemaOperator(this.catalogue, schemaName),
+                    q,
+                    0,
+                    responseObserver
+                )
                 tx.execute(op)
 
                 /* Finalize transaction. */
                 responseObserver.onCompleted()
                 LOGGER.info("Schema '$schemaName' created successfully!")
-            } catch (e: DatabaseException.EntityAlreadyExistsException) {
-                val message = formatMessage(tx, q, "Failed to create schema '${request.schema.fqn()}': Schema with identical name already exists.")
+            } catch (e: DatabaseException.SchemaAlreadyExistsException) {
+                val message = formatMessage(
+                    tx,
+                    q,
+                    "Failed to create schema '${request.schema.fqn()}': Schema with identical name already exists."
+                )
                 LOGGER.info(message)
-                responseObserver.onError(Status.ALREADY_EXISTS.withDescription(message).asException())
+                responseObserver.onError(
+                    Status.ALREADY_EXISTS.withDescription(message).asException()
+                )
             } catch (e: TransactionException.DeadlockException) {
-                val message = formatMessage(tx, q, "Failed to create schema '${request.schema.fqn()}': Deadlock with another transaction.")
+                val message = formatMessage(
+                    tx,
+                    q,
+                    "Failed to create schema '${request.schema.fqn()}': Deadlock with another transaction."
+                )
                 LOGGER.info(message)
                 responseObserver.onError(Status.ABORTED.withDescription(message).asException())
             } catch (e: DatabaseException) {
-                val message = formatMessage(tx, q, "Failed to create schema '${request.schema.fqn()}' because of a database error.")
+                val message = formatMessage(
+                    tx,
+                    q,
+                    "Failed to create schema '${request.schema.fqn()}' because of a database error."
+                )
                 LOGGER.error(message, e)
                 responseObserver.onError(Status.INTERNAL.withDescription(message).asException())
             } catch (e: Throwable) {
@@ -204,9 +223,9 @@ class DDLService(val catalogue: Catalogue, override val manager: TransactionMana
             try {
                 LOGGER.info("Creating entity '$entityName'...")
                 val columns = request.definition.columnsList.map {
-                    val type = ColumnType.forName(it.type.name)
+                    val type = Type.forName(it.type.name, it.length)
                     val name = entityName.column(it.name)
-                    ColumnDef(name, type, it.length, it.nullable)
+                    ColumnDef(name, type, it.nullable)
                 }.toTypedArray()
 
                 /* Execution operation. */
@@ -345,10 +364,14 @@ class DDLService(val catalogue: Catalogue, override val manager: TransactionMana
                 val entityName = request.entity.fqn()
                 LOGGER.info("Optimizing entity '$entityName'...")
 
-                /* ToDo. */
-
-                /* Update indexes. */
-                //this.catalogue.schemaForName(entityName.schema()).entityForName(entityName).updateAllIndexes()
+                /* Execution operation. */
+                val op = SpoolerSinkOperator(
+                    OptimizeEntityOperator(this.catalogue, entityName),
+                    q,
+                    0,
+                    responseObserver
+                )
+                tx.execute(op)
 
                 /* Finalize invocation. */
                 responseObserver.onCompleted()
@@ -444,8 +467,17 @@ class DDLService(val catalogue: Catalogue, override val manager: TransactionMana
                 val params = request.definition.paramsMap
 
                 /* Execution operation. */
-                val op = SpoolerSinkOperator(CreateIndexOperator(this.catalogue, indexName, indexType, columns, params), q, 0, responseObserver)
-                tx.execute(op)
+                val createOp = SpoolerSinkOperator(
+                    CreateIndexOperator(
+                        this.catalogue,
+                        indexName,
+                        indexType,
+                        columns,
+                        params,
+                        request.rebuild
+                    ), q, 0, responseObserver
+                )
+                tx.execute(createOp)
 
                 /* Finalize invocation. */
                 responseObserver.onCompleted()

@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.database.index.lsh.superbit
 
+import org.vitrivr.cottontail.model.values.types.ComplexVectorValue
 import org.vitrivr.cottontail.model.values.types.VectorValue
 import java.io.Serializable
 
@@ -10,7 +11,6 @@ import java.io.Serializable
  *
  * @param s    stages
  * @param b    buckets (per stage)
- * @param d    dimension of data space
  * @param seed random number generator seed (sing the same value will guarantee identical hashes across object
  *             instantiations)
  *
@@ -19,15 +19,22 @@ import java.io.Serializable
  * @author Manuel Huerbin & Ralph Gasser
  * @version 1.1
  */
-class SuperBitLSH(private var s: Int, private var b: Int, d: Int, seed: Long, species: VectorValue<*>) : Serializable {
+class SuperBitLSH(
+    private val s: Int,
+    private val b: Int,
+    seed: Long,
+    species: VectorValue<*>,
+    private val considerImaginary: Boolean,
+    samplingMethod: SamplingMethod
+) : Serializable {
 
     companion object {
         const val LARGE_PRIME: Long = 433494437
     }
 
     private val k = s * b / 2
-    private val N = computeSuperBitDepth(d, k)
-    private val superBit = SuperBit(d, N, k / N, seed, species)
+    private val N = computeSuperBitDepth(species.logicalSize, k)
+    val superBit = SuperBit(N, k / N, seed, samplingMethod, species)
 
     /**
      * Compute the Super-Bit depth N.
@@ -54,7 +61,11 @@ class SuperBitLSH(private var s: Int, private var b: Int, d: Int, seed: Long, sp
      * @return A int[] with the signature.
      */
     fun hash(vector: VectorValue<*>): IntArray {
-        return hashSignature(this.superBit.signature(vector))
+        return if (this.considerImaginary && vector is ComplexVectorValue) {
+            hashSignature(this.superBit.signatureComplex(vector))
+        } else {
+            hashSignature(superBit.signature(vector))
+        }
     }
 
     /**
@@ -64,17 +75,24 @@ class SuperBitLSH(private var s: Int, private var b: Int, d: Int, seed: Long, sp
      * @param signature
      * @return A vector of s integers (between 0 and b - 1)
      */
-    private fun hashSignature(signature: BooleanArray): IntArray {
+    private fun hashSignature(
+        signatureReal: BooleanArray,
+        signatureComplex: BooleanArray? = null
+    ): IntArray {
         // create an accumulator for each stage
+        // is this hashing locality preserving?
+        require(signatureReal.size == k)
         val acc = LongArray(s)
         for (i in 0 until s) {
             acc[i] = 0
         }
         // number of rows per stage
-        val rows = signature.size / s
-        for (i in signature.indices) {
+        val rows = signatureReal.size / s
+        for (i in signatureReal.indices) {
             var j: Long = 0
-            if (signature[i]) j = (i + 1) * LARGE_PRIME
+            if (signatureReal[i]) j = (i + 1) * LARGE_PRIME
+            // todo: Is this modification killing the hamming distance preserving features of this method (if it was there to begin with)?
+            if (signatureComplex != null && signatureComplex[i]) j += (i + 1) * LARGE_PRIME
             // current stage
             val k = (i / rows).coerceAtMost(s - 1)
             acc[k] = (acc[k] + j) % Int.MAX_VALUE

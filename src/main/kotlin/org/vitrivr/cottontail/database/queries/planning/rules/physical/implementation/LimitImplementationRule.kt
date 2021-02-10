@@ -18,7 +18,11 @@ object LimitImplementationRule : RewriteRule {
     override fun canBeApplied(node: NodeExpression): Boolean = node is LimitLogicalNodeExpression
     override fun apply(node: NodeExpression): NodeExpression? {
         if (node is LimitLogicalNodeExpression) {
-            val parent = (node.copyWithInputs() as LimitLogicalNodeExpression).input ?: throw NodeExpressionTreeException.IncompleteNodeExpressionTreeException(node, "Expected parent but none was found.")
+            val parent = (node.deepCopy() as LimitLogicalNodeExpression).input
+                ?: throw NodeExpressionTreeException.IncompleteNodeExpressionTreeException(
+                    node,
+                    "Expected parent but none was found."
+                )
             val p = LimitPhysicalNodeExpression(node.limit, node.skip)
             p.addInput(parent)
             node.copyOutput()?.addInput(p)

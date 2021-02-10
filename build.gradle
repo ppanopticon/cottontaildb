@@ -1,12 +1,11 @@
 buildscript {
-    ext.luceneVersion = '7.7.1'
-    ext.kotlinVersion = '1.4.20'
+    ext.luceneVersion = '7.7.3'
+    ext.kotlinVersion = '1.4.21'
 }
 
 plugins {
     id "org.jetbrains.kotlin.jvm" version "$kotlinVersion"
     id "org.jetbrains.kotlin.plugin.serialization" version "$kotlinVersion"
-
     id "com.github.johnrengelman.shadow" version "6.1.0"
 }
 
@@ -117,14 +116,15 @@ dependencies {
     ///// FastUtil
     compile group: 'it.unimi.dsi', name: 'fastutil', version: '8.4.3'
 
-    ////// Log4J
-    compile group: 'org.apache.logging.log4j', name: 'log4j-api', version: '2.13.3'
-    compile group: 'org.apache.logging.log4j', name: 'log4j-core', version: '2.13.3'
-    compile group: 'org.slf4j', name: 'slf4j-log4j12', version: '1.7.30'
+    ////// Log4j2 & SLF4j
+    compile group: 'org.apache.logging.log4j', name: 'log4j-api', version: '2.14.0'
+    compile group: 'org.apache.logging.log4j', name: 'log4j-core', version: '2.14.0'
+    compile group: 'org.apache.logging.log4j', name: 'log4j-slf4j-impl', version: '2.14.0'
 
     ////// Lucene
     compile group: 'org.apache.lucene', name: 'lucene-core', version: luceneVersion
     compile group: 'org.apache.lucene', name: 'lucene-analyzers-common', version: luceneVersion
+    compile group: 'org.apache.lucene', name: 'lucene-analyzers-phonetic', version: luceneVersion
     compile group: 'org.apache.lucene', name: 'lucene-codecs', version: luceneVersion
     compile group: 'org.apache.lucene', name: 'lucene-queryparser', version: luceneVersion
 

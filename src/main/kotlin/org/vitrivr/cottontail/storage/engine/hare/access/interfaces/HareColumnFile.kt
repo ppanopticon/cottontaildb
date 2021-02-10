@@ -1,6 +1,6 @@
 package org.vitrivr.cottontail.storage.engine.hare.access.interfaces
 
-import org.vitrivr.cottontail.database.column.ColumnType
+import org.vitrivr.cottontail.database.column.Type
 import org.vitrivr.cottontail.model.values.types.Value
 import org.vitrivr.cottontail.storage.engine.hare.basics.Resource
 import org.vitrivr.cottontail.storage.engine.hare.disk.HareDiskManager
@@ -23,11 +23,8 @@ interface HareColumnFile<T : Value> : Resource {
     /** The name of this [HareColumnFile]. */
     val name: String
 
-    /** The [ColumnType] describing the column managed by this [HareColumnFile]. */
-    val columnType: ColumnType<T>
-
-    /** The logical size of the values contained in this [HareColumnFile]. */
-    val logicalSize: Int
+    /** The [Type] describing the column managed by this [HareColumnFile]. */
+    val type: Type<T>
 
     /** Flag indicating whether this [HareColumnFile] supports null entries or not. */
     val nullable: Boolean

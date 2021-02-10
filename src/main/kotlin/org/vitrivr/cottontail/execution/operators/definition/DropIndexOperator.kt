@@ -20,7 +20,8 @@ import kotlin.time.measureTimedValue
  * @version 1.0.0
  */
 @ExperimentalTime
-class DropIndexOperator(val catalogue: Catalogue, val name: Name.IndexName) : AbstractDataDefinitionOperator(name, "DOP INDEX") {
+class DropIndexOperator(val catalogue: Catalogue, val name: Name.IndexName) :
+    AbstractDataDefinitionOperator(name, "DROP INDEX") {
     override fun toFlow(context: TransactionContext): Flow<Record> {
         val catTxn = context.getTx(this.catalogue) as CatalogueTx
         val schemaTxn = context.getTx(catTxn.schemaForName(this.name.schema())) as SchemaTx

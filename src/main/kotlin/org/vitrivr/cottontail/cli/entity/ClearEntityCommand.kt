@@ -2,9 +2,9 @@ package org.vitrivr.cottontail.cli.entity
 
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.prompt
+import org.vitrivr.cottontail.database.queries.binding.extensions.protoFrom
 import org.vitrivr.cottontail.grpc.CottontailGrpc
 import org.vitrivr.cottontail.grpc.DMLGrpc
-import org.vitrivr.cottontail.server.grpc.helper.protoFrom
 import org.vitrivr.cottontail.utilities.output.TabulationUtilities
 import kotlin.time.ExperimentalTime
 import kotlin.time.measureTimedValue

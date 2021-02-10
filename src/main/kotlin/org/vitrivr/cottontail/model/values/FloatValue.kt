@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.model.values
 
+import org.vitrivr.cottontail.database.column.Type
 import org.vitrivr.cottontail.model.values.types.NumericValue
 import org.vitrivr.cottontail.model.values.types.RealValue
 import org.vitrivr.cottontail.model.values.types.Value
@@ -11,7 +12,7 @@ import kotlin.math.pow
  * This is an abstraction over a [Float].
  *
  * @author Ralph Gasser
- * @version 1.3.1
+ * @version 1.5.0
  */
 inline class FloatValue(override val value: Float): RealValue<Float> {
 
@@ -44,8 +45,13 @@ inline class FloatValue(override val value: Float): RealValue<Float> {
      */
     constructor(number: NumericValue<*>) : this(number.value.toFloat())
 
+    /** The logical size of this [FloatValue]. */
     override val logicalSize: Int
-        get() = -1
+        get() = 1
+
+    /** The [Type] of this [FloatValue]. */
+    override val type: Type<*>
+        get() = Type.Float
 
     override val real: RealValue<Float>
         get() = this

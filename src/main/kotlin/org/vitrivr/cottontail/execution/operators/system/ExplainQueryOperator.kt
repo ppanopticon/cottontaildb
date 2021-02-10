@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.execution.operators.system
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import org.vitrivr.cottontail.database.column.Type
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.PhysicalNodeExpression
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.predicates.FilterPhysicalNodeExpression
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.projection.LimitPhysicalNodeExpression
@@ -27,17 +28,21 @@ import org.vitrivr.cottontail.model.values.types.Value
  * @version 1.0.0
  */
 class ExplainQueryOperator(val candidates: Collection<PhysicalNodeExpression>) : Operator.SourceOperator() {
-    override val columns: Array<ColumnDef<*>>
-        get() = arrayOf(
-                ColumnDef.withAttributes(Name.ColumnName("path"), "STRING", -1, false),
-                ColumnDef.withAttributes(Name.ColumnName("name"), "STRING", -1, false),
-                ColumnDef.withAttributes(Name.ColumnName("output_size"), "LONG", -1, false),
-                ColumnDef.withAttributes(Name.ColumnName("cost_cpu"), "FLOAT", -1, false),
-                ColumnDef.withAttributes(Name.ColumnName("cost_io"), "FLOAT", -1, false),
-                ColumnDef.withAttributes(Name.ColumnName("cost_memory"), "FLOAT", -1, false),
-                ColumnDef.withAttributes(Name.ColumnName("partitionable"), "BOOLEAN", -1, false),
-                ColumnDef.withAttributes(Name.ColumnName("comment"), "STRING", -1, true)
+
+    companion object {
+        val COLUMNS: Array<ColumnDef<*>> = arrayOf(
+            ColumnDef(Name.ColumnName("path"), Type.String, false),
+            ColumnDef(Name.ColumnName("name"), Type.String, false),
+            ColumnDef(Name.ColumnName("output_size"), Type.Long, false),
+            ColumnDef(Name.ColumnName("cost_cpu"), Type.Float, false),
+            ColumnDef(Name.ColumnName("cost_io"), Type.Float, false),
+            ColumnDef(Name.ColumnName("cost_memory"), Type.Float, false),
+            ColumnDef(Name.ColumnName("partitionable"), Type.Boolean, false),
+            ColumnDef(Name.ColumnName("comment"), Type.String, false)
         )
+    }
+
+    override val columns: Array<ColumnDef<*>> = COLUMNS
 
     override fun toFlow(context: TransactionContext): Flow<Record> {
         val candidate = this.candidates.sortedBy { it.totalCost }.first()

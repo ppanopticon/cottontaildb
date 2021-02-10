@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.catalogue.CatalogueTx
+import org.vitrivr.cottontail.database.column.Type
 import org.vitrivr.cottontail.database.schema.SchemaTx
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.execution.operators.basics.Operator
@@ -18,13 +19,18 @@ import kotlin.time.ExperimentalTime
  * An [Operator.SourceOperator] used during query execution. Lists all available [Entity]s.
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.0.1
  */
 class ListEntityOperator(val catalogue: Catalogue, val schema: Name.SchemaName? = null) : Operator.SourceOperator() {
-    override val columns: Array<ColumnDef<*>> = arrayOf(
-            ColumnDef.withAttributes(Name.ColumnName("dbo"), "STRING", -1, false),
-            ColumnDef.withAttributes(Name.ColumnName("class"), "STRING", -1, false)
-    )
+
+    companion object {
+        val COLUMNS: Array<ColumnDef<*>> = arrayOf(
+            ColumnDef(Name.ColumnName("dbo"), Type.String, false),
+            ColumnDef(Name.ColumnName("class"), Type.String, false)
+        )
+    }
+
+    override val columns: Array<ColumnDef<*>> = COLUMNS
 
     @ExperimentalTime
     override fun toFlow(context: TransactionContext): Flow<Record> {

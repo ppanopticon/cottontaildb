@@ -7,11 +7,9 @@ import org.mapdb.Serializer
 import org.mapdb.Store
 
 import org.vitrivr.cottontail.database.catalogue.Catalogue
-import org.vitrivr.cottontail.database.column.hare.HareColumn
 import org.vitrivr.cottontail.database.column.mapdb.MapDBColumn
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityHeader
-import org.vitrivr.cottontail.database.entity.EntityHeaderSerializer
 import org.vitrivr.cottontail.database.general.AbstractTx
 import org.vitrivr.cottontail.database.general.DBO
 import org.vitrivr.cottontail.database.general.TxStatus
@@ -25,6 +23,7 @@ import org.vitrivr.cottontail.utilities.extensions.read
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 import java.util.*
 import java.util.concurrent.locks.StampedLock
 import java.util.stream.Collectors
@@ -167,35 +166,27 @@ class Schema(override val name: Name.SchemaName, override val parent: Catalogue)
          * @param name The name of the [Entity] that should be created.
          * @param columns The [ColumnDef] of the columns the new [Entity] should have
          */
-        override fun createEntity(name: Name.EntityName, vararg columns: ColumnDef<*>) = this.withWriteLock {
+        override fun createEntity(name: Name.EntityName, vararg columns: ColumnDef<*>): Entity =
+            this.withWriteLock {
 
-            /* Check for duplicate columns in definition. */
-            columns.forEach { c1 ->
-                if (columns.count { c2 -> c1 == c2 } > 1) throw DatabaseException.DuplicateColumnException(c1.name)
-            }
-            if (this.listEntities().contains(name)) throw DatabaseException.EntityAlreadyExistsException(name)
-
-            try {
-                /* Create empty folder for entity. */
-                val data = this@Schema.path.resolve("entity_${name.simple}")
-                if (!Files.exists(data)) {
-                    Files.createDirectories(data)
-                } else {
-                    throw DatabaseException("Failed to create entity '$name'. Data directory '$data' seems to be occupied.")
+                if (this.listEntities()
+                        .contains(name)
+                ) throw DatabaseException.EntityAlreadyExistsException(name)
+                columns.forEach { i ->
+                    if (columns.count { o -> i == o } > 0) {
+                        throw DatabaseException.DuplicateColumnException(i.name)
+                    }
                 }
+                try {
+                    /* Create empty folder for entity. */
+                    val data = this@Schema.path.resolve("entity_${name.simple}")
+                    if (!Files.exists(data)) {
+                        Files.createDirectories(data)
+                    } else {
+                        throw DatabaseException("Failed to create entity '$name'. Data directory '$data' seems to be occupied.")
+                    }
 
-                /* ON COMMIT: Make entity available. */
-                this.postCommitAction.add {
-                    this@Schema.registry[name] = Entity(name, this@Schema)
-                }
-
-                /* ON ROLLBACK: Delete unused entity folder. */
-                this.postRollbackAction.add {
-                    val pathsToDelete = Files.walk(data).sorted(Comparator.reverseOrder()).collect(Collectors.toList())
-                    pathsToDelete.forEach { Files.delete(it) }
-                }
-
-                /* Store entry for new entity. */
+                    /* Store entry for new entity. */
                 val recId = this@Schema.store.put(name.simple, Serializer.STRING)
 
                 /* Generate the entity. */
@@ -204,20 +195,40 @@ class Schema(override val name: Name.SchemaName, override val parent: Catalogue)
 
                 /* Initialize the entities header. */
                 val columnIds = columns.map {
-                    HareColumn.initialize(it, data, this@Schema.parent.config.hare)
+                    MapDBColumn.initialize(it, data, this@Schema.parent.config.mapdb)
                     store.put(it.name.simple, Serializer.STRING)
                 }.toLongArray()
-                store.update(Entity.HEADER_RECORD_ID, EntityHeader(columns = columnIds), EntityHeaderSerializer)
-                store.commit()
-                store.close()
+                    store.update(
+                        Entity.HEADER_RECORD_ID,
+                        EntityHeader(columns = columnIds),
+                        EntityHeader.Serializer
+                    )
+                    store.commit()
+                    store.close()
 
-                /* Update schema header. */
-                val header = this@Schema.header
-                header.modified = System.currentTimeMillis()
-                header.entities = header.entities.copyOf(header.entities.size + 1)
-                header.entities[header.entities.size - 1] = recId
-                this@Schema.store.update(HEADER_RECORD_ID, header, SchemaHeaderSerializer)
-            } catch (e: DBException) {
+                    /* Update schema header. */
+                    val header = this@Schema.header
+                    header.modified = System.currentTimeMillis()
+                    header.entities = header.entities.copyOf(header.entities.size + 1)
+                    header.entities[header.entities.size - 1] = recId
+                    this@Schema.store.update(HEADER_RECORD_ID, header, SchemaHeaderSerializer)
+
+                    /* ON COMMIT: Make entity available. */
+                    val entity = Entity(name, this@Schema)
+                    this.postCommitAction.add {
+                        this@Schema.registry[name] = entity
+                    }
+
+                    /* ON ROLLBACK: Delete unused entity folder. */
+                    this.postRollbackAction.add {
+                        entity.close()
+                        val pathsToDelete = Files.walk(data).sorted(Comparator.reverseOrder())
+                            .collect(Collectors.toList())
+                        pathsToDelete.forEach { Files.delete(it) }
+                    }
+
+                    return entity
+                } catch (e: DBException) {
                 this.status = TxStatus.ERROR
                 throw DatabaseException("Failed to create entity '$name' due to error in the underlying data store: {${e.message}")
             } catch (e: IOException) {
@@ -248,7 +259,7 @@ class Schema(override val name: Name.SchemaName, override val parent: Catalogue)
             try {
                 /* Rename folder and of entity it for deletion. */
                 val shadowEntity = entity.path.resolveSibling(entity.path.fileName.toString() + "~dropped")
-                Files.move(entity.path, shadowEntity)
+                Files.move(entity.path, shadowEntity, StandardCopyOption.ATOMIC_MOVE)
 
                 /* ON COMMIT: Remove schema from registry and delete files. */
                 this.postCommitAction.add {
@@ -259,7 +270,7 @@ class Schema(override val name: Name.SchemaName, override val parent: Catalogue)
 
                 /* ON ROLLBACK: Re-map entity and move back files. */
                 this.postRollbackAction.add {
-                    Files.move(shadowEntity, entity.path)
+                    Files.move(shadowEntity, entity.path, StandardCopyOption.ATOMIC_MOVE)
                     this@Schema.registry[name] = Entity(name, this@Schema)
                     this.context.releaseLock(entity)
                 }

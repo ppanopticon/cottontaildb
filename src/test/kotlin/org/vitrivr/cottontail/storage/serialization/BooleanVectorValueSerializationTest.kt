@@ -4,21 +4,23 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
+
 import org.vitrivr.cottontail.TestConstants
-import org.vitrivr.cottontail.database.column.ColumnType
-import org.vitrivr.cottontail.database.general.begin
+import org.vitrivr.cottontail.database.column.Type
+import org.vitrivr.cottontail.execution.TransactionType
 import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.BooleanVectorValue
 import org.vitrivr.cottontail.model.values.IntValue
 import org.vitrivr.cottontail.utilities.VectorUtility
+
 import java.util.*
 
 /**
  * Test case that tests for correctness of [BooleanVectorValue] serialization and deserialization.
  *
  * @author Ralph Gasser
- * @version 1.0.1
+ * @version 1.0
  */
 class BooleanVectorValueSerializationTest : AbstractSerializationTest() {
 
@@ -31,38 +33,50 @@ class BooleanVectorValueSerializationTest : AbstractSerializationTest() {
     @ParameterizedTest
     @MethodSource("dimensions")
     fun test(dimension: Int) {
-        val nameEntity = this.schemaName.entity("boolean-test")
-        val idCol = ColumnDef(nameEntity.column("id"), ColumnType.forName("INTEGER"), -1, false)
-        val vectorCol = ColumnDef(nameEntity.column("vector"), ColumnType.forName("BOOL_VEC"), dimension, false)
+        val nameEntity = this.schema.name.entity("boolean-test")
+        val idCol = ColumnDef(nameEntity.column("id"), Type.forName("INTEGER"), -1, false)
+        val vectorCol =
+            ColumnDef(nameEntity.column("vector"), Type.forName("BOOL_VEC"), dimension, false)
 
         /* Prepare entity. */
         val columns = arrayOf(idCol, vectorCol)
-        this.catalogue.createEntity(nameEntity, *columns)
-        val entity = this.catalogue.instantiateEntity(nameEntity)
+        val txn = this.manager.Transaction(TransactionType.USER)
+        val schemaTx = this.schema.Tx(txn)
+        schemaTx.createEntity(nameEntity, *columns)
+        schemaTx.commit()
+
+        /* Load entity. */
+        val entity = schemaTx.entityForName(nameEntity)
+        val entityTx = entity.Tx(context = txn)
 
         /* Prepare random number generator. */
         val seed = System.currentTimeMillis()
         val r1 = SplittableRandom(seed)
 
         /* Insert data into column. */
-        entity.Tx(false).begin { tx1 ->
-            var i1 = 1L
-            VectorUtility.randomBoolVectorSequence(dimension, TestConstants.collectionSize, r1).forEach {
-                tx1.insert(StandaloneRecord(columns = columns, values = arrayOf(IntValue(i1++), it)))
+        var i1 = 1L
+        VectorUtility.randomBoolVectorSequence(dimension, TestConstants.collectionSize, r1)
+            .forEach {
+                entityTx.insert(
+                    StandaloneRecord(
+                        columns = columns,
+                        values = arrayOf(IntValue(++i1), it)
+                    )
+                )
             }
-            true
-        }
 
         /* Read data from column. */
         val r2 = SplittableRandom(seed)
-        entity.Tx(true).begin { tx2 ->
-            var i2 = 1L
-            VectorUtility.randomBoolVectorSequence(dimension, TestConstants.collectionSize, r2).forEach {
-                val rec2 = tx2.read(i2 - 1, columns)
-                Assertions.assertEquals(i2++, (rec2[idCol] as IntValue).asLong().value)
+        var i2 = 1L
+        VectorUtility.randomBoolVectorSequence(dimension, TestConstants.collectionSize, r2)
+            .forEach {
+                val rec2 = entityTx.read(++i2, columns)
+                Assertions.assertEquals(i2, (rec2[idCol] as IntValue).asLong().value)
                 Assertions.assertArrayEquals(it.data, (rec2[vectorCol] as BooleanVectorValue).data)
             }
-            true
-        }
+
+        /* Close all Txs */
+        entityTx.close()
+        schemaTx.close()
     }
 }

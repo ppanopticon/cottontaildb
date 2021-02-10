@@ -2,17 +2,18 @@ package org.vitrivr.cottontail.database.index
 
 import org.vitrivr.cottontail.database.events.DataChangeEvent
 import org.vitrivr.cottontail.database.general.Tx
-import org.vitrivr.cottontail.database.queries.components.Predicate
+import org.vitrivr.cottontail.database.queries.predicates.Predicate
 import org.vitrivr.cottontail.model.basics.*
 import org.vitrivr.cottontail.model.exceptions.TxException
 
 /**
- * A [Transaction] that operates on a single [Index]. [Transaction]s are a unit of isolation for data operations (read/write).
+ * A [Tx] that operates on a single [Index]. [Tx]s are a unit of isolation for data operations (read/write).
  *
  * @author Ralph Gasser
- * @version 1.4.1
+ * @version 1.5.0
  */
-interface IndexTx : Tx, Filterable {
+interface IndexTx : Tx, Filterable, Countable {
+
     /** The simple [Name]s of the [Index] that underpins this [IndexTx] */
     val name: Name
 
@@ -24,9 +25,6 @@ interface IndexTx : Tx, Filterable {
 
     /** The [IndexType] of the [Index] that underpins this [IndexTx]. */
     val type: IndexType
-
-    /** True, if the [Index] underpinning this [IndexTx] supports incremental updates, and false otherwise. */
-    val supportsIncrementalUpdate: Boolean
 
     /**
      * (Re-)builds the underlying [Index] completely.
@@ -41,11 +39,11 @@ interface IndexTx : Tx, Filterable {
      *
      * Not all [Index] implementations support incremental updates. Should be indicated by [IndexTransaction#supportsIncrementalUpdate()]
      *
-     * @param update Collection of [Record]s to updated wrapped by the corresponding [DataChangeEvent].
-     * @throws [TxException.TxValidationException] If rebuild of [Index] fails for some reason.
+     * @param update [DataChangeEvent] that should be processed.
+     * @throws [TxException.TxValidationException] If update of [Index] fails for some reason.
      */
     @Throws(TxException.TxValidationException::class)
-    fun update(update: Collection<DataChangeEvent>)
+    fun update(event: DataChangeEvent)
 
     /**
      * Performs a lookup through this [IndexTx] and returns a [CloseableIterator] of
@@ -55,4 +53,17 @@ interface IndexTx : Tx, Filterable {
      * @return The resulting [CloseableIterator].
      */
     override fun filter(predicate: Predicate): CloseableIterator<Record>
+
+    /**
+     * Performs a lookup through this [IndexTx] and returns a [CloseableIterator] of
+     * all the [Record]s that match the [Predicate] and fall within the specified data
+     * [LongRange], which must lie in 0..[count].
+     *
+     * Not all [Index] implementations support range filtering.
+     *
+     * @param predicate The [Predicate] to perform the lookup.
+     * @param range The [LongRange] to consider.
+     * @return The resulting [CloseableIterator].
+     */
+    fun filterRange(predicate: Predicate, range: LongRange): CloseableIterator<Record>
 }

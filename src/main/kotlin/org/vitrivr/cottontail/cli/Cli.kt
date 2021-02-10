@@ -146,6 +146,7 @@ class Cli(val host: String = "localhost", val port: Int = 1865) {
                     is com.github.ajalt.clikt.core.MissingArgument,
                     is com.github.ajalt.clikt.core.MissingOption,
                     is com.github.ajalt.clikt.core.BadParameterValue,
+                    is com.github.ajalt.clikt.core.UsageError,
                     is com.github.ajalt.clikt.core.NoSuchOption -> println(e.localizedMessage)
                     is StatusException, /* Exceptions reported by Cottontail DB via gRPC. */
                     is StatusRuntimeException -> println(e.localizedMessage)
@@ -255,19 +256,21 @@ class Cli(val host: String = "localhost", val port: Int = 1865) {
                         override fun aliases(): Map<String, List<String>> {
                             /* List of entity aliases: entity <alias> */
                             return mapOf(
-                                    "ls" to listOf("list"),
-                                    "list-indexes" to listOf("list-indices")
+                                "ls" to listOf("list"),
+                                "list-indexes" to listOf("list-indices")
                             )
                         }
                     }.subcommands(
-                            AboutEntityCommand(this.ddlService),
-                            ClearEntityCommand(this.dmlService),
-                            CreateEntityCommand(this.ddlService),
-                            DropEntityCommand(this.ddlService),
-                            ListAllEntitiesCommand(this.ddlService),
-                            OptimizeEntityCommand(this.ddlService),
-                            CreateIndexCommand(this.ddlService),
-                            DropIndexCommand(this.ddlService)
+                        AboutEntityCommand(this.ddlService),
+                        ClearEntityCommand(this.dmlService),
+                        CreateEntityCommand(this.ddlService),
+                        DropEntityCommand(this.ddlService),
+                        DumpEntityCommand(this.dqlService),
+                        ListAllEntitiesCommand(this.ddlService),
+                        OptimizeEntityCommand(this.ddlService),
+                        CreateIndexCommand(this.ddlService),
+                        DropIndexCommand(this.ddlService),
+                        ImportDataCommand(this.ddlService, this.dmlService, this.txnService)
                     ),
 
                     /* Schema related commands. */

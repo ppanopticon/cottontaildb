@@ -1,6 +1,6 @@
 package org.vitrivr.cottontail.storage.engine.hare.access.column.variable
 
-import org.vitrivr.cottontail.database.column.ColumnType
+import org.vitrivr.cottontail.database.column.Type
 import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.TupleId
@@ -46,7 +46,8 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean) : HareColu
          * @param columnDef The [ColumnDef] that describes this [VariableHareColumnFile].
          */
         fun create(path: Path, columnDef: ColumnDef<*>) {
-            val entrySize = columnDef.serializer.physicalSize + SlottedPageView.SIZE_ENTRY /* Each entry has a offset entry on the slotted page. */
+            val entrySize =
+                columnDef.type.physicalSize + SlottedPageView.SIZE_ENTRY /* Each entry has a offset entry on the slotted page. */
             val pageShift = determinePageSize(entrySize)
             HareDiskManager.create(path, pageShift)
 
@@ -96,11 +97,8 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean) : HareColu
     override val name: String
         get() = this.path.fileName.toString().replace(".${HareColumnFile.SUFFIX}", "")
 
-    /** The [ColumnType] describing the column managed by this [VariableHareColumnFile]. */
-    override val columnType: ColumnType<T>
-
-    /** The logical size of the values contained in this [VariableHareColumnFile]. */
-    override val logicalSize: Int
+    /** The [Type] describing the column managed by this [VariableHareColumnFile]. */
+    override val type: Type<T>
 
     /** Flag indicating whether this [VariableHareColumnFile] supports null entries or not. */
     override val nullable: Boolean
@@ -119,8 +117,7 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean) : HareColu
 
         this.disk.read(tid, FixedHareColumnFile.ROOT_PAGE_ID, page)
         val header = HeaderPageView(page).validate()
-        this.columnType = header.type as ColumnType<T>
-        this.logicalSize = header.size
+        this.type = header.type
         this.nullable = header.nullable
     }
 

@@ -14,5 +14,7 @@ out
 
 *.db
 data/
+testOut/
+*.log
 cottontaildb-data
 cottontaildb-data-*

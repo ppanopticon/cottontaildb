@@ -1,25 +1,34 @@
 package org.vitrivr.cottontail.database.queries.planning.nodes.physical.predicates
 
-import org.vitrivr.cottontail.database.queries.components.BooleanPredicate
+import org.vitrivr.cottontail.database.queries.QueryContext
+import org.vitrivr.cottontail.database.queries.binding.BooleanPredicateBinding
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.UnaryPhysicalNodeExpression
-import org.vitrivr.cottontail.execution.TransactionManager
+import org.vitrivr.cottontail.database.queries.predicates.bool.BooleanPredicate
+import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.execution.operators.basics.Operator
 import org.vitrivr.cottontail.execution.operators.predicates.FilterOperator
 import org.vitrivr.cottontail.execution.operators.predicates.ParallelFilterOperator
+import org.vitrivr.cottontail.model.basics.ColumnDef
 
 /**
  * A [UnaryPhysicalNodeExpression] that represents application of a [BooleanPredicate] on some intermediate result.
  *
  * @author Ralph Gasser
- * @version 1.0.1
+ * @version 1.1.0
  */
-class FilterPhysicalNodeExpression(val predicate: BooleanPredicate, val selectivity: Float = Cost.COST_DEFAULT_SELECTIVITY) : UnaryPhysicalNodeExpression() {
+class FilterPhysicalNodeExpression(val predicate: BooleanPredicateBinding) :
+    UnaryPhysicalNodeExpression() {
 
     companion object {
-        const val MAX_PARALLELISATION = 4
+        const val MAX_PARALLELISM = 4
     }
 
+    private val selectivity: Float = Cost.COST_DEFAULT_SELECTIVITY
+
+    /** The [FilterPhysicalNodeExpression] returns the [ColumnDef] of its input. */
+    override val columns: Array<ColumnDef<*>>
+        get() = this.input.columns
 
     override val outputSize: Long
         get() = (this.input.outputSize * this.selectivity).toLong()
@@ -27,14 +36,22 @@ class FilterPhysicalNodeExpression(val predicate: BooleanPredicate, val selectiv
     override val cost: Cost
         get() = Cost(cpu = this.input.outputSize * this.predicate.cost * Cost.COST_MEMORY_ACCESS)
 
-    override fun copy() = FilterPhysicalNodeExpression(this.predicate, this.selectivity)
-    override fun toOperator(engine: TransactionManager): Operator {
-        val parallelisation = Integer.min(this.cost.parallelisation(), MAX_PARALLELISATION)
-        return if (parallelisation > 1) {
-            val operators = this.input.partition(parallelisation).map { it.toOperator(engine) }
-            ParallelFilterOperator(operators, this.predicate)
+    override fun copy() = FilterPhysicalNodeExpression(this.predicate)
+
+    override fun toOperator(tx: TransactionContext, ctx: QueryContext): Operator {
+        val parallelisation = Integer.min(this.cost.parallelisation(), MAX_PARALLELISM)
+        return if (this.canBePartitioned && parallelisation > 1) {
+            val operators = this.input.partition(parallelisation).map { it.toOperator(tx, ctx) }
+            ParallelFilterOperator(operators, this.predicate.apply(ctx))
         } else {
-            FilterOperator(this.input.toOperator(engine), this.predicate)
+            FilterOperator(this.input.toOperator(tx, ctx), this.predicate.apply(ctx))
         }
     }
+
+    /**
+     * Calculates and returns the digest for this [FilterPhysicalNodeExpression].
+     *
+     * @return Digest for this [FilterPhysicalNodeExpression]e
+     */
+    override fun digest(): Long = 31L * super.digest() + this.predicate.hashCode()
 }

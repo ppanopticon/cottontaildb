@@ -7,7 +7,7 @@ import org.vitrivr.cottontail.model.values.IntValue
  * values are always numeric! This  is an abstraction over the existing primitive array types provided
  * by Kotlin. It allows for the advanced type system implemented by Cottontail DB.
  *
- * @version 1.3.2
+ * @version 1.4.0
  * @author Ralph Gasser
  */
 interface VectorValue<T : Number> : Value {
@@ -42,6 +42,17 @@ interface VectorValue<T : Number> : Value {
     fun getAsBool(i: Int): Boolean
 
     /**
+     * Returns a sub vector of this [VectorValue] starting at the component [start]
+     * and containing [length] components.
+     *
+     * @param start Index of the first entry of the returned vector.
+     * @param length how many elements, including start, to return
+     *
+     * @return The [VectorValue] representing the sub-vector.
+     */
+    fun subvector(start: Int, length: Int): VectorValue<T>
+
+    /**
      * Returns true, if this [VectorValue] consists of all zeroes, i.e. [0, 0, ... 0]
      *
      * @return True, if this [VectorValue] consists of all zeroes
@@ -68,6 +79,13 @@ interface VectorValue<T : Number> : Value {
      * @return Exact copy of this [VectorValue].
      */
     fun copy(): VectorValue<T>
+
+    /**
+     * Creates and returns a new [VectorValue] of the same type and dimension as this [VectorValue].
+     *
+     * @return New [VectorValue] of the same type and dimension as this [VectorValue].
+     */
+    fun new(): VectorValue<T>
 
     /**
      * Calculates the element-wise sum of this and the other [VectorValue].
@@ -176,7 +194,6 @@ interface VectorValue<T : Number> : Value {
      * @param other The [VectorValue] to calculate the distance to.
      */
     infix fun l2(other: VectorValue<*>): RealValue<*> = ((this - other).abs().pow(2)).sum().sqrt().real
-    // todo: abs() will by definition return a vector with components >= 0 and pow() of that can only give reals...
 
     /**
      * Special implementation of the LP / Minkowski distance. Can be overridden to create optimized versions of it.

@@ -2,7 +2,8 @@ package org.vitrivr.cottontail.execution.operators.predicates
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.*
-import org.vitrivr.cottontail.database.queries.components.KnnPredicate
+
+import org.vitrivr.cottontail.database.queries.predicates.knn.KnnPredicate
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.execution.operators.basics.Operator
 import org.vitrivr.cottontail.math.knn.selection.ComparablePair
@@ -10,7 +11,6 @@ import org.vitrivr.cottontail.math.knn.selection.MinHeapSelection
 import org.vitrivr.cottontail.math.knn.selection.MinSingleSelection
 import org.vitrivr.cottontail.math.knn.selection.Selection
 import org.vitrivr.cottontail.model.basics.ColumnDef
-import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.Record
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.DoubleValue
@@ -28,13 +28,13 @@ import org.vitrivr.cottontail.utilities.math.KnnUtilities
  * @author Ralph Gasser
  * @version 1.1.1
  */
-class ParallelKnnOperator(parents: List<Operator>, val knn: KnnPredicate<*>) : Operator.MergingPipelineOperator(parents) {
+class ParallelKnnOperator(parents: List<Operator>, val knn: KnnPredicate) :
+    Operator.MergingPipelineOperator(parents) {
 
     /** The columns produced by this [ParallelKnnOperator]. */
     override val columns: Array<ColumnDef<*>> = arrayOf(
-            *this.parents.first().columns,
-            ColumnDef(this.knn.column.name.entity()?.column(KnnUtilities.DISTANCE_COLUMN_NAME)
-                    ?: Name.ColumnName(KnnUtilities.DISTANCE_COLUMN_NAME), KnnUtilities.DISTANCE_COLUMN_TYPE)
+        *this.parents.first().columns,
+        KnnUtilities.distanceColumnDef(this.knn.column.name.entity())
     )
 
     /** [ParallelKnnOperator] does act as a pipeline breaker. */

@@ -7,11 +7,12 @@ import kotlin.math.min
 
 /**
  * This is a [Selection] implementation for nearest neighbor search (NNS). It selects the k smallest
- * [Comparable]s it has encountered in a stream of [Comparable]s. Implementation inspired by the
- * Smile library (@see https://github.com/haifengl/smile)
+ * [Comparable]s it has encountered in a stream of [Comparable]s.
+ *
+ * Implementation inspired by the Smile library (@see https://github.com/haifengl/smile)
  *
  * @author Ralph Gasser
- * @version 1.1
+ * @version 1.1.0
  */
 class MinHeapSelection<T : Comparable<T>>(override val k: Int) : Selection<T> {
 
@@ -58,18 +59,21 @@ class MinHeapSelection<T : Comparable<T>>(override val k: Int) : Selection<T> {
     }
 
     /**
-     * Returns the k-th smallest value seen so far by this [MinHeapSelection]
+     * Returns the largest (i.e. i == k-1) value retained by this [MinHeapSelection].
      *
-     * @return Smallest value seen so far.
+     * @return Largest value seen so far.
      */
     override fun peek(): T? = this.accessLock.read {
         return this.heap.firstOrNull()
     }
 
     /**
-     * Returns the i-*th* smallest value seen so far. i = 0 returns the smallest
-     * value seen, i = 1 the second largest, ..., i = k-1 the last position
-     * tracked. Also, i must be less than the number of previous assimilated.
+     * Returns the i-*th* retained value seen  by this [MinHeapSelection]. i = 0 returns the
+     * smallest value seen, i = 1 the second smallest, ..., i = k-1 the largest value tracked.
+     * Also, i must be less than the number of previous assimilated.
+     *
+     * @param i The index of the value to return
+     * @return The i-th smallest value retained by this [MinHeapSelection]
      */
     override operator fun get(i: Int): T = this.accessLock.write {
         val maxIdx = this.heap.size - 1

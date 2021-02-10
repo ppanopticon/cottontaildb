@@ -6,7 +6,6 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collect
 import org.slf4j.LoggerFactory
-import org.vitrivr.cottontail.config.ExecutionConfig
 import org.vitrivr.cottontail.database.general.DBO
 import org.vitrivr.cottontail.database.general.Tx
 import org.vitrivr.cottontail.database.locking.*
@@ -17,9 +16,7 @@ import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.model.exceptions.ExecutionException
 import org.vitrivr.cottontail.model.exceptions.TransactionException
 import java.util.*
-import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ThreadPoolExecutor
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.collections.ArrayList
@@ -30,24 +27,15 @@ import kotlin.concurrent.withLock
  * create and execute queries within different [Transaction]s.
  *
  * @author Ralph Gasser
- * @version 1.2.0
+ * @version 1.3.0
  */
-class TransactionManager(config: ExecutionConfig) {
+class TransactionManager(private val executor: ThreadPoolExecutor) {
     /** Logger used for logging the output. */
     companion object {
         private val LOGGER = LoggerFactory.getLogger(TransactionManager::class.java)
         private const val TRANSACTION_TABLE_SIZE = 100
         private const val TRANSACTION_HISTORY = 500
     }
-
-    /** The [ThreadPoolExecutor] used for executing queries. */
-    private val executor = ThreadPoolExecutor(
-            config.coreThreads,
-            config.maxThreads,
-            config.keepAliveMs,
-            TimeUnit.MILLISECONDS,
-            ArrayBlockingQueue(config.queueSize)
-    )
 
     /** The [ExecutorCoroutineDispatcher] used for executing queries. */
     private val dispatcher = this.executor.asCoroutineDispatcher()
@@ -64,10 +52,6 @@ class TransactionManager(config: ExecutionConfig) {
     /** The [LockManager] instance used by this [TransactionManager]. */
     val lockManager = LockManager()
 
-    /** The number of [Thread]s currently available. This is an estimate and may change very quickly. */
-    val availableThreads
-        get() = this@TransactionManager.executor.maximumPoolSize - this@TransactionManager.executor.activeCount
-
     /**
      * Returns the [Transaction] for the provided [TransactionId].
      *
@@ -83,9 +67,10 @@ class TransactionManager(config: ExecutionConfig) {
      * differ depending on that type.
      *
      * @author Ralph Gasser
-     * @version 1.1.0
+     * @version 1.2.0
      */
-    inner class Transaction(val type: TransactionType) : LockHolder(this@TransactionManager.tidCounter.getAndIncrement()), TransactionContext {
+    inner class Transaction(override val type: TransactionType) :
+        LockHolder(this@TransactionManager.tidCounter.getAndIncrement()), TransactionContext {
 
         /** The [TransactionStatus] of this [Transaction]. */
         @Volatile
@@ -93,7 +78,8 @@ class TransactionManager(config: ExecutionConfig) {
             private set
 
         /** Map of all [Tx] that have been created as part of this [Transaction]. */
-        private val txns: MutableMap<DBO, Tx> = Collections.synchronizedMap(Object2ObjectOpenHashMap())
+        private val txns: MutableMap<DBO, Tx> =
+            Collections.synchronizedMap(Object2ObjectOpenHashMap())
 
         /** A [ReentrantLock] that mediates access to primitives that govern this [Transaction]. */
         private val lock = ReentrantLock()
@@ -107,6 +93,10 @@ class TransactionManager(config: ExecutionConfig) {
         /** Timestamp of when this [Transaction] was either COMMITTED or ABORTED. */
         var ended: Long? = null
             private set
+
+        /** The number of [Thread]s currently available. This is an estimate and may change very quickly. */
+        override val availableThreads
+            get() = this@TransactionManager.executor.maximumPoolSize - this@TransactionManager.executor.activeCount
 
         /** Reference to the [TransactionManager]s [ExecutorCoroutineDispatcher].*/
         override val dispatcher
@@ -165,29 +155,43 @@ class TransactionManager(config: ExecutionConfig) {
          */
         fun execute(operator: Operator.SinkOperator) {
             check(this.state === TransactionStatus.READY) { "Could not schedule operator for transaction ${this.txId} because it is in wrong state (s = ${this.state})." }
-            this.lock.withLock {
-                runBlocking(this.dispatcher) {
-                    try {
-                        this@Transaction.state = TransactionStatus.RUNNING
-                        operator.toFlow(this@Transaction).collect()
-                        this@Transaction.state = TransactionStatus.READY
-                    } catch (e: DeadlockException) {
-                        LOGGER.debug("Deadlock encountered during execution of transaction ${this@Transaction.txId}.", e)
-                        this@Transaction.state = TransactionStatus.ERROR
-                        throw TransactionException.DeadlockException(this@Transaction.txId, e)
-                    } catch (e: ExecutionException.OperatorExecutionException) {
-                        LOGGER.debug("Unhandled exception during operator execution in transaction ${this@Transaction.txId}.", e)
-                        this@Transaction.state = TransactionStatus.ERROR
-                        throw e
-                    } catch (e: DatabaseException) {
-                        LOGGER.warn("Unhandled database exception during execution of transaction ${this@Transaction.txId}.", e)
-                        this@Transaction.state = TransactionStatus.ERROR
-                        throw e
-                    } catch (e: Throwable) {
-                        LOGGER.error("Unhandled exception during query execution of transaction ${this@Transaction.txId}.", e)
-                        this@Transaction.state = TransactionStatus.ERROR
-                        throw ExecutionException("Unhandled exception during execution of transaction ${this@Transaction.txId}: ${e.message}.")
-                    }
+            runBlocking(this.dispatcher) {
+                try {
+                    this@Transaction.state = TransactionStatus.RUNNING
+                    operator.toFlow(this@Transaction).collect()
+                    this@Transaction.state = TransactionStatus.READY
+                } catch (e: DeadlockException) {
+                    LOGGER.debug(
+                        "Deadlock encountered during execution of transaction ${this@Transaction.txId}.",
+                        e
+                    )
+                    this@Transaction.state = TransactionStatus.ERROR
+                    this@Transaction.rollback()
+                    throw TransactionException.DeadlockException(this@Transaction.txId, e)
+                } catch (e: ExecutionException.OperatorExecutionException) {
+                    LOGGER.debug(
+                        "Unhandled exception during operator execution in transaction ${this@Transaction.txId}.",
+                        e
+                    )
+                    this@Transaction.state = TransactionStatus.ERROR
+                    this@Transaction.rollback()
+                    throw e
+                } catch (e: DatabaseException) {
+                    LOGGER.warn(
+                        "Unhandled database exception during execution of transaction ${this@Transaction.txId}.",
+                        e
+                    )
+                    this@Transaction.state = TransactionStatus.ERROR
+                    this@Transaction.rollback()
+                    throw e
+                } catch (e: Throwable) {
+                    LOGGER.error(
+                        "Unhandled exception during query execution of transaction ${this@Transaction.txId}.",
+                        e
+                    )
+                    this@Transaction.state = TransactionStatus.ERROR
+                    this@Transaction.rollback()
+                    throw ExecutionException("Unhandled exception during execution of transaction ${this@Transaction.txId}: ${e.message}.")
                 }
             }
         }
@@ -197,6 +201,7 @@ class TransactionManager(config: ExecutionConfig) {
          */
         fun commit() = this.lock.withLock {
             check(this.state === TransactionStatus.READY) { "Cannot commit transaction ${this.txId} because it is in wrong state (s = ${this.state})." }
+            this.state = TransactionStatus.FINALIZING
             this@Transaction.txns.values.forEach { txn ->
                 txn.commit()
                 txn.close()
@@ -212,6 +217,7 @@ class TransactionManager(config: ExecutionConfig) {
          */
         fun rollback() = this.lock.withLock {
             check(this.state === TransactionStatus.READY || this.state === TransactionStatus.ERROR) { "Cannot rollback transaction ${this.txId} because it is in wrong state (s = ${this.state})." }
+            this.state = TransactionStatus.FINALIZING
             this@Transaction.txns.values.forEach { txn ->
                 txn.rollback()
                 txn.close()

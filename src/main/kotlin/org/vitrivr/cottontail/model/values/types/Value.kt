@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.model.values.types
 
+import org.vitrivr.cottontail.database.column.Type
 import java.util.*
 
 /**
@@ -7,7 +8,7 @@ import java.util.*
  * advanced type system implemented by Cottontail DB.
  *
  * @author Ralph Gasser
- * @version 1.3.0
+ * @version 1.5.0
  */
 interface Value : Comparable<Value> {
     companion object {
@@ -18,6 +19,9 @@ interface Value : Comparable<Value> {
 
     /** Size of this [Value]. */
     val logicalSize: Int
+
+    /** The [Type] of this [Value]. */
+    val type: Type<*>
 
     /**
      * Compares two [Value]s. Returns true, if they are equal, and false otherwise.

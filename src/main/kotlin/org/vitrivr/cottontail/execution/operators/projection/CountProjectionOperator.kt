@@ -3,6 +3,8 @@ package org.vitrivr.cottontail.execution.operators.projection
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
+import org.vitrivr.cottontail.database.column.Type
+import org.vitrivr.cottontail.database.queries.projection.Projection
 import org.vitrivr.cottontail.execution.TransactionContext
 
 import org.vitrivr.cottontail.execution.operators.basics.Operator
@@ -13,18 +15,23 @@ import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.LongValue
 
 /**
- * An [Operator.PipelineOperator] used during query execution. It counts the number of rows it encounters
- * and returns the value as [Record].
+ * An [Operator.PipelineOperator] used during query execution. It counts the number of rows it
+ * encounters and returns the value as [Record].
  *
  * Only produces a single [Record]. Acts as pipeline breaker.
  *
  * @author Ralph Gasser
- * @version 1.1.1
+ * @version 1.2.0
  */
 class CountProjectionOperator(parent: Operator) : Operator.PipelineOperator(parent) {
     /** Column returned by [CountProjectionOperator]. */
-    override val columns: Array<ColumnDef<*>> = arrayOf(ColumnDef.withAttributes(parent.columns.first().name.entity()?.column("count()")
-            ?: Name.ColumnName("count()"), "LONG"))
+    override val columns: Array<ColumnDef<*>> = arrayOf(
+        ColumnDef(
+            name = parent.columns.first().name.entity()?.column(Projection.COUNT.label())
+                ?: Name.ColumnName(Projection.COUNT.label()),
+            type = Type.Long
+        )
+    )
 
     /** [CountProjectionOperator] does act as a pipeline breaker. */
     override val breaker: Boolean = true
@@ -40,7 +47,7 @@ class CountProjectionOperator(parent: Operator) : Operator.PipelineOperator(pare
         return flow {
             var counter = 0L
             parentFlow.collect { counter += 1 }
-            emit(StandaloneRecord(0L, this@CountProjectionOperator.columns, arrayOf(LongValue(counter))))
+            emit(StandaloneRecord(0L, this@CountProjectionOperator.columns[0], LongValue(counter)))
         }
     }
 }

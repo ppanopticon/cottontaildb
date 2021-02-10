@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.catalogue.CatalogueTx
+import org.vitrivr.cottontail.database.column.Type
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.schema.SchemaTx
 import org.vitrivr.cottontail.execution.TransactionContext
@@ -18,20 +19,25 @@ import org.vitrivr.cottontail.model.values.StringValue
 import kotlin.time.ExperimentalTime
 
 /**
- * An [Operator.SourceOperator] used during query execution. Retrieves [Entity] information.
+ * An [Operator.SourceOperator] used during query execution. Retrieves information regarding entities.
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.0.1
  */
 class EntityDetailsOperator(val catalogue: Catalogue, val name: Name.EntityName) : Operator.SourceOperator() {
-    override val columns: Array<ColumnDef<*>> = arrayOf(
-            ColumnDef.withAttributes(Name.ColumnName("dbo"), "STRING", -1, false),
-            ColumnDef.withAttributes(Name.ColumnName("class"), "STRING", -1, false),
-            ColumnDef.withAttributes(Name.ColumnName("type"), "STRING", -1, true),
-            ColumnDef.withAttributes(Name.ColumnName("rows"), "INTEGER", -1, true),
-            ColumnDef.withAttributes(Name.ColumnName("l_size"), "INTEGER", -1, true),
-            ColumnDef.withAttributes(Name.ColumnName("nullable"), "BOOLEAN", -1, true)
-    )
+
+    companion object {
+        val COLUMNS: Array<ColumnDef<*>> = arrayOf(
+            ColumnDef(Name.ColumnName("dbo"), Type.String, false),
+            ColumnDef(Name.ColumnName("class"), Type.String, false),
+            ColumnDef(Name.ColumnName("type"), Type.String, true),
+            ColumnDef(Name.ColumnName("rows"), Type.Int, true),
+            ColumnDef(Name.ColumnName("l_size"), Type.Int, true),
+            ColumnDef(Name.ColumnName("nullable"), Type.Boolean, true)
+        )
+    }
+
+    override val columns: Array<ColumnDef<*>> = COLUMNS
 
     @ExperimentalTime
     override fun toFlow(context: TransactionContext): Flow<Record> {
@@ -40,16 +46,33 @@ class EntityDetailsOperator(val catalogue: Catalogue, val name: Name.EntityName)
         val entityTxn = context.getTx(schemaTxn.entityForName(this.name)) as EntityTx
         return flow {
             var rowId = 0L
-            emit(StandaloneRecord(rowId++,
+            emit(
+                StandaloneRecord(
+                    rowId++,
                     this@EntityDetailsOperator.columns,
-                    arrayOf(StringValue(this@EntityDetailsOperator.name.toString()), StringValue("ENTITY"), null, IntValue(entityTxn.count()), null, null)
-            ))
+                    arrayOf(
+                        StringValue(this@EntityDetailsOperator.name.toString()),
+                        StringValue("ENTITY"),
+                        null,
+                        IntValue(entityTxn.count()),
+                        null,
+                        null
+                    )
+                ))
 
             val columns = entityTxn.listColumns()
             columns.forEach {
-                emit(StandaloneRecord(rowId++,
-                        this@EntityDetailsOperator.columns,
-                        arrayOf(StringValue(it.name.toString()), StringValue("COLUMN"), StringValue(it.type.toString()), null, IntValue(it.columnDef.logicalSize), BooleanValue(it.nullable))
+                emit(StandaloneRecord(
+                    rowId++,
+                    this@EntityDetailsOperator.columns,
+                    arrayOf(
+                        StringValue(it.name.toString()),
+                        StringValue("COLUMN"),
+                        StringValue(it.type.toString()),
+                        null,
+                        IntValue(it.columnDef.type.logicalSize),
+                        BooleanValue(it.nullable)
+                    )
                 ))
             }
 

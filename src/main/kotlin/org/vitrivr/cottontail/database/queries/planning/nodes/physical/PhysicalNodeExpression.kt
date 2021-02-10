@@ -1,9 +1,10 @@
 package org.vitrivr.cottontail.database.queries.planning.nodes.physical
 
+import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.planning.nodes.interfaces.NodeExpression
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.LogicalNodeExpression
-import org.vitrivr.cottontail.execution.TransactionManager
+import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.execution.operators.basics.Operator
 
 /**
@@ -17,12 +18,11 @@ import org.vitrivr.cottontail.execution.operators.basics.Operator
  * the optimal plan.
  *
  * @author Ralph Gasser
- * @version 1.1.0
+ * @version 1.1.1
  *
  * @see NodeExpression
  * @see PhysicalNodeExpression
  */
-
 abstract class PhysicalNodeExpression : NodeExpression() {
     /** [PhysicalNodeExpression]s are executable if all their inputs are executable. */
     override val executable: Boolean
@@ -76,8 +76,17 @@ abstract class PhysicalNodeExpression : NodeExpression() {
     /**
      * Converts this [PhysicalNodeExpression] to the corresponding [Operator].
      *
-     * @param engine The [TransactionManager] the [Operator] should be executed in.
+     * @param tx The [TransactionContext] the [Operator] should be executed in.
+     * @param ctx: The [QueryContext] used for conversion. Mainly for value binding.
+     *
      * @return [Operator]
      */
-    abstract fun toOperator(engine: TransactionManager): Operator
+    abstract fun toOperator(tx: TransactionContext, ctx: QueryContext): Operator
+
+    /**
+     * Calculates and returns the digest for this [PhysicalNodeExpression].
+     *
+     * @return Digest for this [PhysicalNodeExpression]
+     */
+    override fun digest(): Long = this.javaClass.hashCode().toLong()
 }

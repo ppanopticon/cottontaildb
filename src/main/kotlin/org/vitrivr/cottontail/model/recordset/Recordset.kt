@@ -3,8 +3,8 @@ package org.vitrivr.cottontail.model.recordset
 import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap
 import it.unimi.dsi.fastutil.objects.ObjectBigArrayBigList
-import org.vitrivr.cottontail.database.queries.components.BooleanPredicate
-import org.vitrivr.cottontail.database.queries.components.Predicate
+import org.vitrivr.cottontail.database.queries.predicates.Predicate
+import org.vitrivr.cottontail.database.queries.predicates.bool.BooleanPredicate
 import org.vitrivr.cottontail.model.basics.*
 import org.vitrivr.cottontail.model.values.types.Value
 import org.vitrivr.cottontail.utilities.extensions.read
@@ -167,7 +167,9 @@ class Recordset(val columns: Array<ColumnDef<*>>, capacity: Long = 250L) : Scana
      * @param predicate [Predicate] to check.
      * @return True if [Predicate] can be processed, false otherwise.
      */
-    override fun canProcess(predicate: Predicate): Boolean = predicate is BooleanPredicate && predicate.columns.all { this.columns.contains(it) }
+    override fun canProcess(predicate: Predicate): Boolean =
+        predicate is BooleanPredicate &&
+                predicate.columns.all { this.columns.contains(it) }
 
     /**
      *

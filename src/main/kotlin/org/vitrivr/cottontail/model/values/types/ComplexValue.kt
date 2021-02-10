@@ -23,5 +23,9 @@ interface ComplexValue<T: Number>: NumericValue<T> {
     override fun asLong(): LongValue = this.abs().asLong()
     override fun asInt(): IntValue = this.abs().asInt()
     override fun asShort(): ShortValue = this.abs().asShort()
+    override fun plus(other: NumericValue<*>): ComplexValue<T>
+    override fun minus(other: NumericValue<*>): ComplexValue<T>
+    override fun times(other: NumericValue<*>): ComplexValue<T>
+    override fun div(other: NumericValue<*>): ComplexValue<T>
     override fun asByte(): ByteValue = this.abs().asByte()
 }

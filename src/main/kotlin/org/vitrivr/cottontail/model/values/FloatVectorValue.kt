@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.model.values
 
+import org.vitrivr.cottontail.database.column.Type
 import org.vitrivr.cottontail.model.values.types.NumericValue
 import org.vitrivr.cottontail.model.values.types.RealVectorValue
 import org.vitrivr.cottontail.model.values.types.Value
@@ -14,7 +15,7 @@ import kotlin.math.pow
  * This is an abstraction over a [FloatArray] and it represents a vector of [Float]s.
  *
  * @author Ralph Gasser
- * @version 1.3.2
+ * @version 1.5.0
  */
 inline class FloatVectorValue(val data: FloatArray) : RealVectorValue<Float> {
 
@@ -44,9 +45,15 @@ inline class FloatVectorValue(val data: FloatArray) : RealVectorValue<Float> {
 
     constructor(input: List<Number>) : this(FloatArray(input.size) { input[it].toFloat() })
     constructor(input: Array<Number>) : this(FloatArray(input.size) { input[it].toFloat() })
+    constructor(input: DoubleArray) : this(FloatArray(input.size) { input[it].toFloat() })
 
+    /** The logical size of this [FloatVectorValue]. */
     override val logicalSize: Int
         get() = this.data.size
+
+    /** The [Type] of this [FloatVectorValue]. */
+    override val type: Type<*>
+        get() = Type.FloatVector(this.logicalSize)
 
     /**
      * Checks for equality between this [FloatVectorValue] and the other [Value]. Equality can only be
@@ -55,7 +62,8 @@ inline class FloatVectorValue(val data: FloatArray) : RealVectorValue<Float> {
      * @param other [Value] to compare to.
      * @return True if equal, false otherwise.
      */
-    override fun isEqual(other: Value): Boolean = (other is FloatVectorValue) && (this.data.contentEquals(other.data))
+    override fun isEqual(other: Value): Boolean =
+        (other is FloatVectorValue) && (this.data.contentEquals(other.data))
 
     /**
      * Returns the indices of this [FloatVectorValue].
@@ -72,6 +80,18 @@ inline class FloatVectorValue(val data: FloatArray) : RealVectorValue<Float> {
      * @return The value at index i.
      */
     override fun get(i: Int): FloatValue = FloatValue(this.data[i])
+
+    /**
+     * Returns a sub vector of this [FloatVectorValue] starting at the component [start] and
+     * containing [length] components.
+     *
+     * @param start Index of the first entry of the returned vector.
+     * @param length how many elements, including start, to return
+     *
+     * @return The [FloatVectorValue] representing the sub-vector.
+     */
+    override fun subvector(start: Int, length: Int) =
+        FloatVectorValue(this.data.copyOfRange(start, start + length))
 
     /**
      * Returns the i-th entry of  this [FloatVectorValue] as [Boolean].
@@ -102,6 +122,13 @@ inline class FloatVectorValue(val data: FloatArray) : RealVectorValue<Float> {
      */
     override fun copy(): FloatVectorValue = FloatVectorValue(this.data.copyOf(this.data.size))
 
+    /**
+     * Creates and returns a new instance of [FloatVectorValue] of the same size.
+     *
+     * @return New instance of [FloatVectorValue]
+     */
+    override fun new(): FloatVectorValue = FloatVectorValue(FloatArray(this.data.size))
+
     override fun plus(other: VectorValue<*>) = when (other) {
         is FloatVectorValue -> FloatVectorValue(FloatArray(this.data.size) {
             (this.data[it] + other.data[it])
@@ -111,8 +138,7 @@ inline class FloatVectorValue(val data: FloatArray) : RealVectorValue<Float> {
         })
     }
 
-
-    override fun minus(other: VectorValue<*>) = when (other) {
+    override operator fun minus(other: VectorValue<*>) = when (other) {
         is FloatVectorValue -> FloatVectorValue(FloatArray(this.data.size) {
             (this.data[it] - other.data[it])
         })
@@ -189,20 +215,20 @@ inline class FloatVectorValue(val data: FloatArray) : RealVectorValue<Float> {
         return FloatValue(kotlin.math.sqrt(sum))
     }
 
-    override fun dot(other: VectorValue<*>): DoubleValue = when (other) {
+    override fun dot(other: VectorValue<*>): FloatValue = when (other) {
         is FloatVectorValue -> {
-            var sum = 0.0
+            var sum = 0.0f
             for (i in this.data.indices) {
-                sum += this.data[i] * other.data[i]
+                sum = Math.fma(this.data[i], other.data[i], sum)
             }
-            DoubleValue(sum)
+            FloatValue(sum)
         }
         else -> {
-            var sum = 0.0
+            var sum = 0.0f
             for (i in this.data.indices) {
-                sum += this.data[i] * other[i].value.toDouble()
+                sum += Math.fma(this.data[i], other[i].value.toFloat(), sum)
             }
-            DoubleValue(sum)
+            FloatValue(sum)
         }
     }
 

@@ -1,6 +1,6 @@
 package org.vitrivr.cottontail.utilities.math
 
-import org.vitrivr.cottontail.database.column.DoubleColumnType
+import org.vitrivr.cottontail.database.column.Type
 import org.vitrivr.cottontail.math.knn.selection.ComparablePair
 import org.vitrivr.cottontail.math.knn.selection.MinHeapSelection
 import org.vitrivr.cottontail.math.knn.selection.Selection
@@ -15,15 +15,18 @@ import org.vitrivr.cottontail.model.values.types.Value
  * Utilities and constants used for nearest neighbor search.
  *
  * @author Ralph Gasser
- * @version 1.1.1
+ * @version 1.2.0
  */
 object KnnUtilities {
 
-    /** Name of the distance column produced by a nearest neighbor search (NNS / kNN). */
-    const val DISTANCE_COLUMN_NAME = "distance"
-
-    /** Type of the distance column produced by a nearest neighbor search (NNS / kNN). */
-    val DISTANCE_COLUMN_TYPE = DoubleColumnType
+    /**
+     * Generates and returns a [ColumnDef] for a query index column (internal column).
+     *
+     * @param name The [Name.EntityName] to generate the [ColumnDef] for.
+     * @return [ColumnDef]
+     */
+    fun queryIndexColumnDef(name: Name.EntityName? = null) =
+        ColumnDef(name?.column("_qidx") ?: Name.ColumnName("_qidx"), Type.Int, false)
 
     /**
      * Generates and returns a [ColumnDef] for a distance column.
@@ -31,8 +34,8 @@ object KnnUtilities {
      * @param name The [Name.EntityName] to generate the [ColumnDef] for.
      * @return [ColumnDef]
      */
-    fun columnDef(name: Name.EntityName? = null) = ColumnDef(name?.column(DISTANCE_COLUMN_NAME)
-            ?: Name.ColumnName(DISTANCE_COLUMN_NAME), DISTANCE_COLUMN_TYPE)
+    fun distanceColumnDef(name: Name.EntityName? = null) =
+        ColumnDef(name?.column("distance") ?: Name.ColumnName("distance"), Type.Double)
 
     /**
      * Transforms a [Selection] data structure into a [Recordset].

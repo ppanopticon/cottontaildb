@@ -1,6 +1,5 @@
 package org.vitrivr.cottontail.storage.engine.hare.access.column.variable
 
-import org.vitrivr.cottontail.database.column.ColumnType
 import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.storage.engine.hare.DataCorruptionException

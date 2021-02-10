@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.model.values
 
+import org.vitrivr.cottontail.database.column.Type
 import org.vitrivr.cottontail.model.values.types.NumericValue
 import org.vitrivr.cottontail.model.values.types.RealValue
 import org.vitrivr.cottontail.model.values.types.Value
@@ -10,7 +11,7 @@ import kotlin.math.pow
  * This is an abstraction over a [Double].
  *
  * @author Ralph Gasser
- * @version 1.3.2
+ * @version 1.5.0
  */
 inline class DoubleValue(override val value: Double): RealValue<Double> {
 
@@ -44,7 +45,11 @@ inline class DoubleValue(override val value: Double): RealValue<Double> {
     constructor(number: NumericValue<*>) : this(number.value.toDouble())
 
     override val logicalSize: Int
-        get() = -1
+        get() = 1
+
+    /** The [Type] of this [DoubleValue]. */
+    override val type: Type<*>
+        get() = Type.Double
 
     override val real: RealValue<Double>
         get() = this

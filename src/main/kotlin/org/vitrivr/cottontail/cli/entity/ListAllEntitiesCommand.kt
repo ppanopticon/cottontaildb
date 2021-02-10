@@ -23,7 +23,7 @@ class ListAllEntitiesCommand(private val ddlStub: DDLGrpc.DDLBlockingStub) : Abs
         }
 
         /* Output results. */
-        println("${timedTable.value.rowCount} entities found (took ${timedTable.duration}).")
+        println("${timedTable.value.rowCount - 1} entities found (took ${timedTable.duration}).")
         print(timedTable.value)
     }
 }

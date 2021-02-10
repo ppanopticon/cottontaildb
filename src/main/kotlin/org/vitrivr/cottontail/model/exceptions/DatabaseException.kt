@@ -1,6 +1,6 @@
 package org.vitrivr.cottontail.model.exceptions
 
-import org.vitrivr.cottontail.database.column.ColumnType
+import org.vitrivr.cottontail.database.column.Type
 import org.vitrivr.cottontail.model.basics.Name
 
 open class DatabaseException(message: String) : Throwable(message) {
@@ -85,7 +85,8 @@ open class DatabaseException(message: String) : Throwable(message) {
     /**
      *
      */
-    class ColumnTypeUnexpectedException(column: Name, expected: ColumnType<*>, actual: ColumnType<*>) : DatabaseException("Column '$column' has wrong type (expected: ${expected.name}, actual: ${actual.name}).")
+    class ColumnTypeUnexpectedException(column: Name, expected: Type<*>, actual: Type<*>) :
+        DatabaseException("Column '$column' has wrong type (expected: ${expected.name}, actual: ${actual.name}).")
 
     /**
      * Thrown when the Cottontail DB engine expects a different type of file.

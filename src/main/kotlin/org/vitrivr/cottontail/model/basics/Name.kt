@@ -4,24 +4,23 @@ package org.vitrivr.cottontail.model.basics
  * A [Name] that identifies a DBO used within Cottontail DB.
  *
  * @author Ralph Gasser
- * @version 1.0.1
+ * @version 1.1.0
  */
-sealed class Name(vararg components: String) {
+sealed class Name {
 
     companion object {
-        /* Default delimiter between name components. */
+        /* Delimiter between name components. */
         const val NAME_COMPONENT_DELIMITER = "."
 
-        /* Default delimiter between name components. */
+        /* Character used for wildcards. */
+        const val NAME_COMPONENT_WILDCARD = "*"
+
+        /* Root name component in Cottontail DB names. */
         const val NAME_COMPONENT_ROOT = "warren"
     }
 
     /** Internal array of [Name] components. */
-    open val components = if (components[0] == NAME_COMPONENT_ROOT) {
-        components.map { it.toLowerCase() }.toTypedArray()
-    } else {
-        arrayOf(NAME_COMPONENT_ROOT, *components.map { it.toLowerCase() }.toTypedArray())
-    }
+    abstract val components: Array<String>
 
     /** Returns the last component of this [Name], i.e. the simple name. */
     open val simple: String
@@ -33,20 +32,24 @@ sealed class Name(vararg components: String) {
     /**
      * The [RootName] which always is 'warren'.
      */
-    object RootName : Name(NAME_COMPONENT_ROOT) {
+    object RootName : Name() {
+        override val components: Array<String> = arrayOf(NAME_COMPONENT_ROOT)
         override fun matches(other: Name): Boolean = (other == this)
     }
 
     /**
      * A [Name] object used to identify a [Schema][org.vitrivr.cottontail.database.schema.Schema].
      */
-    class SchemaName(vararg components: String) : Name(*components) {
-        init {
-            if (components[0] == NAME_COMPONENT_ROOT) {
-                require(components.size == 2) { "$this is not a valid schema name." }
-            } else {
-                require(components.size == 1) { "$this is not a valid schema name." }
-            }
+    class SchemaName(vararg components: String) : Name() {
+
+        /** Normalized [Name] components of this [SchemaName]. */
+        override val components = when {
+            components.size == 1 -> arrayOf(NAME_COMPONENT_ROOT, components[0])
+            components.size == 2 && components[0] == NAME_COMPONENT_ROOT -> arrayOf(
+                NAME_COMPONENT_ROOT,
+                components[1]
+            )
+            else -> throw IllegalStateException("${components.joinToString(".")} is not a valid schema name.")
         }
 
         /**
@@ -64,19 +67,29 @@ sealed class Name(vararg components: String) {
          */
         fun entity(name: String) = EntityName(*this.components, name)
 
+        /**
+         * Checks for a match with another [Name]. Only exact matches, i.e. equality, are possible for [SchemaName]s.
+         *
+         * @param other [Name] to compare to.
+         * @return True on match, false otherwise.
+         */
         override fun matches(other: Name): Boolean = (other == this)
     }
 
     /**
      * A [Name] object used to identify a [Entity][org.vitrivr.cottontail.database.entity.Entity].
      */
-    class EntityName(vararg components: String) : Name(*components) {
-        init {
-            if (components[0] == NAME_COMPONENT_ROOT) {
-                require(components.size == 3) { "$this is not a valid entity name." }
-            } else {
-                require(components.size == 2) { "$this is not a valid entity name." }
-            }
+    class EntityName(vararg components: String) : Name() {
+
+        /** Normalized [Name] components of this [EntityName]. */
+        override val components = when {
+            components.size == 2 -> arrayOf(NAME_COMPONENT_ROOT, components[0], components[1])
+            components.size == 3 && components[0] == NAME_COMPONENT_ROOT -> arrayOf(
+                components[0],
+                components[1],
+                components[2]
+            )
+            else -> throw IllegalStateException("${components.joinToString(".")} is not a valid entity name.")
         }
 
         /**
@@ -109,20 +122,35 @@ sealed class Name(vararg components: String) {
          */
         fun column(name: String) = ColumnName(*this.components, name)
 
-
+        /**
+         * Checks for a match with another name. Only exact matches, i.e. equality, are possible for [EntityName]s.
+         *
+         * @param other [Name] to compare to.
+         * @return True on match, false otherwise.
+         */
         override fun matches(other: Name): Boolean = (other == this)
     }
 
     /**
      * A [Name] object used to identify a [Index][org.vitrivr.cottontail.database.index.Index].
      */
-    class IndexName(vararg components: String) : Name(*components) {
-        init {
-            if (components[0] == NAME_COMPONENT_ROOT) {
-                require(components.size == 4) { "$this is not a valid index name." }
-            } else {
-                require(components.size == 3) { "$this is not a valid index name." }
-            }
+    class IndexName(vararg components: String) : Name() {
+
+        /** Normalized [Name] components of this [IndexName]. */
+        override val components = when {
+            components.size == 3 -> arrayOf(
+                NAME_COMPONENT_ROOT,
+                components[0],
+                components[1],
+                components[2]
+            )
+            components.size == 4 && components[0] == NAME_COMPONENT_ROOT -> arrayOf(
+                components[0],
+                components[1],
+                components[2],
+                components[3]
+            )
+            else -> throw IllegalStateException("${components.joinToString(".")} is not a valid index name.")
         }
 
         /**
@@ -146,33 +174,41 @@ sealed class Name(vararg components: String) {
          */
         fun entity(): EntityName = EntityName(*this.components.copyOfRange(0, 3))
 
+        /**
+         * Checks for a match with another name. Only exact matches, i.e. equality, are possible for [IndexName]s.
+         *
+         * @param other [Name] to compare to.
+         * @return True on match, false otherwise.
+         */
         override fun matches(other: Name): Boolean = (other == this)
     }
 
     /**
      * A [Name] object used to identify a [Index][org.vitrivr.cottontail.database.column.Column].
      */
-    class ColumnName(vararg components: String) : Name(*components) {
-        init {
-            if (components[0] == NAME_COMPONENT_ROOT) {
-                require(components.size == 4) { "$this is not a valid column name." }
-            } else {
-                require(components.size == 3 || components.size == 1) { "$this is not a valid column name." }
-            }
-        }
+    class ColumnName(vararg components: String) : Name() {
 
-        override val components: Array<String> = when (components.size) {
-            3 -> arrayOf(NAME_COMPONENT_ROOT, *components.map { it.toLowerCase() }.toTypedArray())
-            else -> components.map { it.toLowerCase() }.toTypedArray()
+        /** Normalized [Name] components of this [IndexName]. */
+        override val components: Array<String> = when {
+            components.size == 1 -> arrayOf(NAME_COMPONENT_ROOT, "*", "*", components[0])
+            components.size == 2 -> arrayOf(NAME_COMPONENT_ROOT, "*", components[0], components[1])
+            components.size == 3 -> arrayOf(
+                NAME_COMPONENT_ROOT,
+                components[0],
+                components[1],
+                components[2]
+            )
+            components.size == 4 && components[0] == NAME_COMPONENT_ROOT -> arrayOf(
+                components[0],
+                components[1],
+                components[2],
+                components[3]
+            )
+            else -> throw IllegalStateException("${components.joinToString(".")} is not a valid column name.")
         }
 
         /** True if this [ColumnName] is a wildcard. */
-        val wildcard: Boolean
-            get() = this.components.last() == "*"
-
-        /** True if this [ColumnName] is a fully qualified name. */
-        val fqn: Boolean
-            get() = this.components.size == 4
+        val wildcard: Boolean = this.components.any { it == NAME_COMPONENT_WILDCARD }
 
         /**
          * Returns [RootName] of this [EntityName].
@@ -186,8 +222,8 @@ sealed class Name(vararg components: String) {
          *
          * @return Parent [SchemaName]
          */
-        fun schema(): SchemaName? = if (this.components.size == 4) {
-            SchemaName(*this.components.copyOfRange(0, 2))
+        fun schema(): SchemaName? = if (this.components[1] != NAME_COMPONENT_WILDCARD) {
+            SchemaName(NAME_COMPONENT_ROOT, this.components[1])
         } else {
             null
         }
@@ -197,24 +233,40 @@ sealed class Name(vararg components: String) {
          *
          * @return Parent [EntityName]
          */
-        fun entity(): EntityName? = if (this.components.size == 4) {
-            EntityName(*this.components.copyOfRange(0, 3))
+        fun entity(): EntityName? = if (this.components[2] != NAME_COMPONENT_WILDCARD) {
+            EntityName(NAME_COMPONENT_ROOT, this.components[1], this.components[2])
         } else {
             null
         }
 
         /**
+         * Checks for a match with another name. Wildcard matches  are possible for [ColumnName]s.
          *
+         * @param other [Name] to compare to.
+         * @return True on match, false otherwise.
          */
-        override fun matches(other: Name): Boolean = if (this.wildcard) {
-            if (other is ColumnName) {
-                this.schema() == other.schema()
-            } else {
-                false
+        override fun matches(other: Name): Boolean {
+            if (other !is ColumnName) return false
+            if (!this.wildcard) return (this == other)
+            for ((i, c) in this.components.withIndex()) {
+                if (c == NAME_COMPONENT_WILDCARD || c == other.components[i]) {
+                    return true
+                }
             }
-        } else {
-            other == this
+            return true
         }
+
+        /**
+         * Transforms this [Name] to a [String]
+         *
+         * @return [String] representation of this [Name].
+         */
+        override fun toString(): String =
+            if (this.components[1] == NAME_COMPONENT_WILDCARD && this.components[2] == NAME_COMPONENT_WILDCARD) {
+                components[3]
+            } else {
+                super.toString()
+            }
     }
 
     /**
@@ -224,22 +276,14 @@ sealed class Name(vararg components: String) {
      * @return True on equality, false otherwise.
      */
     override fun equals(other: Any?): Boolean {
-        if (other !is Name) {
-            return false
-        }
-        if (other.javaClass != this.javaClass) {
-            return false
-        }
-
-        if (!other.components.contentEquals(this.components)) {
-            return false
-        }
-
+        if (other !is Name) return false
+        if (other.javaClass != this.javaClass) return false
+        if (!other.components.contentEquals(this.components)) return false
         return true
     }
 
     /**
-     * Custom hashcodes for [Name] objects.
+     * Custom hash codes for [Name] objects.
      *
      * @return Hash code for this [Name] object
      */

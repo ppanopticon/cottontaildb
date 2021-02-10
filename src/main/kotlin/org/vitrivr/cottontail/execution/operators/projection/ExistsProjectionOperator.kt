@@ -3,6 +3,8 @@ package org.vitrivr.cottontail.execution.operators.projection
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
+import org.vitrivr.cottontail.database.column.Type
+import org.vitrivr.cottontail.database.queries.projection.Projection
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.execution.operators.basics.AbortFlowException
 import org.vitrivr.cottontail.execution.operators.basics.Operator
@@ -19,14 +21,18 @@ import org.vitrivr.cottontail.model.values.BooleanValue
  * Only produces a single [Record]. Acts as pipeline breaker.
  *
  * @author Ralph Gasser
- * @version 1.1.1
+ * @version 1.2.0
  */
 class ExistsProjectionOperator(parent: Operator) : Operator.PipelineOperator(parent) {
 
     /** Column returned by [ExistsProjectionOperator]. */
-    override val columns: Array<ColumnDef<*>> = arrayOf(ColumnDef.withAttributes(parent.columns.first().name.entity()?.column("exists()")
-            ?: Name.ColumnName("exists()"), "BOOLEAN"))
-
+    override val columns: Array<ColumnDef<*>> = arrayOf(
+        ColumnDef(
+            name = parent.columns.first().name.entity()?.column(Projection.EXISTS.label())
+                ?: Name.ColumnName(Projection.EXISTS.label()),
+            type = Type.Boolean
+        )
+    )
 
     /** [ExistsProjectionOperator] does act as a pipeline breaker. */
     override val breaker: Boolean = true
@@ -49,7 +55,13 @@ class ExistsProjectionOperator(parent: Operator) : Operator.PipelineOperator(par
             } catch (e: AbortFlowException) {
                 e.checkOwnership(this)
             }
-            emit(StandaloneRecord(0L, this@ExistsProjectionOperator.columns, arrayOf(BooleanValue(exists))))
+            emit(
+                StandaloneRecord(
+                    0L,
+                    this@ExistsProjectionOperator.columns[0],
+                    BooleanValue(exists)
+                )
+            )
         }
     }
 }

@@ -2,7 +2,7 @@ package org.vitrivr.cottontail.execution.operators.predicates
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
-import org.vitrivr.cottontail.database.queries.components.BooleanPredicate
+import org.vitrivr.cottontail.database.queries.predicates.bool.BooleanPredicate
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.execution.operators.basics.Operator
 import org.vitrivr.cottontail.model.basics.ColumnDef
@@ -13,7 +13,7 @@ import org.vitrivr.cottontail.model.basics.Record
  * parent [Operator] using the given [BooleanPredicate].
  *
  * @author Ralph Gasser
- * @version 1.1.1
+ * @version 1.2.0
  */
 class FilterOperator(parent: Operator, private val predicate: BooleanPredicate) : Operator.PipelineOperator(parent) {
 

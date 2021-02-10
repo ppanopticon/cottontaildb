@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
 import org.vitrivr.cottontail.database.column.*
+import org.vitrivr.cottontail.database.queries.projection.Projection
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.execution.exceptions.OperatorSetupException
 import org.vitrivr.cottontail.execution.operators.basics.Operator
@@ -13,78 +14,46 @@ import org.vitrivr.cottontail.model.basics.Record
 import org.vitrivr.cottontail.model.exceptions.ExecutionException
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.*
+import org.vitrivr.cottontail.model.values.types.Value
 import kotlin.math.max
 
 /**
- * A [Operator.PipelineOperator] used during query execution. It tracks the maximum value it has encountered
- * so far and returns it as a [Record]. The [MaxProjectionOperator] retains the type of the incoming records.
+ * A [Operator.PipelineOperator] used during query execution. It tracks the MAX (maximum) it has
+ * encountered so far for each column and returns it as a [Record].
  *
- * Only produces a single [Record]. Acts as pipeline breaker.
+ * The [MaxProjectionOperator] retains the [Type] of the incoming entries! Only produces a
+ * single [Record]. Acts as pipeline breaker.
  *
  * @author Ralph Gasser
- * @version 1.1.1
+ * @version 1.2.0
  */
-class MaxProjectionOperator(parent: Operator, val name: Name.ColumnName, val alias: Name.ColumnName? = null) : Operator.PipelineOperator(parent) {
-
-    /** The [ColumnDef] of the incoming [Operator] that is being used for calculation. */
-    private val parentColumn: ColumnDef<*> = this.parent.columns.firstOrNull { it.name == this.name && it.type.numeric }
-            ?: throw OperatorSetupException(this, "The provided column $name cannot be used for a MAX projection. It either doesn't exist or has the wrong type.")
+class MaxProjectionOperator(parent: Operator, fields: List<Pair<ColumnDef<*>, Name.ColumnName?>>) :
+    Operator.PipelineOperator(parent) {
 
     /** [MaxProjectionOperator] does act as a pipeline breaker. */
     override val breaker: Boolean = true
 
-    /** Columns produced by [MeanProjectionOperator]. */
-    override val columns: Array<ColumnDef<*>> = when (this.parentColumn.type) {
-        ByteColumnType -> arrayOf(
-                ColumnDef.withAttributes(
-                        this.alias
-                                ?: (this.parentColumn.name.entity()?.column("min(${this.parentColumn.name.simple})")
-                                        ?: Name.ColumnName("min(${this.parentColumn.name.simple}")),
-                        "BYTE"
-                )
-        )
-        ShortColumnType -> arrayOf(
-                ColumnDef.withAttributes(
-                        this.alias
-                                ?: (this.parentColumn.name.entity()?.column("min(${this.parentColumn.name.simple})")
-                                        ?: Name.ColumnName("min(${this.parentColumn.name.simple}")),
-                        "SHORT"
-                )
-        )
-        IntColumnType -> arrayOf(
-                ColumnDef.withAttributes(
-                        this.alias
-                                ?: (this.parentColumn.name.entity()?.column("min(${this.parentColumn.name.simple})")
-                                        ?: Name.ColumnName("min(${this.parentColumn.name.simple}")),
-                        "INT"
-                )
-        )
-        LongColumnType -> arrayOf(
-                ColumnDef.withAttributes(
-                        this.alias
-                                ?: (this.parentColumn.name.entity()?.column("min(${this.parentColumn.name.simple})")
-                                        ?: Name.ColumnName("min(${this.parentColumn.name.simple}")),
-                        "LONG"
-                )
-        )
-        FloatColumnType -> arrayOf(
-                ColumnDef.withAttributes(
-                        this.alias
-                                ?: (this.parentColumn.name.entity()?.column("min(${this.parentColumn.name.simple})")
-                                        ?: Name.ColumnName("min(${this.parentColumn.name.simple}")),
-                        "FLOAT"
-                )
-        )
-        DoubleColumnType -> arrayOf(
-                ColumnDef.withAttributes(
-                        this.alias
-                                ?: (this.parentColumn.name.entity()?.column("min(${this.parentColumn.name.simple})")
-                                        ?: Name.ColumnName("min(${this.parentColumn.name.simple}")),
-                        "DOUBLE"
-                )
-        )
-        else -> throw OperatorSetupException(this, "The provided column $parentColumn type cannot be used for a MIN projection. ")
-    }
+    /** Columns produced by [MaxProjectionOperator]. */
+    override val columns: Array<ColumnDef<*>> = fields.map {
+        if (!it.first.type.numeric) {
+            throw OperatorSetupException(
+                this,
+                "The provided column ${it.first} cannot be used for a ${Projection.MAX} projection. It either doesn't exist or has the wrong type."
+            )
+        }
+        val alias = it.second
+        if (alias != null) {
+            it.first.copy(alias)
+        } else {
+            val columnNameStr = "${Projection.MAX.label()}_${it.first.name.simple})"
+            val columnName =
+                it.first.name.entity()?.column(columnNameStr) ?: Name.ColumnName(columnNameStr)
+            it.first.copy(columnName)
+        }
+    }.toTypedArray()
+
+    /** Parent [ColumnDef] to access and aggregate. */
+    private val parentColumns = fields.map { it.first }
 
     /**
      * Converts this [CountProjectionOperator] to a [Flow] and returns it.
@@ -95,28 +64,46 @@ class MaxProjectionOperator(parent: Operator, val name: Name.ColumnName, val ali
     override fun toFlow(context: TransactionContext): Flow<Record> {
         val parentFlow = this.parent.toFlow(context)
         return flow {
-            var max = Double.MIN_VALUE
+            /* Prepare holder of type double, which can hold all types of values and collect incoming flow */
+            val max =
+                this@MaxProjectionOperator.parentColumns.map { Double.MIN_VALUE }.toTypedArray()
             parentFlow.collect {
-                val value = it[parentColumn]
-                when (value) {
-                    is ByteValue -> max = max(max, value.value.toDouble())
-                    is ShortValue -> max = max(max, value.value.toDouble())
-                    is IntValue -> max = max(max, value.value.toDouble())
-                    is LongValue -> max = max(max, value.value.toDouble())
-                    is FloatValue -> max = max(max, value.value.toDouble())
-                    is DoubleValue -> max = max(max, value.value)
-                    else -> throw ExecutionException.OperatorExecutionException(this@MaxProjectionOperator, "The provided column $parentColumn cannot be used for a MAX projection. ")
+                this@MaxProjectionOperator.parentColumns.forEachIndexed { i, c ->
+                    max[i] = when (val value = it[c]) {
+                        is ByteValue -> max(max[i], value.value.toDouble())
+                        is ShortValue -> max(max[i], value.value.toDouble())
+                        is IntValue -> max(max[i], value.value.toDouble())
+                        is LongValue -> max(max[i], value.value.toDouble())
+                        is FloatValue -> max(max[i], value.value.toDouble())
+                        is DoubleValue -> max(max[i], value.value)
+                        null -> max[i]
+                        else -> throw ExecutionException.OperatorExecutionException(
+                            this@MaxProjectionOperator,
+                            "The provided column $c cannot be used for a MAX projection. "
+                        )
+                    }
                 }
             }
-            when (parentColumn.type) {
-                ByteColumnType -> emit(StandaloneRecord(0L, this@MaxProjectionOperator.columns, arrayOf(ByteValue(max))))
-                ShortColumnType -> emit(StandaloneRecord(0L, this@MaxProjectionOperator.columns, arrayOf(ShortValue(max))))
-                IntColumnType -> emit(StandaloneRecord(0L, this@MaxProjectionOperator.columns, arrayOf(IntValue(max))))
-                LongColumnType -> emit(StandaloneRecord(0L, this@MaxProjectionOperator.columns, arrayOf(LongValue(max))))
-                FloatColumnType -> emit(StandaloneRecord(0L, this@MaxProjectionOperator.columns, arrayOf(FloatValue(max))))
-                DoubleColumnType -> emit(StandaloneRecord(0L, this@MaxProjectionOperator.columns, arrayOf(DoubleValue(max))))
-                else -> throw ExecutionException.OperatorExecutionException(this@MaxProjectionOperator, "The provided column $parentColumn cannot be used for a MAX projection. ")
+
+            /* Convert to original value type. */
+            val results = Array<Value?>(max.size) {
+                val column = this@MaxProjectionOperator.parentColumns[it]
+                when (column.type) {
+                    Type.Byte -> ByteValue(max[it])
+                    Type.Short -> ShortValue(max[it])
+                    Type.Int -> IntValue(max[it])
+                    Type.Long -> LongValue(max[it])
+                    Type.Float -> FloatValue(max[it])
+                    Type.Double -> DoubleValue(max[it])
+                    else -> throw ExecutionException.OperatorExecutionException(
+                        this@MaxProjectionOperator,
+                        "The provided column $column cannot be used for a MAX projection."
+                    )
+                }
             }
+
+            /** Emit record. */
+            emit(StandaloneRecord(0L, this@MaxProjectionOperator.columns, results))
         }
     }
 }

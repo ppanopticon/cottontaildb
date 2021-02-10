@@ -3,6 +3,7 @@ package org.vitrivr.cottontail.execution.operators.management
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
+import org.vitrivr.cottontail.database.column.Type
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.execution.TransactionContext
@@ -22,15 +23,19 @@ import kotlin.time.measureTime
  * [Entity] that it receives.
  *
  * @author Ralph Gasser
- * @version 1.0.2
+ * @version 1.1.0
  */
 class DeleteOperator(parent: Operator, val entity: Entity) : Operator.PipelineOperator(parent) {
+    companion object {
+        /** The columns produced by the [DeleteOperator]. */
+        val COLUMNS: Array<ColumnDef<*>> = arrayOf(
+            ColumnDef(Name.ColumnName("deleted"), Type.Long, false),
+            ColumnDef(Name.ColumnName("duration_ms"), Type.Double, false)
+        )
+    }
 
-    /** Columns returned by [DeleteOperator]. */
-    override val columns: Array<ColumnDef<*>> = arrayOf(
-            ColumnDef.withAttributes(Name.ColumnName("deleted"), "LONG", -1, false),
-            ColumnDef.withAttributes(Name.ColumnName("duration_ms"), "DOUBLE", -1, false),
-    )
+    /** Columns produced by the [DeleteOperator]. */
+    override val columns: Array<ColumnDef<*>> = COLUMNS
 
     /** [DeleteOperator] does not act as a pipeline breaker. */
     override val breaker: Boolean = false

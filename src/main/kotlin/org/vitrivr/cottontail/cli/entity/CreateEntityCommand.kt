@@ -4,9 +4,9 @@ import com.github.ajalt.clikt.output.TermUi
 import com.jakewharton.picnic.table
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import org.vitrivr.cottontail.database.queries.binding.extensions.proto
 import org.vitrivr.cottontail.grpc.CottontailGrpc
 import org.vitrivr.cottontail.grpc.DDLGrpc
-import org.vitrivr.cottontail.server.grpc.helper.proto
 import org.vitrivr.cottontail.utilities.output.TabulationUtilities
 import kotlin.time.ExperimentalTime
 import kotlin.time.measureTimedValue

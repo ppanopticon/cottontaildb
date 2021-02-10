@@ -10,10 +10,9 @@ import org.vitrivr.cottontail.database.queries.planning.nodes.interfaces.NodeExp
  * into equivalent, logical expressions.
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.0.1
  *
  * @see NodeExpression
- * @see PhysicalNodeExpression
  */
 abstract class LogicalNodeExpression : NodeExpression() {
     /** [LogicalNodeExpression]s are never executable. */
@@ -25,4 +24,11 @@ abstract class LogicalNodeExpression : NodeExpression() {
      * @return Copy of this [LogicalNodeExpression].
      */
     abstract override fun copy(): LogicalNodeExpression
+
+    /**
+     * Calculates and returns the digest for this [LogicalNodeExpression].
+     *
+     * @return Digest for this [LogicalNodeExpression]
+     */
+    override fun digest(): Long = this.javaClass.hashCode().toLong()
 }

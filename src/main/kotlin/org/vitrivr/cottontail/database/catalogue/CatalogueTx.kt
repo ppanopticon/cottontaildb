@@ -34,8 +34,9 @@ interface CatalogueTx : Tx {
      * Creates a new, empty [Schema] with the given [Name.SchemaName] and [Path]
      *
      * @param name The [Name.SchemaName] of the new [Schema].
+     * @return Newly created [Schema] for use in context of current [Tx]
      */
-    fun createSchema(name: Name.SchemaName)
+    fun createSchema(name: Name.SchemaName): Schema
 
     /**
      * Drops an existing [Schema] with the given [Name.SchemaName].

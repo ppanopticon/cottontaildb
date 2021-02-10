@@ -12,6 +12,8 @@ import org.vitrivr.cottontail.model.values.*
  */
 interface NumericValue<T : Number> : ScalarValue<T> {
 
+    override val value: T
+
     /** Real part of this [NumericValue]  */
     val real: RealValue<T>
 

@@ -17,7 +17,7 @@ import org.vitrivr.cottontail.model.values.types.Value
  * level of isolation.
  *
  * @author Ralph Gasser
- * @version 1.1.1
+ * @version 1.2.0
  */
 interface ColumnTx<T : Value> : Tx, Countable {
     /** Reference to the [Column] this [ColumnTx] belongs to. */
@@ -35,7 +35,7 @@ interface ColumnTx<T : Value> : Tx, Countable {
      *
      * @throws DatabaseException If the tuple with the desired ID doesn't exist OR is invalid.
      */
-    fun read(tupleId: Long): T?
+    fun read(tupleId: TupleId): T?
 
     /**
      * Inserts a new [Value] in this [Column].
@@ -49,9 +49,10 @@ interface ColumnTx<T : Value> : Tx, Countable {
      * Updates the entry with the specified [TupleId] and sets it to the new [Value].
      *
      * @param tupleId The [TupleId] of the entry that should be updated.
-     * @param value The new [Value].
+     * @param value The new [Value]
+     * @return The old [Value]
      */
-    fun update(tupleId: TupleId, value: T?)
+    fun update(tupleId: TupleId, value: T?): T?
 
     /**
      * Updates the entry with the specified [TupleId] and sets it to the new [Value] if, and only if,
@@ -61,14 +62,15 @@ interface ColumnTx<T : Value> : Tx, Countable {
      * @param value The new [Value].
      * @param expected The [Value] expected to be there.
      */
-    fun compareAndUpdate(tupleId: Long, value: T?, expected: T?): Boolean
+    fun compareAndUpdate(tupleId: TupleId, value: T?, expected: T?): Boolean
 
     /**
      * Deletes the entry with the specified [TupleId] and sets it to the new value.
      *
      * @param tupleId The ID of the record that should be updated
+     * @return The old [Value]*
      */
-    fun delete(tupleId: TupleId)
+    fun delete(tupleId: TupleId): T?
 
     /**
      * Creates and returns a new [CloseableIterator] for this [ColumnTx] that returns all
@@ -76,7 +78,7 @@ interface ColumnTx<T : Value> : Tx, Countable {
      *
      * @return [CloseableIterator]
      */
-    fun scan(): CloseableIterator<Long>
+    fun scan(): CloseableIterator<TupleId>
 
     /**
      * Creates and returns a new [CloseableIterator] for this [ColumnTx] that returns
@@ -85,5 +87,5 @@ interface ColumnTx<T : Value> : Tx, Countable {
      * @param range The [LongRange] that should be scanned.
      * @return [CloseableIterator]
      */
-    fun scan(range: LongRange): CloseableIterator<Long>
+    fun scan(range: LongRange): CloseableIterator<TupleId>
 }

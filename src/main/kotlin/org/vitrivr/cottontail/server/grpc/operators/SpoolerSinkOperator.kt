@@ -4,14 +4,13 @@ import io.grpc.stub.StreamObserver
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
-
+import org.vitrivr.cottontail.database.queries.binding.extensions.toLiteral
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.execution.operators.basics.Operator
 import org.vitrivr.cottontail.grpc.CottontailGrpc
 import org.vitrivr.cottontail.model.basics.Record
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
-import org.vitrivr.cottontail.server.grpc.helper.toLiteral
 
 /**
  * A [Operator.SinkOperator] used during query execution. Spools the results produced by the parent
@@ -25,7 +24,12 @@ import org.vitrivr.cottontail.server.grpc.helper.toLiteral
  * @author Ralph Gasser
  * @version 1.1.0
  */
-class SpoolerSinkOperator(parent: Operator, val queryId: String, val index: Int, val responseObserver: StreamObserver<CottontailGrpc.QueryResponseMessage>) : Operator.SinkOperator(parent) {
+class SpoolerSinkOperator(
+    parent: Operator,
+    val queryId: String,
+    val index: Int,
+    val responseObserver: StreamObserver<CottontailGrpc.QueryResponseMessage>? = null
+) : Operator.SinkOperator(parent) {
 
     companion object {
         private const val MAX_PAGE_SIZE_BYTES = 4_000_000
@@ -53,7 +57,7 @@ class SpoolerSinkOperator(parent: Operator, val queryId: String, val index: Int,
             parent.collect {
                 val tuple = it.toTuple()
                 if (accumulatedSize + tuple.serializedSize >= MAX_PAGE_SIZE_BYTES) {
-                    this@SpoolerSinkOperator.responseObserver.onNext(responseBuilder.build())
+                    this@SpoolerSinkOperator.responseObserver?.onNext(responseBuilder.build())
                     responseBuilder = CottontailGrpc.QueryResponseMessage.newBuilder().setTid(CottontailGrpc.TransactionId.newBuilder().setQueryId(this@SpoolerSinkOperator.queryId).setValue(context.txId)).addAllColumns(columns)
                     accumulatedSize = 0L
                 }
@@ -64,9 +68,7 @@ class SpoolerSinkOperator(parent: Operator, val queryId: String, val index: Int,
             }
 
             /* Flush remaining tuples. */
-            if (responseBuilder.tuplesList.size > 0) {
-                this@SpoolerSinkOperator.responseObserver.onNext(responseBuilder.build())
-            }
+            this@SpoolerSinkOperator.responseObserver?.onNext(responseBuilder.build())
 
             /* Signal completion. */
             emit(StandaloneRecord(TupleId.MIN_VALUE, emptyArray(), emptyArray()))

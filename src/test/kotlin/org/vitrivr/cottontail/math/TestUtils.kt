@@ -12,6 +12,7 @@ import org.vitrivr.cottontail.model.values.Complex32VectorValue
 import org.vitrivr.cottontail.model.values.Complex64Value
 import org.vitrivr.cottontail.model.values.Complex64VectorValue
 import org.vitrivr.cottontail.model.values.types.VectorValue
+import kotlin.math.abs
 
 const val DELTA_COARSE = 5e-5
 const val DELTA_FINE = 1e-14
@@ -39,9 +40,17 @@ fun isApproximatelyTheSame(expected: Double, actual: Double) {
 fun isApproximatelyTheSame(expected: Number, actual: Number) {
     val coarse = expected is Float
     val delta = if (coarse) DELTA_COARSE else DELTA_FINE
-    val ratio = expected.toDouble() / actual.toDouble()
-    Assertions.assertTrue( ratio > 1.0f - delta && ratio < 1.0f + delta,
-            "Value $actual not approximately the same as expected $expected!")
+    val cond = if (expected == 0.0f || expected == 0.0) {
+        val diff = abs(expected.toDouble() - actual.toDouble())
+        diff < delta
+    } else {
+        val ratio = expected.toDouble() / actual.toDouble()
+        ratio > 1.0f - delta && ratio < 1.0f + delta
+    }
+    Assertions.assertTrue(
+        cond,
+        "Value $actual not approximately the same as expected $expected! (delta: $delta)"
+    )
 }
 
 fun equalVectors(expected: VectorValue<*>, actual: VectorValue<*>) {

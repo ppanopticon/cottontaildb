@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.model.values
 
+import org.vitrivr.cottontail.database.column.Type
 import org.vitrivr.cottontail.model.values.types.NumericValue
 import org.vitrivr.cottontail.model.values.types.RealValue
 import org.vitrivr.cottontail.model.values.types.Value
@@ -10,7 +11,7 @@ import java.util.*
  * This is an abstraction over a [Byte].
  *
  * @author Ralph Gasser
- * @version 1.3.2
+ * @version 1.5.0
  */
 inline class ByteValue(override val value: Byte): RealValue<Byte> {
 
@@ -34,9 +35,13 @@ inline class ByteValue(override val value: Byte): RealValue<Byte> {
      */
     constructor(number: Number) : this(number.toByte())
 
-
+    /** The logical size of this [ByteValue]. */
     override val logicalSize: Int
-        get() = -1
+        get() = 1
+
+    /** The [Type] of this [ByteValue]. */
+    override val type: Type<*>
+        get() = Type.Byte
 
     override val real: RealValue<Byte>
         get() = this

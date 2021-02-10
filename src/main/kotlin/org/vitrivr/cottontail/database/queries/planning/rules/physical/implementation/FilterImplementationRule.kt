@@ -1,11 +1,11 @@
 package org.vitrivr.cottontail.database.queries.planning.rules.physical.implementation
 
-import org.vitrivr.cottontail.database.queries.components.ComparisonOperator
 import org.vitrivr.cottontail.database.queries.planning.exceptions.NodeExpressionTreeException
 import org.vitrivr.cottontail.database.queries.planning.nodes.interfaces.NodeExpression
 import org.vitrivr.cottontail.database.queries.planning.nodes.interfaces.RewriteRule
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.predicates.FilterLogicalNodeExpression
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.predicates.FilterPhysicalNodeExpression
+import org.vitrivr.cottontail.database.queries.predicates.bool.ComparisonOperator
 
 /**
  * A [RewriteRule] that implements a [FilterLogicalNodeExpression] by a [FilterPhysicalNodeExpression].
@@ -24,8 +24,11 @@ object FilterImplementationRule : RewriteRule {
                 return null
             }
 
-            val parent = (node.copyWithInputs() as FilterLogicalNodeExpression).input
-                    ?: throw NodeExpressionTreeException.IncompleteNodeExpressionTreeException(node, "Expected parent but none was found.")
+            val parent = (node.deepCopy() as FilterLogicalNodeExpression).input
+                ?: throw NodeExpressionTreeException.IncompleteNodeExpressionTreeException(
+                    node,
+                    "Expected parent but none was found."
+                )
             val p = FilterPhysicalNodeExpression(node.predicate)
             p.addInput(parent)
             node.copyOutput()?.addInput(p)

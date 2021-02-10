@@ -3,8 +3,8 @@ package org.vitrivr.cottontail.utilities.output
 import com.jakewharton.picnic.Table
 import com.jakewharton.picnic.TableSectionDsl
 import com.jakewharton.picnic.table
+import org.vitrivr.cottontail.database.queries.binding.extensions.fqn
 import org.vitrivr.cottontail.grpc.CottontailGrpc
-import org.vitrivr.cottontail.server.grpc.helper.fqn
 import java.util.*
 
 /**
@@ -82,6 +82,7 @@ object TabulationUtilities {
                 CottontailGrpc.Literal.DataCase.FLOATDATA -> it.floatData.toString()
                 CottontailGrpc.Literal.DataCase.DOUBLEDATA -> it.doubleData.toString()
                 CottontailGrpc.Literal.DataCase.STRINGDATA -> it.stringData
+                CottontailGrpc.Literal.DataCase.DATEDATA -> Date(it.dateData.utcTimestamp).toString()
                 CottontailGrpc.Literal.DataCase.COMPLEX32DATA -> "${it.complex32Data.real} + i${it.complex32Data.imaginary}"
                 CottontailGrpc.Literal.DataCase.COMPLEX64DATA -> "${it.complex32Data.real} + i${it.complex32Data.imaginary}"
                 CottontailGrpc.Literal.DataCase.VECTORDATA -> when (it.vectorData.vectorDataCase) {

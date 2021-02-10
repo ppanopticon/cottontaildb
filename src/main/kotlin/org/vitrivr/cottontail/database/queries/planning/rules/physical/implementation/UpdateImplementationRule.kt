@@ -16,8 +16,11 @@ object UpdateImplementationRule : RewriteRule {
     override fun canBeApplied(node: NodeExpression): Boolean = node is UpdateLogicalNodeExpression
     override fun apply(node: NodeExpression): NodeExpression? {
         if (node is UpdateLogicalNodeExpression) {
-            val parent = node.copyWithInputs().inputs.firstOrNull()
-                    ?: throw NodeExpressionTreeException.IncompleteNodeExpressionTreeException(node, "Expected parent for UpdateLogicalNodeExpression but none was found.")
+            val parent = node.deepCopy().inputs.firstOrNull()
+                ?: throw NodeExpressionTreeException.IncompleteNodeExpressionTreeException(
+                    node,
+                    "Expected parent for UpdateLogicalNodeExpression but none was found."
+                )
             val p = UpdatePhysicalNodeExpression(node.entity, node.values)
             p.addInput(parent)
             node.copyOutput()?.addInput(p)

@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.execution.operators.definition
 
+import org.vitrivr.cottontail.database.column.Type
 import org.vitrivr.cottontail.execution.operators.basics.Operator
 import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
@@ -14,19 +15,31 @@ import kotlin.time.ExperimentalTime
  * statements and returns a status result set.
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.0.1
  */
 @ExperimentalTime
 abstract class AbstractDataDefinitionOperator(protected val dboName: Name, protected val action: String) : Operator.SourceOperator() {
+    companion object {
+        val COLUMNS: Array<ColumnDef<*>> = arrayOf(
+            ColumnDef(Name.ColumnName("action"), Type.String, false),
+            ColumnDef(Name.ColumnName("dbo"), Type.String, false),
+            ColumnDef(Name.ColumnName("duration_ms"), Type.Double, false)
+        )
+    }
+
     /** The [ColumnDef] produced by this [AbstractDataDefinitionOperator]. */
-    override val columns: Array<ColumnDef<*>> = arrayOf(
-            ColumnDef.withAttributes(Name.ColumnName("action"), "STRING", -1, false),
-            ColumnDef.withAttributes(Name.ColumnName("dbo"), "STRING", -1, false),
-            ColumnDef.withAttributes(Name.ColumnName("duration_ms"), "DOUBLE", -1, false)
-    )
+    override val columns: Array<ColumnDef<*>> = COLUMNS
 
     /**
      * Generates and returns a [StandaloneRecord] for the given [duration]
      */
-    fun statusRecord(duration: Duration) = StandaloneRecord(0L, this.columns, arrayOf(StringValue("CREATE ENTITY"), StringValue(dboName.toString()), DoubleValue(duration.inMilliseconds)))
+    fun statusRecord(duration: Duration) = StandaloneRecord(
+        0L,
+        this.columns,
+        arrayOf(
+            StringValue(this.action),
+            StringValue(dboName.toString()),
+            DoubleValue(duration.inMilliseconds)
+        )
+    )
 }

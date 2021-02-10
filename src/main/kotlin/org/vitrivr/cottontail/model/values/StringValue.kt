@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.model.values
 
+import org.vitrivr.cottontail.database.column.Type
 import org.vitrivr.cottontail.model.values.types.NumericValue
 import org.vitrivr.cottontail.model.values.types.ScalarValue
 import org.vitrivr.cottontail.model.values.types.Value
@@ -9,10 +10,14 @@ import java.util.*
  * This is a [Value] abstraction over a [String].
  *
  * @author Ralph Gasser
- * @version 1.3.2
+ * @version 1.5.0
  */
 inline class StringValue(override val value: String) : ScalarValue<String> {
     companion object {
+
+        /** */
+        val EMPTY = StringValue("")
+
         /**
          * Generates a random [StringValue].
          *
@@ -30,8 +35,13 @@ inline class StringValue(override val value: String) : ScalarValue<String> {
         }
     }
 
+    /** The logical size of this [StringValue]. */
     override val logicalSize: Int
         get() = this.value.length
+
+    /** The [Type] of this [StringValue]. */
+    override val type: Type<*>
+        get() = Type.String
 
     /**
      * Compares this [StringValue] to another [Value]. Returns -1, 0 or 1 of other value is smaller,

@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.model.values
 
+import org.vitrivr.cottontail.database.column.Type
 import org.vitrivr.cottontail.model.values.types.NumericValue
 import org.vitrivr.cottontail.model.values.types.RealVectorValue
 import org.vitrivr.cottontail.model.values.types.Value
@@ -11,7 +12,7 @@ import java.util.*
  * This is an abstraction over a [BooleanArray] and it represents a vector of [Boolean]s.
  *
  * @author Ralph Gasser
- * @version 1.3.2
+ * @version 1.5.0
  */
 inline class BooleanVectorValue(val data: BooleanArray) : RealVectorValue<Int> {
 
@@ -44,8 +45,13 @@ inline class BooleanVectorValue(val data: BooleanArray) : RealVectorValue<Int> {
     constructor(input: Array<Number>) : this(BooleanArray(input.size) { input[it].toInt() == 1 })
     constructor(input: Array<Boolean>) : this(BooleanArray(input.size) { input[it] })
 
+    /** The logical size of this [BooleanVectorValue]. */
     override val logicalSize: Int
-        get() = data.size
+        get() = this.data.size
+
+    /** The [Type] size of this [BooleanVectorValue]. */
+    override val type: Type<*>
+        get() = Type.BooleanVector(this.logicalSize)
 
     /**
      * Checks for equality between this [BooleanVectorValue] and the other [Value]. Equality can only be
@@ -54,7 +60,8 @@ inline class BooleanVectorValue(val data: BooleanArray) : RealVectorValue<Int> {
      * @param other [Value] to compare to.
      * @return True if equal, false otherwise.
      */
-    override fun isEqual(other: Value): Boolean = (other is BooleanVectorValue) && (this.data.contentEquals(other.data))
+    override fun isEqual(other: Value): Boolean =
+        (other is BooleanVectorValue) && (this.data.contentEquals(other.data))
 
     /**
      * Returns the indices of this [BooleanVectorValue].
@@ -71,6 +78,18 @@ inline class BooleanVectorValue(val data: BooleanArray) : RealVectorValue<Int> {
      * @return The value at index i.
      */
     override fun get(i: Int): IntValue = IntValue(this.data[i].toInt())
+
+    /**
+     * Returns a sub vector of this [BooleanVectorValue] starting at the component [start] and
+     * containing [length] components.
+     *
+     * @param start Index of the first entry of the returned vector.
+     * @param length how many elements, including start, to return
+     *
+     * @return The [BooleanVectorValue] representing the sub-vector.
+     */
+    override fun subvector(start: Int, length: Int) =
+        BooleanVectorValue(this.data.copyOfRange(start, start + length))
 
     /**
      * Returns the i-th entry of  this [BooleanVectorValue] as [Boolean].
@@ -100,6 +119,13 @@ inline class BooleanVectorValue(val data: BooleanArray) : RealVectorValue<Int> {
      * @return Exact copy of this [BooleanVectorValue].
      */
     override fun copy(): BooleanVectorValue = BooleanVectorValue(this.data.copyOf())
+
+    /**
+     * Creates and returns a new instance of [BooleanVectorValue] of the same size.
+     *
+     * @return New instance of [BooleanVectorValue]
+     */
+    override fun new(): BooleanVectorValue = BooleanVectorValue(BooleanArray(this.data.size))
 
     override fun plus(other: VectorValue<*>): VectorValue<Int> = when (other) {
         is BooleanVectorValue -> IntVectorValue(IntArray(this.data.size) {

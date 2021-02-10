@@ -5,6 +5,8 @@ import io.grpc.Status
 import io.grpc.stub.StreamObserver
 import org.slf4j.LoggerFactory
 import org.vitrivr.cottontail.database.catalogue.Catalogue
+import org.vitrivr.cottontail.database.queries.QueryContext
+import org.vitrivr.cottontail.database.queries.binding.GrpcQueryBinder
 import org.vitrivr.cottontail.database.queries.planning.CottontailQueryPlanner
 import org.vitrivr.cottontail.database.queries.planning.rules.logical.DeferredFetchAfterFilterRewriteRule
 import org.vitrivr.cottontail.database.queries.planning.rules.logical.DeferredFetchAfterKnnRewriteRule
@@ -21,7 +23,6 @@ import org.vitrivr.cottontail.grpc.DQLGrpc
 import org.vitrivr.cottontail.model.exceptions.ExecutionException
 import org.vitrivr.cottontail.model.exceptions.QueryException
 import org.vitrivr.cottontail.model.exceptions.TransactionException
-import org.vitrivr.cottontail.server.grpc.helper.GrpcQueryBinder
 import org.vitrivr.cottontail.server.grpc.operators.SpoolerSinkOperator
 import java.util.*
 import kotlin.time.ExperimentalTime
@@ -47,23 +48,24 @@ class DQLService(val catalogue: Catalogue, override val manager: TransactionMana
 
     /** [CottontailQueryPlanner] used to generate execution plans from query definitions. */
     private val planner = CottontailQueryPlanner(
-            logicalRewriteRules = listOf(
-                    LeftConjunctionRewriteRule,
-                    RightConjunctionRewriteRule,
-                    DeferredFetchAfterFilterRewriteRule,
-                    DeferredFetchAfterKnnRewriteRule
-            ),
-            physicalRewriteRules = listOf(
-                    KnnIndexScanRule,
-                    BooleanIndexScanRule,
-                    CountPushdownRule,
-                    EntityScanImplementationRule,
-                    FilterImplementationRule,
-                    KnnImplementationRule,
-                    LimitImplementationRule,
-                    ProjectionImplementationRule,
-                    FetchImplementationRule
-            )
+        logicalRewriteRules = listOf(
+            LeftConjunctionRewriteRule,
+            RightConjunctionRewriteRule,
+            DeferredFetchAfterFilterRewriteRule,
+            DeferredFetchAfterKnnRewriteRule
+        ),
+        physicalRewriteRules = listOf(
+            KnnIndexScanRule,
+            BooleanIndexScanRule,
+            CountPushdownRule,
+            EntityScanImplementationRule,
+            FilterImplementationRule,
+            KnnImplementationRule,
+            LimitImplementationRule,
+            ProjectionImplementationRule,
+            FetchImplementationRule
+        ),
+        this.catalogue.config.cache.planCacheSize
     )
 
     /**
@@ -73,29 +75,27 @@ class DQLService(val catalogue: Catalogue, override val manager: TransactionMana
         this.withTransactionContext(request.txId) { tx, q ->
             try {
                 /* Start query execution. */
+                val ctx = QueryContext()
                 val totalDuration = measureTime {
                     /* Bind query and create logical plan. */
-                    val bindTimedValue = measureTimedValue {
-                        this.binder.parseAndBindQuery(request.query, tx)
+                    val bindTime = measureTime {
+                        this.binder.bind(request.query, ctx, tx)
                     }
 
-                    LOGGER.trace(formatMessage(tx, q, "Parsing & binding query took ${bindTimedValue.duration}."))
+                    LOGGER.debug(formatMessage(tx, q, "Parsing & binding query took $bindTime."))
 
                     /* Plan query and create execution plan. */
-                    val planTimedValue = measureTimedValue {
-                        val candidates = this.planner.plan(bindTimedValue.value)
-                        val operator = candidates.minByOrNull { it.totalCost }!!.toOperator(this.manager)
-                        SpoolerSinkOperator(operator, q, 0, responseObserver)
+                    val planTime = measureTime {
+                        this.planner.planAndSelect(ctx)
                     }
-
-                    LOGGER.trace(formatMessage(tx, q, "Planning query took ${planTimedValue.duration}."))
+                    LOGGER.debug(formatMessage(tx, q, "Planning query took $planTime."))
 
                     /* Execute query in transaction context. */
-                    tx.execute(planTimedValue.value)
+                    tx.execute(SpoolerSinkOperator(ctx.toOperatorTree(tx), q, 0, responseObserver))
                 }
 
                 /* Finalize transaction. */
-                LOGGER.trace(formatMessage(tx, q, "Executing query took ${totalDuration}."))
+                LOGGER.info(formatMessage(tx, q, "Executing query took ${totalDuration}."))
                 responseObserver.onCompleted()
             } catch (e: QueryException.QuerySyntaxException) {
                 val message = formatMessage(tx, q, "Could not execute query due to syntax error: ${e.message}")
@@ -136,26 +136,38 @@ class DQLService(val catalogue: Catalogue, override val manager: TransactionMana
         this.withTransactionContext(request.txId) { tx, q ->
             try {
                 /* Start query execution. */
+                val ctx = QueryContext()
                 val totalDuration = measureTime {
                     /* Bind query and create logical plan. */
-                    val bindTimedValue = measureTimedValue {
-                        this.binder.parseAndBindQuery(request.query, tx)
+                    val bindTimed = measureTime {
+                        this.binder.bind(request.query, ctx, tx)
                     }
 
-                    LOGGER.trace(formatMessage(tx, q, "Parsing & binding query took ${bindTimedValue.duration}."))
+                    LOGGER.debug(formatMessage(tx, q, "Parsing & binding query took $bindTimed."))
 
                     /* Plan query and create execution plan. */
                     val planTimedValue = measureTimedValue {
-                        val candidates = this.planner.plan(bindTimedValue.value)
-                        SpoolerSinkOperator(ExplainQueryOperator(candidates), q, 0, responseObserver)
+                        val candidates = this.planner.plan(ctx.logical!!)
+                        SpoolerSinkOperator(
+                            ExplainQueryOperator(candidates),
+                            q,
+                            0,
+                            responseObserver
+                        )
                     }
-                    LOGGER.trace(formatMessage(tx, q, "Planning query took ${planTimedValue.duration}."))
+                    LOGGER.debug(
+                        formatMessage(
+                            tx,
+                            q,
+                            "Planning query took ${planTimedValue.duration}."
+                        )
+                    )
 
                     /* Execute query in transaction context. */
                     tx.execute(planTimedValue.value)
                 }
 
-                LOGGER.trace(formatMessage(tx, q, "Explaining query took ${totalDuration}."))
+                LOGGER.info(formatMessage(tx, q, "Explaining query took ${totalDuration}."))
                 responseObserver.onCompleted()
             } catch (e: QueryException.QuerySyntaxException) {
                 val message = formatMessage(tx, q, "Could not explain query due to syntax error: ${e.message}")

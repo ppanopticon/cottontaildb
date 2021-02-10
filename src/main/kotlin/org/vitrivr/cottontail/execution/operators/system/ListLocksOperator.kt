@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.execution.operators.system
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import org.vitrivr.cottontail.database.column.Type
 
 import org.vitrivr.cottontail.database.locking.LockManager
 import org.vitrivr.cottontail.execution.TransactionContext
@@ -18,16 +19,20 @@ import org.vitrivr.cottontail.model.values.types.Value
  * An [Operator.SourceOperator] used during query execution. Used to list all locks.
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.0.1
  */
 class ListLocksOperator(val manager: LockManager) : Operator.SourceOperator() {
-    override val columns: Array<ColumnDef<*>>
-        get() = arrayOf(
-                ColumnDef.withAttributes(Name.ColumnName("dbo"), "STRING", -1, false),
-                ColumnDef.withAttributes(Name.ColumnName("mode"), "STRING", -1, false),
-                ColumnDef.withAttributes(Name.ColumnName("owner_count"), "INT", -1, false),
-                ColumnDef.withAttributes(Name.ColumnName("owners"), "STRING", -1, false)
+
+    companion object {
+        val COLUMNS: Array<ColumnDef<*>> = arrayOf(
+            ColumnDef(Name.ColumnName("dbo"), Type.String, false),
+            ColumnDef(Name.ColumnName("mode"), Type.String, false),
+            ColumnDef(Name.ColumnName("owner_count"), Type.Int, false),
+            ColumnDef(Name.ColumnName("owners"), Type.String, false)
         )
+    }
+
+    override val columns: Array<ColumnDef<*>> = COLUMNS
 
     override fun toFlow(context: TransactionContext): Flow<Record> {
         return flow {

@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.execution.operators.management
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import org.vitrivr.cottontail.database.column.Type
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.execution.TransactionContext
@@ -25,11 +26,15 @@ import kotlin.time.measureTimedValue
  */
 class InsertOperator(val entity: Entity, val record: Record) : Operator.SourceOperator() {
 
+    companion object {
+        val COLUMNS: Array<ColumnDef<*>> = arrayOf(
+            ColumnDef(Name.ColumnName("tupleId"), Type.Long, false),
+            ColumnDef(Name.ColumnName("duration_ms"), Type.Double, false)
+        )
+    }
+
     /** Columns returned by [UpdateOperator]. */
-    override val columns: Array<ColumnDef<*>> = arrayOf(
-            ColumnDef.withAttributes(Name.ColumnName("tupleId"), "LONG", -1, false),
-            ColumnDef.withAttributes(Name.ColumnName("duration_ms"), "DOUBLE", -1, false),
-    )
+    override val columns: Array<ColumnDef<*>> = COLUMNS
 
     /**
      * Converts this [InsertOperator] to a [Flow] and returns it.

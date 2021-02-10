@@ -18,7 +18,11 @@ object FetchImplementationRule : RewriteRule {
     override fun canBeApplied(node: NodeExpression): Boolean = node is FetchLogicalNodeExpression
     override fun apply(node: NodeExpression): NodeExpression? {
         if (node is FetchLogicalNodeExpression) {
-            val parent = (node.copyWithInputs() as FetchLogicalNodeExpression).input ?: throw NodeExpressionTreeException.IncompleteNodeExpressionTreeException(node, "Expected parent but none was found.")
+            val parent = (node.deepCopy() as FetchLogicalNodeExpression).input
+                ?: throw NodeExpressionTreeException.IncompleteNodeExpressionTreeException(
+                    node,
+                    "Expected parent but none was found."
+                )
             val p = FetchPhysicalNodeExpression(node.entity, node.fetch)
             p.addInput(parent)
             node.copyOutput()?.addInput(p)

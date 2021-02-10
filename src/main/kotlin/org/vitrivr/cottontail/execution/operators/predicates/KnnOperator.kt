@@ -3,7 +3,8 @@ package org.vitrivr.cottontail.execution.operators.predicates
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
-import org.vitrivr.cottontail.database.queries.components.KnnPredicate
+
+import org.vitrivr.cottontail.database.queries.predicates.knn.KnnPredicate
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.execution.operators.basics.Operator
 import org.vitrivr.cottontail.math.knn.selection.ComparablePair
@@ -25,14 +26,14 @@ import org.vitrivr.cottontail.utilities.math.KnnUtilities
  * Produces querySize * k [Record]s. Acts as pipeline breaker.
  *
  * @author Ralph Gasser
- * @version 1.1.1
+ * @version 1.2.0
  */
-class KnnOperator<T : VectorValue<*>>(parent: Operator, val knn: KnnPredicate<T>) : Operator.PipelineOperator(parent) {
+class KnnOperator(parent: Operator, val knn: KnnPredicate) : Operator.PipelineOperator(parent) {
 
     /** The columns produced by this [KnnOperator]. */
     override val columns: Array<ColumnDef<*>> = arrayOf(
-            *this.parent.columns,
-            KnnUtilities.columnDef(this.knn.column.name.entity())
+        *this.parent.columns,
+        KnnUtilities.distanceColumnDef(this.knn.column.name.entity())
     )
 
     /** [KnnOperator] does act as a pipeline breaker. */

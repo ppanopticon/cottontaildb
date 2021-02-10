@@ -29,13 +29,34 @@ object Playground {
 
     @JvmStatic
     fun main(args: Array<String>) {
-        this.executeLike()
+
+        /*val trie = PatriciaTrie(MapDBConfig(), Paths.get("/Users/rgasser/Downloads/test.db"))
+
+        trie.insert("A", 1L)
+        trie.insert("A", 2L)
+        trie.insert("B", 3L)
+        trie.insert("C", 4L)
+        trie.insert("D", 5L)
+
+
+        repeat(1_000_000) {
+            val random = SplittableRandom()
+            val str = StringValue.random(2, random)
+            trie.insert(str.value, it.toLong())
+        }
+
+        trie.commit()
+        trie.findKey("aa")
+        println(trie) */
     }
 
 
     private fun executeUpdate() {
         val truncateMessage = CottontailGrpc.UpdateMessage.newBuilder()
-                .setFrom(CottontailGrpc.From.newBuilder().setEntity(entity))
+            .setFrom(
+                CottontailGrpc.From.newBuilder()
+                    .setScan(CottontailGrpc.Scan.newBuilder().setEntity(entity))
+            )
                 .setWhere(CottontailGrpc.Where.newBuilder().setCompound(
                         CottontailGrpc.CompoundBooleanPredicate.newBuilder()
                                 .setAleft(CottontailGrpc.AtomicLiteralBooleanPredicate.newBuilder()
@@ -55,7 +76,10 @@ object Playground {
 
     private fun executeDelete() {
         val truncateMessage = CottontailGrpc.DeleteMessage.newBuilder()
-                .setFrom(CottontailGrpc.From.newBuilder().setEntity(entity))
+            .setFrom(
+                CottontailGrpc.From.newBuilder()
+                    .setScan(CottontailGrpc.Scan.newBuilder().setEntity(entity))
+            )
                 .setWhere(CottontailGrpc.Where.newBuilder().setAtomic(
                         CottontailGrpc.AtomicLiteralBooleanPredicate.newBuilder()
                                 .setLeft(CottontailGrpc.ColumnName.newBuilder().setName("objectid"))
@@ -77,8 +101,11 @@ object Playground {
 
     private fun executeLike() {
         val query = CottontailGrpc.QueryMessage.newBuilder().setQuery(
-                CottontailGrpc.Query.newBuilder()
-                        .setFrom(CottontailGrpc.From.newBuilder().setEntity(entity))
+            CottontailGrpc.Query.newBuilder()
+                .setFrom(
+                    CottontailGrpc.From.newBuilder()
+                        .setScan(CottontailGrpc.Scan.newBuilder().setEntity(entity))
+                )
                         .setWhere(CottontailGrpc.Where.newBuilder().setAtomic(
                                 CottontailGrpc.AtomicLiteralBooleanPredicate.newBuilder()
                                         .setLeft(CottontailGrpc.ColumnName.newBuilder().setName("feature"))
@@ -99,8 +126,11 @@ object Playground {
             CottontailGrpc.Vector.newBuilder().setIntVector(CottontailGrpc.IntVector.newBuilder().addAllVector(it.data.asIterable()))
         }
         val query = CottontailGrpc.QueryMessage.newBuilder().setQuery(
-                CottontailGrpc.Query.newBuilder()
-                        .setFrom(CottontailGrpc.From.newBuilder().setEntity(entity))
+            CottontailGrpc.Query.newBuilder()
+                .setFrom(
+                    CottontailGrpc.From.newBuilder()
+                        .setScan(CottontailGrpc.Scan.newBuilder().setEntity(entity))
+                )
                         .setKnn(CottontailGrpc.Knn.newBuilder()
                                 .addQuery(vector)
                                 .setDistance(CottontailGrpc.Knn.Distance.L2)

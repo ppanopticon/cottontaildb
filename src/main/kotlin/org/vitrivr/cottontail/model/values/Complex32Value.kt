@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.model.values
 
+import org.vitrivr.cottontail.database.column.Type
 import org.vitrivr.cottontail.model.values.types.ComplexValue
 import org.vitrivr.cottontail.model.values.types.NumericValue
 import org.vitrivr.cottontail.model.values.types.RealValue
@@ -9,7 +10,7 @@ import java.util.*
 /**
  * Represents a complex number backed by single-precision (32bit) [Float]s
  *
- * @version 1.3.2
+ * @version 1.5.0
  * @author Ralph Gasser
  */
 inline class Complex32Value(val data: FloatArray): ComplexValue<Float> {
@@ -35,14 +36,14 @@ inline class Complex32Value(val data: FloatArray): ComplexValue<Float> {
     /**
      * Constructor for one [Float]
      *
-     * @param number The real part of the [Complex32Value].
+     * @param real The real part of the [Complex32Value].
      */
     constructor(real: Float) : this(floatArrayOf(real, 0.0f))
 
     /**
      * Constructor for an arbitrary [Number].
      *
-     * @param number The [Number] that should be converted to a [DoubleValue]
+     * @param real The [Number] that should be converted to a [DoubleValue]
      */
     constructor(number: Number) : this(floatArrayOf(number.toFloat(), 0.0f))
 
@@ -89,8 +90,13 @@ inline class Complex32Value(val data: FloatArray): ComplexValue<Float> {
     override val imaginary: FloatValue
         get() = FloatValue(this.data[1])
 
+    /** The logical size of this [Complex32Value]. */
     override val logicalSize: Int
-        get() = -1
+        get() = 1
+
+    /** The [Type] of this [Complex32Value]. */
+    override val type: Type<*>
+        get() = Type.Complex32
 
     /**
      * Compares this [Complex32Value] to another [Value]. Returns -1, 0 or 1 of other value is smaller,

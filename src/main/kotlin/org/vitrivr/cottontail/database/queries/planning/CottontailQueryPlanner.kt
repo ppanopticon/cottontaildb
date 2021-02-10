@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.database.queries.planning
 
+import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.planning.nodes.interfaces.NodeExpression
 import org.vitrivr.cottontail.database.queries.planning.nodes.interfaces.RewriteRule
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.LogicalNodeExpression
@@ -20,43 +21,84 @@ import org.vitrivr.cottontail.model.exceptions.QueryException
  * stage is done based on estimated costs.
  *
  * @author Ralph Gasser
- * @version 1.1.1
+ * @version 1.2.0
  */
-class CottontailQueryPlanner(logicalRewriteRules: Collection<RewriteRule>, physicalRewriteRules: Collection<RewriteRule>) {
+class CottontailQueryPlanner(
+    logicalRewriteRules: Collection<RewriteRule>,
+    physicalRewriteRules: Collection<RewriteRule>,
+    val planCacheSize: Int = 100
+) {
+
+    /** Internal cache used to store query plans for known queries. */
+    private val planCache = LinkedHashMap<Long, PhysicalNodeExpression>()
 
     /** The [RuleGroup] for the logical rewrite phase. */
-    private val logicalShuttle = RuleGroup(logicalRewriteRules)
+    private val logicalRules = RuleGroup(logicalRewriteRules)
 
     /** The [RuleGroup] for the physical rewrite phase. */
-    private val physicalShuttle = RuleGroup(physicalRewriteRules)
+    private val physicalRules = RuleGroup(physicalRewriteRules)
 
     /**
-     * Generates a list of equivalent [NodeExpression]s by recursively applying [RewriteRule]s
-     * on the seed [NodeExpression] and derived [NodeExpression]. The level of recursion and the number
-     * of candidates to consider per level can be configured.
+     * Generates a [PhysicalNodeExpression]s for the given [LogicalNodeExpression] by recursively
+     * applying [RewriteRule] to the seed [LogicalNodeExpression] and selecting the best candidate
+     * in terms of cost.
      *
-     * @param expression The [NodeExpression] to optimize.
-     * @param recursion The depth of recursion before final candidate is selected.
-     * @param candidatesPerLevel The number of candidates to generate per recursion level.
+     * @param context The [QueryContext] to plan for.
+     * @param bypassCache If the plan cache should be bypassed (forces new planning).
      *
      * @throws QueryException.QueryPlannerException If planner fails to generate a valid execution plan.
      */
+    fun planAndSelect(context: QueryContext, bypassCache: Boolean = false, cache: Boolean = false) {
+        /* Try to obtain PhysicalNodeExpression from plan cache, unless bypassCache has been set to true. */
+        val logicalNodeExpression = context.logical
+        require(logicalNodeExpression != null) { "Cannot plan for a QueryContext that doesn't have a valid logical query represntation." }
+        val digest = logicalNodeExpression.deepDigest()
+        if (!bypassCache) {
+            if (this.planCache.containsKey(digest)) {
+                context.physical = this.planCache[digest]
+                return
+            }
+        }
+
+        /* Execute actual query planning and select candidate with lowest cost. */
+        val candidates = this.plan(logicalNodeExpression)
+        context.physical = candidates.minByOrNull { it.totalCost }
+            ?: throw QueryException.QueryPlannerException("Failed to generate a physical execution plan for expression: $logicalNodeExpression.")
+
+        /* Update plan cache. */
+        if (!cache) {
+            if (this.planCache.size >= planCacheSize) {
+                this.planCache.remove(this.planCache.keys.first())
+            }
+            this.planCache[digest] = context.physical!!
+        }
+    }
+
+    /**
+     * Generates a list of equivalent [PhysicalNodeExpression]s by recursively applying [RewriteRule]s
+     * on the seed [LogicalNodeExpression] and derived [NodeExpression]s.
+     *
+     * @param expression The [LogicalNodeExpression] to plan.
+     * @return List of [PhysicalNodeExpression] that execute the [LogicalNodeExpression]
+     */
     fun plan(expression: LogicalNodeExpression): Collection<PhysicalNodeExpression> {
         /** Generate stage 1 candidates by logical optimization. */
-        val stage1 = (this.optimize(expression, this.logicalShuttle) + expression)
+        val stage1 = (this.optimize(expression, this.logicalRules) + expression)
 
         /** Generate stage 2 candidates by physical optimization. */
         val stage2 = stage1.flatMap {
-            this.optimize(it, this.physicalShuttle)
-        }.filter {
-            it.root.executable
+            this.optimize(it, this.physicalRules)
         }.filterIsInstance<PhysicalNodeExpression>()
-        if (stage2.isEmpty()) {
-            throw QueryException.QueryPlannerException("Failed to generate a physical execution plan for expression: $expression.")
-        } else {
-            return stage2
-        }
+            .filter {
+                it.root.executable
+            }
+        return stage2
     }
+
+    /**
+     * Clears the plan cache of this [CottontailQueryPlanner]
+     */
+    fun clearCache() = this.planCache.clear()
 
     /**
      * Performs optimization of a [LogicalNodeExpression] tree, by applying plan rewrite rules that
@@ -64,7 +106,7 @@ class CottontailQueryPlanner(logicalRewriteRules: Collection<RewriteRule>, physi
      *
      * @param expression The [LogicalNodeExpression] that should be optimized.
      */
-    fun optimize(expression: NodeExpression, group: RuleGroup): Collection<NodeExpression> {
+    private fun optimize(expression: NodeExpression, group: RuleGroup): Collection<NodeExpression> {
         val candidates = mutableListOf<NodeExpression>()
         val explore = mutableListOf<NodeExpression>()
         var pointer: NodeExpression? = expression

@@ -2,9 +2,9 @@ package org.vitrivr.cottontail.utilities.data.importer
 
 import com.google.gson.stream.JsonReader
 import com.google.gson.stream.JsonToken
-import org.vitrivr.cottontail.database.column.Type
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.grpc.CottontailGrpc
-import org.vitrivr.cottontail.model.basics.ColumnDef
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.utilities.data.Format
 import java.nio.file.Files
 import java.nio.file.Path

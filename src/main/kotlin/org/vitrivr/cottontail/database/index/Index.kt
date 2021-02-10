@@ -1,6 +1,7 @@
 package org.vitrivr.cottontail.database.index
 
 import org.vitrivr.cottontail.database.column.Column
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.general.AbstractTx
 import org.vitrivr.cottontail.database.general.DBO
@@ -8,10 +9,8 @@ import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
 import org.vitrivr.cottontail.database.schema.Schema
 import org.vitrivr.cottontail.execution.TransactionContext
-import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.exceptions.TxException
-
 import java.util.*
 import java.util.concurrent.locks.StampedLock
 

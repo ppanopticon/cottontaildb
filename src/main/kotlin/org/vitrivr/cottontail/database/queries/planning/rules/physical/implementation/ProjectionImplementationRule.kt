@@ -1,10 +1,10 @@
 package org.vitrivr.cottontail.database.queries.planning.rules.physical.implementation
 
+import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.planning.exceptions.NodeExpressionTreeException
-import org.vitrivr.cottontail.database.queries.planning.nodes.interfaces.NodeExpression
-import org.vitrivr.cottontail.database.queries.planning.nodes.interfaces.RewriteRule
-import org.vitrivr.cottontail.database.queries.planning.nodes.logical.projection.ProjectionLogicalNodeExpression
-import org.vitrivr.cottontail.database.queries.planning.nodes.physical.projection.ProjectionPhysicalNodeExpression
+import org.vitrivr.cottontail.database.queries.planning.nodes.logical.projection.ProjectionLogicalOperatorNode
+import org.vitrivr.cottontail.database.queries.planning.nodes.physical.projection.ProjectionPhysicalOperatorNode
+import org.vitrivr.cottontail.database.queries.planning.rules.RewriteRule
 
 /**
  *
@@ -12,15 +12,15 @@ import org.vitrivr.cottontail.database.queries.planning.nodes.physical.projectio
  * @version 1.0
  */
 object ProjectionImplementationRule : RewriteRule {
-    override fun canBeApplied(node: NodeExpression): Boolean = node is ProjectionLogicalNodeExpression
-    override fun apply(node: NodeExpression): NodeExpression? {
-        if (node is ProjectionLogicalNodeExpression) {
-            val parent = (node.deepCopy() as ProjectionLogicalNodeExpression).input
+    override fun canBeApplied(node: OperatorNode): Boolean = node is ProjectionLogicalOperatorNode
+    override fun apply(node: OperatorNode): OperatorNode? {
+        if (node is ProjectionLogicalOperatorNode) {
+            val parent = (node.deepCopy() as ProjectionLogicalOperatorNode).input
                 ?: throw NodeExpressionTreeException.IncompleteNodeExpressionTreeException(
                     node,
                     "Expected parent but none was found."
                 )
-            val p = ProjectionPhysicalNodeExpression(node.type, node.fields)
+            val p = ProjectionPhysicalOperatorNode(node.type, node.fields)
             p.addInput(parent)
             node.copyOutput()?.addInput(p)
             return p

@@ -1,7 +1,7 @@
 package org.vitrivr.cottontail.model.values
 
 import org.apache.commons.math3.util.FastMath
-import org.vitrivr.cottontail.database.column.Type
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.types.ComplexVectorValue
 import org.vitrivr.cottontail.model.values.types.NumericValue
 import org.vitrivr.cottontail.model.values.types.Value

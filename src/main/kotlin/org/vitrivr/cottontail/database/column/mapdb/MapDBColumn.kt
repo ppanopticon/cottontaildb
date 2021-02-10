@@ -3,8 +3,8 @@ package org.vitrivr.cottontail.database.column.mapdb
 import org.mapdb.*
 import org.vitrivr.cottontail.config.MapDBConfig
 import org.vitrivr.cottontail.database.column.Column
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.column.ColumnTx
-import org.vitrivr.cottontail.database.column.Type
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.general.AbstractTx
 import org.vitrivr.cottontail.database.general.TxStatus

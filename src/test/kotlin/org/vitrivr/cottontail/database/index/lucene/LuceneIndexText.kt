@@ -1,9 +1,9 @@
 package org.vitrivr.cottontail.database.index.lucene
 
 import org.junit.jupiter.api.*
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.index.AbstractIndexTest
 import org.vitrivr.cottontail.database.index.IndexType
-import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.LongValue

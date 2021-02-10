@@ -2,7 +2,7 @@ package org.vitrivr.cottontail.database.column.mapdb
 
 import org.mapdb.DataInput2
 import org.mapdb.DataOutput2
-import org.vitrivr.cottontail.database.column.Type
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
 
 /**

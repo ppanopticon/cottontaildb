@@ -1,7 +1,8 @@
 package org.vitrivr.cottontail.database.queries.binding
 
-import org.vitrivr.cottontail.database.column.Type
+import org.vitrivr.cottontail.database.queries.Binding
 import org.vitrivr.cottontail.database.queries.QueryContext
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.types.Value
 
 /**
@@ -17,7 +18,9 @@ class ValueBinding(val index: Int, val type: Type<*>) : Binding<Value?> {
      * @param context [QueryContext] to use to obtain [Value] for [ValueBinding].
      * @return [Value]
      */
-    override fun apply(context: QueryContext): Value? = context[this]
+    override fun bind(context: QueryContext): Value? = context[this]
+
+    override fun toString(): String = ":$index"
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

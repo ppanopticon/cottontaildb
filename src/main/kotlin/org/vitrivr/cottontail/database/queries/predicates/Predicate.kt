@@ -1,7 +1,8 @@
 package org.vitrivr.cottontail.database.queries.predicates
 
+import org.vitrivr.cottontail.database.column.ColumnDef
+import org.vitrivr.cottontail.database.queries.Node
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
-import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Record
 
 /**
@@ -9,9 +10,9 @@ import org.vitrivr.cottontail.model.basics.Record
  * are assumed to operate on [Record]s and usually affect a set of [ColumnDef]s in that [Record].
  *
  * @author Ralph Gasser
- * @version 1.1.0
+ * @version 1.2.0
  */
-interface Predicate {
+interface Predicate : Node {
     /** An estimation of the CPU [Cost] required to apply this [Predicate] to a single [Record]. */
     val cost: Float
 

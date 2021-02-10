@@ -4,6 +4,7 @@ import org.mapdb.DB
 import org.mapdb.HTreeMap
 import org.mapdb.Serializer
 import org.slf4j.LoggerFactory
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.events.DataChangeEvent

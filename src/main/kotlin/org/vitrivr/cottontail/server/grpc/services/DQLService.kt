@@ -43,7 +43,7 @@ class DQLService(val catalogue: Catalogue, override val manager: TransactionMana
         private val LOGGER = LoggerFactory.getLogger(DQLService::class.java)
     }
 
-    /** [GrpcQueryBinder] used to generate [org.vitrivr.cottontail.database.queries.planning.nodes.logical.LogicalNodeExpression] tree from a gRPC query. */
+    /** [GrpcQueryBinder] used to generate [org.vitrivr.cottontail.database.queries.planning.nodes.logical.LogicalOperatorNode] tree from a gRPC query. */
     private val binder = GrpcQueryBinder(catalogue = this@DQLService.catalogue)
 
     /** [CottontailQueryPlanner] used to generate execution plans from query definitions. */

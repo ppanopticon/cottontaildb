@@ -3,6 +3,7 @@ package org.vitrivr.cottontail.model.recordset
 import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap
 import it.unimi.dsi.fastutil.objects.ObjectBigArrayBigList
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
 import org.vitrivr.cottontail.database.queries.predicates.bool.BooleanPredicate
 import org.vitrivr.cottontail.model.basics.*

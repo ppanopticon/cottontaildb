@@ -1,16 +1,17 @@
 package org.vitrivr.cottontail.database.queries
 
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap
-import org.vitrivr.cottontail.database.column.Type
 import org.vitrivr.cottontail.database.queries.binding.ValueBinding
-import org.vitrivr.cottontail.database.queries.planning.nodes.logical.LogicalNodeExpression
-import org.vitrivr.cottontail.database.queries.planning.nodes.physical.PhysicalNodeExpression
+import org.vitrivr.cottontail.database.queries.planning.nodes.logical.LogicalOperatorNode
+import org.vitrivr.cottontail.database.queries.planning.nodes.physical.PhysicalOperatorNode
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.execution.operators.basics.Operator
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.types.Value
 
 /**
- * A context for query binding. Tracks
+ * A context for query binding and planning. Tracks logical and physical query plans and
+ * enables late binding of [Binding]s to [Node]s
  *
  * @author Ralph Gasser
  * @version 1.0.0
@@ -24,17 +25,16 @@ class QueryContext {
     val size: Int
         get() = this.bindings.size
 
-    /** The [LogicalNodeExpression] representing the query held by this [QueryContext]. */
-    var logical: LogicalNodeExpression? = null
+    /** The [LogicalOperatorNode] representing the query held by this [QueryContext]. */
+    var logical: LogicalOperatorNode? = null
         internal set
 
-    /** The [PhysicalNodeExpression] representing the query held by this [QueryContext]. */
-    var physical: PhysicalNodeExpression? = null
+    /** The [PhysicalOperatorNode] representing the query held by this [QueryContext]. */
+    var physical: PhysicalOperatorNode? = null
         internal set
-
 
     /**
-     * Returns an executable [Operator] for this [QueryContext]. Requires a functional, [PhysicalNodeExpression]
+     * Returns an executable [Operator] for this [QueryContext]. Requires a functional, [PhysicalOperatorNode]
      */
     fun toOperatorTree(txn: TransactionContext): Operator {
         val local = this.physical

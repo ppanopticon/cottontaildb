@@ -1,6 +1,6 @@
 package org.vitrivr.cottontail.model.values
 
-import org.vitrivr.cottontail.database.column.Type
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.types.ComplexValue
 import org.vitrivr.cottontail.model.values.types.NumericValue
 import org.vitrivr.cottontail.model.values.types.RealValue

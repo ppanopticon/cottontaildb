@@ -1,5 +1,7 @@
 package org.vitrivr.cottontail.model.basics
 
+import org.vitrivr.cottontail.database.column.ColumnDef
+
 /**
  * An objects that holds [Record] values and allows for scanning operation on those [Record] values.
  *

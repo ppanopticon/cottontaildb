@@ -1,6 +1,7 @@
 package org.vitrivr.cottontail.database.entity
 
 import org.vitrivr.cottontail.database.column.Column
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.general.Tx
 import org.vitrivr.cottontail.database.index.Index
 import org.vitrivr.cottontail.database.index.IndexTx

@@ -2,7 +2,6 @@ package org.vitrivr.cottontail.database.column
 
 import org.vitrivr.cottontail.database.general.Tx
 import org.vitrivr.cottontail.model.basics.CloseableIterator
-import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Countable
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.exceptions.DatabaseException

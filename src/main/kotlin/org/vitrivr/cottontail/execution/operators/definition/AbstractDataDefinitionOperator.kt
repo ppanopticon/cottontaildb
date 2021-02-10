@@ -1,9 +1,9 @@
 package org.vitrivr.cottontail.execution.operators.definition
 
-import org.vitrivr.cottontail.database.column.Type
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.execution.operators.basics.Operator
-import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.DoubleValue
 import org.vitrivr.cottontail.model.values.StringValue

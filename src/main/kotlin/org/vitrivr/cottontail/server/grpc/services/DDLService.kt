@@ -4,14 +4,14 @@ import io.grpc.Status
 import io.grpc.stub.StreamObserver
 import org.slf4j.LoggerFactory
 import org.vitrivr.cottontail.database.catalogue.Catalogue
-import org.vitrivr.cottontail.database.column.Type
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.index.IndexType
 import org.vitrivr.cottontail.database.queries.binding.extensions.fqn
 import org.vitrivr.cottontail.execution.TransactionManager
 import org.vitrivr.cottontail.execution.operators.definition.*
 import org.vitrivr.cottontail.grpc.CottontailGrpc
 import org.vitrivr.cottontail.grpc.DDLGrpc
-import org.vitrivr.cottontail.model.basics.ColumnDef
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.model.exceptions.TransactionException
 import org.vitrivr.cottontail.server.grpc.operators.SpoolerSinkOperator

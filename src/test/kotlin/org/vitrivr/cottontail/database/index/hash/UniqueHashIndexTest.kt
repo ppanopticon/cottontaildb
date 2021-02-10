@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.database.index.hash
 
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.Assertions.*
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.index.AbstractIndexTest
 import org.vitrivr.cottontail.database.index.IndexTx
@@ -9,7 +10,6 @@ import org.vitrivr.cottontail.database.index.IndexType
 import org.vitrivr.cottontail.database.queries.components.AtomicBooleanPredicate
 import org.vitrivr.cottontail.database.queries.predicates.bool.ComparisonOperator
 import org.vitrivr.cottontail.execution.TransactionType
-import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.FloatVectorValue

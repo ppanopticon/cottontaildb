@@ -1,9 +1,8 @@
 package org.vitrivr.cottontail.execution.operators.basics
 
 import kotlinx.coroutines.flow.Flow
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.execution.TransactionContext
-
-import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Record
 
 /**

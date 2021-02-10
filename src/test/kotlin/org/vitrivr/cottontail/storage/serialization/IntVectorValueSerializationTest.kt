@@ -5,9 +5,9 @@ import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
 import org.vitrivr.cottontail.TestConstants
-import org.vitrivr.cottontail.database.column.Type
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.execution.TransactionType
-import org.vitrivr.cottontail.model.basics.ColumnDef
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.IntValue
 import org.vitrivr.cottontail.model.values.IntVectorValue

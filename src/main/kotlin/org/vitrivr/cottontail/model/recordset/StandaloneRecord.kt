@@ -2,7 +2,7 @@ package org.vitrivr.cottontail.model.recordset
 
 import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap
 import it.unimi.dsi.fastutil.objects.Object2ObjectMaps
-import org.vitrivr.cottontail.model.basics.ColumnDef
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.model.basics.Record
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.types.Value

@@ -1,21 +1,21 @@
 package org.vitrivr.cottontail.database.queries.planning.rules.physical.implementation
 
-import org.vitrivr.cottontail.database.queries.planning.nodes.interfaces.NodeExpression
-import org.vitrivr.cottontail.database.queries.planning.nodes.interfaces.RewriteRule
-import org.vitrivr.cottontail.database.queries.planning.nodes.logical.management.InsertLogicalNodeExpression
-import org.vitrivr.cottontail.database.queries.planning.nodes.physical.management.InsertPhysicalNodeExpression
+import org.vitrivr.cottontail.database.queries.OperatorNode
+import org.vitrivr.cottontail.database.queries.planning.nodes.logical.management.InsertLogicalOperatorNode
+import org.vitrivr.cottontail.database.queries.planning.nodes.physical.management.InsertPhysicalOperatorNode
+import org.vitrivr.cottontail.database.queries.planning.rules.RewriteRule
 
 /**
- * A [RewriteRule] that transforms a [InsertLogicalNodeExpression] to a [InsertPhysicalNodeExpression].
+ * A [RewriteRule] that transforms a [InsertLogicalOperatorNode] to a [InsertPhysicalOperatorNode].
  *
  * @author Ralph Gasser
  * @version 1.0.0
  */
 object InsertImplementationRule : RewriteRule {
-    override fun canBeApplied(node: NodeExpression): Boolean = node is InsertLogicalNodeExpression
-    override fun apply(node: NodeExpression): NodeExpression? {
-        if (node is InsertLogicalNodeExpression) {
-            val p = InsertPhysicalNodeExpression(node.entity, node.records)
+    override fun canBeApplied(node: OperatorNode): Boolean = node is InsertLogicalOperatorNode
+    override fun apply(node: OperatorNode): OperatorNode? {
+        if (node is InsertLogicalOperatorNode) {
+            val p = InsertPhysicalOperatorNode(node.entity, node.records)
             node.copyOutput()?.addInput(p)
             return p
         }

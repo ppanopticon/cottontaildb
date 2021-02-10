@@ -3,15 +3,13 @@ package org.vitrivr.cottontail.storage.serialization
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.RepeatedTest
-
 import org.vitrivr.cottontail.TestConstants
-import org.vitrivr.cottontail.database.column.Type
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.execution.TransactionType
-import org.vitrivr.cottontail.model.basics.ColumnDef
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.*
 import org.vitrivr.cottontail.model.values.types.Value
-
 import java.util.*
 
 /**

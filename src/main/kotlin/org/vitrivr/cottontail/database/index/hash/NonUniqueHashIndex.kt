@@ -3,6 +3,7 @@ package org.vitrivr.cottontail.database.index.hash
 import org.mapdb.DB
 import org.mapdb.Serializer
 import org.mapdb.serializer.SerializerArrayTuple
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.events.DataChangeEvent

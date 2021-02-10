@@ -2,8 +2,9 @@ package org.vitrivr.cottontail.database.column
 
 import org.vitrivr.cottontail.database.general.DBO
 import org.vitrivr.cottontail.execution.TransactionContext
-import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
+import org.vitrivr.cottontail.model.basics.TupleId
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.types.Value
 
 /**
@@ -14,6 +15,10 @@ import org.vitrivr.cottontail.model.values.types.Value
  * @version 1.0.1
  */
 interface Column<T: Value> : DBO {
+
+    /** The maximum [TupleId] used by this [Column]. */
+    val maxTupleId: TupleId
+
     /** The [Name.ColumnName] of this [Column]. */
     override val name: Name.ColumnName
 

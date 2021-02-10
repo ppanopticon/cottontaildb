@@ -7,13 +7,13 @@ import org.vitrivr.cottontail.config.ExecutionConfig
 import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.catalogue.CatalogueTest
 import org.vitrivr.cottontail.database.catalogue.CatalogueTx
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.schema.Schema
 import org.vitrivr.cottontail.database.schema.SchemaTx
 import org.vitrivr.cottontail.execution.TransactionManager
 import org.vitrivr.cottontail.execution.TransactionType
-import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import java.nio.file.Files

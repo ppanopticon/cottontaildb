@@ -2,11 +2,11 @@ package org.vitrivr.cottontail.execution.operators.transform
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.execution.operators.basics.Operator
-import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Record
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.types.Value

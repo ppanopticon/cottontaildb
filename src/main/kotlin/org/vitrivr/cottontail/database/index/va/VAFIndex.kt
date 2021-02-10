@@ -4,6 +4,7 @@ import org.mapdb.Atomic
 import org.mapdb.DB
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.events.DataChangeEvent
@@ -26,7 +27,6 @@ import org.vitrivr.cottontail.math.knn.selection.ComparablePair
 import org.vitrivr.cottontail.math.knn.selection.MinHeapSelection
 import org.vitrivr.cottontail.math.knn.selection.MinSingleSelection
 import org.vitrivr.cottontail.model.basics.CloseableIterator
-import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.Record
 import org.vitrivr.cottontail.model.exceptions.QueryException

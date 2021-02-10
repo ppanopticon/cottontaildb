@@ -3,8 +3,8 @@ package org.vitrivr.cottontail.database.index.pq.codebook
 import org.apache.commons.math3.stat.correlation.Covariance
 import org.mapdb.DataInput2
 import org.mapdb.DataOutput2
-import org.vitrivr.cottontail.database.column.Type
 import org.vitrivr.cottontail.database.index.pq.codebook.PQCodebook.Companion.clusterRealData
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.DoubleVectorValue
 import org.vitrivr.cottontail.model.values.FloatVectorValue
 import org.vitrivr.cottontail.model.values.types.VectorValue

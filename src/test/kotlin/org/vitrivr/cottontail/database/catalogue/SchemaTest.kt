@@ -5,12 +5,12 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.vitrivr.cottontail.TestConstants
 import org.vitrivr.cottontail.config.ExecutionConfig
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.schema.Schema
 import org.vitrivr.cottontail.database.schema.SchemaTx
 import org.vitrivr.cottontail.execution.TransactionManager
 import org.vitrivr.cottontail.execution.TransactionType
-import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import java.nio.file.Files

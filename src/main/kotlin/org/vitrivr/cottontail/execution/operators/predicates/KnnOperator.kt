@@ -3,7 +3,7 @@ package org.vitrivr.cottontail.execution.operators.predicates
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
-
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.queries.predicates.knn.KnnPredicate
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.execution.operators.basics.Operator
@@ -11,7 +11,6 @@ import org.vitrivr.cottontail.math.knn.selection.ComparablePair
 import org.vitrivr.cottontail.math.knn.selection.MinHeapSelection
 import org.vitrivr.cottontail.math.knn.selection.MinSingleSelection
 import org.vitrivr.cottontail.math.knn.selection.Selection
-import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Record
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.DoubleValue

@@ -4,12 +4,12 @@ import org.mapdb.DataInput2
 import org.mapdb.DataOutput2
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import org.vitrivr.cottontail.database.column.Type
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.index.pq.codebook.DoublePrecisionPQCodebook
 import org.vitrivr.cottontail.database.index.pq.codebook.PQCodebook
 import org.vitrivr.cottontail.database.index.pq.codebook.SinglePrecisionPQCodebook
 import org.vitrivr.cottontail.math.knn.metrics.DistanceKernel
-import org.vitrivr.cottontail.model.basics.ColumnDef
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.DoubleVectorValue
 import org.vitrivr.cottontail.model.values.FloatVectorValue
 import org.vitrivr.cottontail.model.values.types.VectorValue

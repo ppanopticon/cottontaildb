@@ -1,6 +1,6 @@
 package org.vitrivr.cottontail.utilities.data
 
-import org.vitrivr.cottontail.model.basics.ColumnDef
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.utilities.data.exporter.DataExporter
 import org.vitrivr.cottontail.utilities.data.exporter.JsonDataExporter
 import org.vitrivr.cottontail.utilities.data.exporter.ProtoDataExporter

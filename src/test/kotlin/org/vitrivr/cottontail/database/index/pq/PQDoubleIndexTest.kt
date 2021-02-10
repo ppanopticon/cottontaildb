@@ -5,6 +5,7 @@ import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.index.AbstractIndexTest
 import org.vitrivr.cottontail.database.index.IndexTx
@@ -14,7 +15,6 @@ import org.vitrivr.cottontail.execution.TransactionType
 import org.vitrivr.cottontail.math.knn.metrics.*
 import org.vitrivr.cottontail.math.knn.selection.ComparablePair
 import org.vitrivr.cottontail.math.knn.selection.MinHeapSelection
-import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.Record
 import org.vitrivr.cottontail.model.basics.TupleId

@@ -1,6 +1,6 @@
 package org.vitrivr.cottontail.model.values
 
-import org.vitrivr.cottontail.database.column.Type
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.types.*
 import org.vitrivr.cottontail.model.values.types.Value.Companion.RANDOM
 import java.util.*

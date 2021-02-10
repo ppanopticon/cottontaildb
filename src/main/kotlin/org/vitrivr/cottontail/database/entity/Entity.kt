@@ -9,6 +9,7 @@ import org.mapdb.Serializer
 import org.mapdb.StoreWAL
 import org.slf4j.LoggerFactory
 import org.vitrivr.cottontail.database.column.Column
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.column.ColumnTx
 import org.vitrivr.cottontail.database.column.mapdb.MapDBColumn
 import org.vitrivr.cottontail.database.events.DataChangeEvent

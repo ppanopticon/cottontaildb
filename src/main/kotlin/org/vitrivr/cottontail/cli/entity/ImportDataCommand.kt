@@ -6,15 +6,15 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import com.github.ajalt.clikt.parameters.types.enum
 import com.google.protobuf.Empty
-import org.vitrivr.cottontail.database.column.Type
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.queries.binding.extensions.proto
 import org.vitrivr.cottontail.database.queries.binding.extensions.protoFrom
 import org.vitrivr.cottontail.grpc.CottontailGrpc
 import org.vitrivr.cottontail.grpc.DDLGrpc
 import org.vitrivr.cottontail.grpc.DMLGrpc
 import org.vitrivr.cottontail.grpc.TXNGrpc
-import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.utilities.data.Format
 import java.nio.file.Path
 import java.nio.file.Paths

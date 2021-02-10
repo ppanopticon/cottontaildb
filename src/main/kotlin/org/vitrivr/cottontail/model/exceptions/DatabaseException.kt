@@ -1,7 +1,7 @@
 package org.vitrivr.cottontail.model.exceptions
 
-import org.vitrivr.cottontail.database.column.Type
 import org.vitrivr.cottontail.model.basics.Name
+import org.vitrivr.cottontail.model.basics.Type
 
 open class DatabaseException(message: String) : Throwable(message) {
     /**

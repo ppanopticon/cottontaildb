@@ -2,7 +2,7 @@ package org.vitrivr.cottontail.database.queries.binding.extensions
 
 import org.vitrivr.cottontail.database.column.*
 import org.vitrivr.cottontail.grpc.CottontailGrpc
-import org.vitrivr.cottontail.model.basics.ColumnDef
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.exceptions.QueryException
 import org.vitrivr.cottontail.model.values.*
 import org.vitrivr.cottontail.model.values.types.Value

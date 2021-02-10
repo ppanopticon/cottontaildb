@@ -1,7 +1,7 @@
 package org.vitrivr.cottontail.database.events
 
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
-import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.types.Value

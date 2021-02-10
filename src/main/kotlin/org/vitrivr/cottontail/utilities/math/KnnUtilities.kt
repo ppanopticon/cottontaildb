@@ -1,12 +1,12 @@
 package org.vitrivr.cottontail.utilities.math
 
-import org.vitrivr.cottontail.database.column.Type
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.math.knn.selection.ComparablePair
 import org.vitrivr.cottontail.math.knn.selection.MinHeapSelection
 import org.vitrivr.cottontail.math.knn.selection.Selection
-import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.Record
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.recordset.Recordset
 import org.vitrivr.cottontail.model.values.DoubleValue
 import org.vitrivr.cottontail.model.values.types.Value

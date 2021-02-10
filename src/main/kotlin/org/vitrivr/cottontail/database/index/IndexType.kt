@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.database.index
 
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.index.gg.GGIndex
 import org.vitrivr.cottontail.database.index.gg.GGIndexConfig
@@ -13,7 +14,6 @@ import org.vitrivr.cottontail.database.index.pq.PQIndex
 import org.vitrivr.cottontail.database.index.pq.PQIndexConfig
 import org.vitrivr.cottontail.database.index.va.VAFIndex
 import org.vitrivr.cottontail.database.index.va.VAFIndexConfig
-import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.values.types.VectorValue
 

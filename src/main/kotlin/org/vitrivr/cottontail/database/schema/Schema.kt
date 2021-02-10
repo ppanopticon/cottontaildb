@@ -5,8 +5,8 @@ import org.mapdb.CottontailStoreWAL
 import org.mapdb.DBException
 import org.mapdb.Serializer
 import org.mapdb.Store
-
 import org.vitrivr.cottontail.database.catalogue.Catalogue
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.column.mapdb.MapDBColumn
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityHeader
@@ -15,11 +15,9 @@ import org.vitrivr.cottontail.database.general.DBO
 import org.vitrivr.cottontail.database.general.TxStatus
 import org.vitrivr.cottontail.database.locking.LockMode
 import org.vitrivr.cottontail.execution.TransactionContext
-import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.utilities.extensions.read
-
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path

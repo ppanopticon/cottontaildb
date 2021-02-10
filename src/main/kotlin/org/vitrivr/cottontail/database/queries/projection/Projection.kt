@@ -1,8 +1,8 @@
 package org.vitrivr.cottontail.database.queries.projection
 
-import org.vitrivr.cottontail.database.column.Type
-import org.vitrivr.cottontail.model.basics.ColumnDef
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
+import org.vitrivr.cottontail.model.basics.Type
 
 /**
  * Enumeration of all [Projection] operations supported by Cottontail DB.

@@ -4,7 +4,7 @@ import org.apache.commons.math3.linear.RealMatrix
 import org.apache.commons.math3.ml.clustering.CentroidCluster
 import org.apache.commons.math3.ml.clustering.KMeansPlusPlusClusterer
 import org.apache.commons.math3.random.JDKRandomGenerator
-import org.vitrivr.cottontail.database.column.Type
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.types.VectorValue
 
 /**

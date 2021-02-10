@@ -1,13 +1,13 @@
 package org.vitrivr.cottontail.database.queries.planning.rules.physical.implementation
 
+import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.planning.exceptions.NodeExpressionTreeException
-import org.vitrivr.cottontail.database.queries.planning.nodes.interfaces.NodeExpression
-import org.vitrivr.cottontail.database.queries.planning.nodes.interfaces.RewriteRule
-import org.vitrivr.cottontail.database.queries.planning.nodes.logical.projection.LimitLogicalNodeExpression
-import org.vitrivr.cottontail.database.queries.planning.nodes.physical.projection.LimitPhysicalNodeExpression
+import org.vitrivr.cottontail.database.queries.planning.nodes.logical.projection.LimitLogicalOperatorNode
+import org.vitrivr.cottontail.database.queries.planning.nodes.physical.projection.LimitPhysicalOperatorNode
+import org.vitrivr.cottontail.database.queries.planning.rules.RewriteRule
 
 /**
- * A [RewriteRule] that implements a [LimitLogicalNodeExpression] by a [LimitPhysicalNodeExpression].
+ * A [RewriteRule] that implements a [LimitLogicalOperatorNode] by a [LimitPhysicalOperatorNode].
  *
  * This is a simple 1:1 replacement (implementation).
  *
@@ -15,15 +15,15 @@ import org.vitrivr.cottontail.database.queries.planning.nodes.physical.projectio
  * @version 1.0
  */
 object LimitImplementationRule : RewriteRule {
-    override fun canBeApplied(node: NodeExpression): Boolean = node is LimitLogicalNodeExpression
-    override fun apply(node: NodeExpression): NodeExpression? {
-        if (node is LimitLogicalNodeExpression) {
-            val parent = (node.deepCopy() as LimitLogicalNodeExpression).input
+    override fun canBeApplied(node: OperatorNode): Boolean = node is LimitLogicalOperatorNode
+    override fun apply(node: OperatorNode): OperatorNode? {
+        if (node is LimitLogicalOperatorNode) {
+            val parent = (node.deepCopy() as LimitLogicalOperatorNode).input
                 ?: throw NodeExpressionTreeException.IncompleteNodeExpressionTreeException(
                     node,
                     "Expected parent but none was found."
                 )
-            val p = LimitPhysicalNodeExpression(node.limit, node.skip)
+            val p = LimitPhysicalOperatorNode(node.limit, node.skip)
             p.addInput(parent)
             node.copyOutput()?.addInput(p)
             return p

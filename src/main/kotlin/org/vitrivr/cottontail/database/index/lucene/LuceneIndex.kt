@@ -8,7 +8,7 @@ import org.apache.lucene.search.*
 import org.apache.lucene.store.Directory
 import org.apache.lucene.store.FSDirectory
 import org.apache.lucene.store.NativeFSLockFactory
-import org.vitrivr.cottontail.database.column.Type
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.events.DataChangeEvent
@@ -21,9 +21,9 @@ import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
 import org.vitrivr.cottontail.database.queries.predicates.bool.BooleanPredicate
 import org.vitrivr.cottontail.database.queries.predicates.bool.ComparisonOperator
-import org.vitrivr.cottontail.database.queries.predicates.bool.ConnectionOperator
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.model.basics.*
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.exceptions.QueryException
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.FloatValue

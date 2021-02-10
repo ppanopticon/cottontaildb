@@ -1,6 +1,6 @@
 package org.vitrivr.cottontail.model.values.pattern
 
-import org.vitrivr.cottontail.database.column.Type
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.StringValue
 import org.vitrivr.cottontail.model.values.types.ScalarValue
 import org.vitrivr.cottontail.model.values.types.Value

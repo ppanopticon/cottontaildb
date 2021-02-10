@@ -1,8 +1,9 @@
 package org.vitrivr.cottontail.database.queries.binding
 
 import it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap
+import org.vitrivr.cottontail.database.column.ColumnDef
+import org.vitrivr.cottontail.database.queries.Binding
 import org.vitrivr.cottontail.database.queries.QueryContext
-import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Record
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
@@ -17,7 +18,8 @@ class RecordBinding(
     val tupleId: TupleId,
     columns: Array<ColumnDef<*>> = emptyArray(),
     values: Array<ValueBinding> = emptyArray()
-) : Binding<Record> {
+) :
+    Binding<Record> {
 
     /**
      *
@@ -46,8 +48,8 @@ class RecordBinding(
      * @param context [QueryContext] to use to obtain [Record] for this [RecordBinding].
      * @return [Record]
      */
-    override fun apply(context: QueryContext): Record =
-        StandaloneRecord(this.tupleId, this.map.map { it.key to it.value.apply(context) })
+    override fun bind(context: QueryContext): Record =
+        StandaloneRecord(this.tupleId, this.map.map { it.key to it.value.bind(context) })
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

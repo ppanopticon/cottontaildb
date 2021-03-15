@@ -8,6 +8,7 @@ import org.vitrivr.cottontail.database.index.pq.codebook.PQCodebook.Companion.cl
 import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.*
 import org.vitrivr.cottontail.model.values.types.VectorValue
+import org.vitrivr.cottontail.storage.serializers.DoubleVectorValueSerializerFactory
 
 /**
  * A [PQCodebook] implementation for [DoubleVectorValue]s
@@ -30,7 +31,7 @@ class DoublePrecisionPQCodebook(
         override fun serialize(out: DataOutput2, value: DoublePrecisionPQCodebook) {
             /* Serialize logical size of codebook entries. */
             out.packInt(value.logicalSize)
-            val vectorSerializer = value.type.serializer()
+            val vectorSerializer = DoubleVectorValueSerializerFactory.mapdb(value.logicalSize)
 
             /* Serialize centroids matrix. */
             out.packInt(value.centroids.size)
@@ -47,7 +48,7 @@ class DoublePrecisionPQCodebook(
 
         override fun deserialize(input: DataInput2, available: Int): DoublePrecisionPQCodebook {
             val logicalSize = input.unpackInt()
-            val vectorSerializer = Type.DoubleVector(logicalSize).serializer()
+            val vectorSerializer = DoubleVectorValueSerializerFactory.mapdb(logicalSize)
             val centroidsSize = input.unpackInt()
             val centroids = ArrayList<DoubleVectorValue>(centroidsSize)
             for (i in 0 until centroidsSize) {

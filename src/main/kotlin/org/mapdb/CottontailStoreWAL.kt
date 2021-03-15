@@ -1,8 +1,8 @@
 package org.mapdb
 
+import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap
 import org.eclipse.collections.impl.list.mutable.primitive.LongArrayList
-import org.eclipse.collections.impl.map.mutable.primitive.LongLongHashMap
-import org.eclipse.collections.impl.map.mutable.primitive.LongObjectHashMap
 import org.mapdb.DataIO.*
 import org.mapdb.StoreDirectJava.*
 import org.mapdb.volume.ReadOnlyVolume
@@ -87,26 +87,28 @@ class CottontailStoreWAL(
     override val volume: Volume = if (CC.ASSERT) ReadOnlyVolume(realVolume) else realVolume
 
     /** header is stored in-memory, so it can be rolled back */
-    protected val headBytes = ByteArray(StoreDirectJava.HEAD_END.toInt())
+    protected val headBytes = ByteArray(HEAD_END.toInt())
 
-    override val headVol = SingleByteArrayVol(headBytes)
+    override val headVol = SingleByteArrayVol(this.headBytes)
 
     /** stack pages, key is offset, value is content */
-    protected val cacheStacks = LongObjectHashMap<ByteArray>()
+    protected val cacheStacks = Long2ObjectOpenHashMap<ByteArray>()
 
-    /** modified indexVals, key is offset, value is indexValue */
-    protected val cacheIndexVals = Array(segmentCount, { LongLongHashMap() })
-    protected val cacheIndexLinks = LongLongHashMap()
-    /** modified records, key is offset, value is WAL ID */
-    protected val cacheRecords = Array(segmentCount, { LongLongHashMap() })
+    /** Modified indexVals, key is offset, value is indexValue */
+    protected val cacheIndexVals = Array(this.segmentCount) {
+        Long2LongOpenHashMap()
+    }
 
+    /** Modified records, key is offset, value is WAL ID */
+    protected val cacheRecords = Array(this.segmentCount) {
+        Long2LongOpenHashMap()
+    }
 
-    protected val wal = WriteAheadLog(
-            file,
-            volumeFactory, //TODO PERF choose best file factory, mmap might not be fastest option
-            0L,
-            fileDeleteAfterOpen
-    )
+    /** Modified records, key is offset, value is WAL ID */
+    protected val cacheIndexLinks = Long2LongOpenHashMap()
+
+    /** [WriteAheadLog] reference. */
+    protected val wal = WriteAheadLog(file, volumeFactory, 0L, fileDeleteAfterOpen)
 
     /** backup for `indexPages`, restored on rollback */
     protected var indexPagesBackup = longArrayOf()
@@ -116,8 +118,8 @@ class CottontailStoreWAL(
     override val isReadOnly = false
 
 
-    init{
-        if(checksum)
+    init {
+        if (checksum)
             throw DBException.WrongConfiguration("StoreWAL does not support checksum yet") //TODO StoreWAL checksums
         CottontailUtils.lock(structuralLock) {
             if (!volumeExistsAtStart) {
@@ -130,7 +132,7 @@ class CottontailStoreWAL(
                 fileTail = CC.PAGE_SIZE
 
                 //initialize long stack master links
-                for (offset in StoreDirectJava.RECID_LONG_STACK until StoreDirectJava.HEAD_END step 8) {
+                for (offset in RECID_LONG_STACK until HEAD_END step 8) {
                     headVol.putLong(offset, parity4Set(0L))
                 }
                 headVol.putInt(16, storeHeaderCompose())
@@ -405,7 +407,7 @@ class CottontailStoreWAL(
                         allocateData(roundUp(di.pos, 16), false)
                     }
                     val walId = wal.walPutRecord(recid, di.buf, 0, di.pos)
-                    cacheRecords[segment].put(volOffset, walId)
+                    cacheRecords[segment][volOffset] = walId
                     val indexVal = indexValCompose(size = di.pos.toLong(), offset = volOffset, archive = 1, linked = 0, unused = 0)
                     setIndexVal(recid,indexVal)
                 }
@@ -512,13 +514,13 @@ class CottontailStoreWAL(
 
             val volOffset = indexValToOffset(indexVal)
 
-            if(size<6){
-                if(CC.ASSERT && size>5)
+            if (size < 6) {
+                if (CC.ASSERT && size > 5)
                     throw DBException.DataCorruption("wrong size record header")
                 return serializer.deserializeFromLong(volOffset.ushr(8), size.toInt())
             }
 
-            val walId = cacheRecords[segment].get(volOffset)
+            val walId = cacheRecords[segment][volOffset]
             val di = if (walId != 0L) {
                 //try to get from WAL
                 DataInput2.ByteArray(wal.walGetRecord(walId, recid))
@@ -580,23 +582,23 @@ class CottontailStoreWAL(
     override fun rollback() {
         CottontailUtils.lockWriteAll(locks)
         try {
-            realVolume.getData(0, headBytes, 0, headBytes.size)
-            cacheIndexLinks.clear()
-            cacheIndexVals.forEach {
+            this.realVolume.getData(0, headBytes, 0, headBytes.size)
+            this.cacheIndexLinks.clear()
+            this.cacheIndexVals.forEach {
                 it.clear()
-                it.compact()
+                it.trim()
             }
-            cacheRecords.forEach {
+            this.cacheRecords.forEach {
                 it.clear()
-                it.compact()
+                it.trim()
             }
-            cacheStacks.clear()
-            cacheStacks.compact()
-            indexPages.clear()
+            this.cacheStacks.clear()
+            this.cacheStacks.trim()
+            this.indexPages.clear()
 
             for (page in indexPagesBackup)
-                indexPages.add(page)
-            wal.rollback()
+                this.indexPages.add(page)
+            this.wal.rollback()
         }finally{
             CottontailUtils.unlockWriteAll(locks)
         }
@@ -605,50 +607,56 @@ class CottontailStoreWAL(
     override fun commit() {
         CottontailUtils.lockWriteAll(locks)
         try {
-            DataIO.putInt(headBytes, 20, calculateHeaderChecksum())
+            putInt(headBytes, 20, calculateHeaderChecksum())
             //write index page
-            wal.walPutByteArray(0, headBytes, 0, headBytes.size)
-            wal.commit()
+            this.wal.walPutByteArray(0, headBytes, 0, headBytes.size)
+            this.wal.commit()
 
-            realVolume.putData(0, headBytes, 0, headBytes.size)
-
-            realVolume.ensureAvailable(fileTail)
+            this.realVolume.putData(0, headBytes, 0, headBytes.size)
+            this.realVolume.ensureAvailable(fileTail)
 
             //flush index values
-            for (indexVals in cacheIndexVals) {
-                indexVals.forEachKeyValue { indexOffset, indexVal ->
-                    realVolume.putLong(indexOffset, indexVal)
+            for (indexVals in this.cacheIndexVals) {
+                indexVals.forEach { (indexOffset, indexVal) ->
+                    this.realVolume.putLong(
+                        indexOffset,
+                        indexVal
+                    )
                 }
                 indexVals.clear()
-                indexVals.compact()
+                indexVals.trim()
             }
-            cacheIndexLinks.forEachKeyValue { indexOffset, indexVal ->
-                realVolume.putLong(indexOffset, indexVal)
+            this.cacheIndexLinks.forEach { (indexOffset, indexVal) ->
+                this.realVolume.putLong(
+                    indexOffset,
+                    indexVal
+                )
             }
-            cacheIndexLinks.clear()
+            this.cacheIndexLinks.clear()
+            this.cacheIndexLinks.trim()
 
             //flush long stack pages
-            cacheStacks.forEachKeyValue { offset, bytes ->
+            this.cacheStacks.forEach { (offset, bytes) ->
                 realVolume.putData(offset, bytes, 0, bytes.size)
             }
-            cacheStacks.clear()
-            cacheStacks.compact()
+            this.cacheStacks.clear()
+            this.cacheStacks.trim()
 
             //move modified records from indexPages
-            for (records in cacheRecords) {
-                records.forEachKeyValue { offset, walId ->
-                    val bytes = wal.walGetRecord(walId, 0)
-                    realVolume.putData(offset, bytes, 0, bytes.size)
+            for (records in this.cacheRecords) {
+                records.forEach { (offset, walId) ->
+                    val bytes = this.wal.walGetRecord(walId, 0)
+                    this.realVolume.putData(offset, bytes, 0, bytes.size)
                 }
                 records.clear()
-                records.compact()
+                records.trim()
             }
 
-            indexPagesBackup = indexPages.toArray()
-            realVolume.sync()
+            this.indexPagesBackup = this.indexPages.toArray()
+            this.realVolume.sync()
 
-            wal.destroyWalFiles()
-            wal.close()
+            this.wal.destroyWalFiles()
+            this.wal.close()
         }finally{
             CottontailUtils.unlockWriteAll(locks)
         }
@@ -744,14 +752,14 @@ class CottontailStoreWAL(
     }
 
     private fun longStackLoadChunk(chunkOffset: Long): ByteArray {
-        var ba = cacheStacks.get(chunkOffset)
+        var ba = this.cacheStacks[chunkOffset]
         if(ba==null) {
             val prevLinkVal = parity4Get(volume.getLong(chunkOffset))
             val pageSize = prevLinkVal.ushr(48).toInt()
             //load from volume
             ba = ByteArray(pageSize)
             volume.getData(chunkOffset, ba, 0, pageSize)
-            cacheStacks.put(chunkOffset,ba)
+            this.cacheStacks.put(chunkOffset, ba)
         }
         if(CC.ASSERT && ba.size>LONG_STACK_MAX_SIZE)
             throw AssertionError()
@@ -935,19 +943,16 @@ class CottontailStoreWAL(
      * A [LongIterator] that can be used to iterate over all record IDs.
      *
      * @author Ralph Gasser
-     * @version 1.0
+     * @version 1.0.1
      */
     inner class RecordIdIterator(range: LongRange = 2L..this@CottontailStoreWAL.maxRecid) : LongIterator() {
+
         /** Creates a local snapshot of the maximum record ID. */
         private val maximumRecordId = range.last.coerceAtMost(this@CottontailStoreWAL.maxRecid)
 
         /** Current record ID. */
         @Volatile
         private var currentRecordId = range.first.coerceAtLeast(2L)
-
-        /** Flag indicating that this [RecordIdIterator] has been closed. */
-        @Volatile
-        private var closed = false
 
         /**
          * Returns the next record ID currently in use. Due to the way, hasNext() is evaluated, this method may reach the
@@ -957,7 +962,6 @@ class CottontailStoreWAL(
          */
         @Synchronized
         override fun nextLong(): Long {
-            check(!this.closed) { "Illegal invocation of nextLong(): This RecordIdIterator has been closed." }
             return (this.currentRecordId++)
         }
 
@@ -966,7 +970,6 @@ class CottontailStoreWAL(
          */
         @Synchronized
         override fun hasNext(): Boolean {
-            check(!this.closed) { "Illegal invocation of hasNext(): This RecordIdIterator has been closed." }
             do {
                 if (this.currentRecordId > this.maximumRecordId) {
                     return false

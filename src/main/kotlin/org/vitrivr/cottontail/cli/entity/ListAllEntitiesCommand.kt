@@ -9,7 +9,7 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.measureTimedValue
 
 /**
- * List all [org.vitrivr.cottontail.database.entity.Entity] stored in Cottontail DB.
+ * List all [org.vitrivr.cottontail.database.entity.DefaultEntity] stored in Cottontail DB.
  *
  * @author Loris Sauter & Ralph Gasser
  * @version 1.0.2

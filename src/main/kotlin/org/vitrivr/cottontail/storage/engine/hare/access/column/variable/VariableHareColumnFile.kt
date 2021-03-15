@@ -1,9 +1,9 @@
 package org.vitrivr.cottontail.storage.engine.hare.access.column.variable
 
-import org.vitrivr.cottontail.database.column.Type
-import org.vitrivr.cottontail.model.basics.ColumnDef
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.TupleId
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.types.Value
 import org.vitrivr.cottontail.storage.engine.hare.PageId
 import org.vitrivr.cottontail.storage.engine.hare.access.column.directory.DirectoryPageView
@@ -117,7 +117,7 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean) : HareColu
 
         this.disk.read(tid, FixedHareColumnFile.ROOT_PAGE_ID, page)
         val header = HeaderPageView(page).validate()
-        this.type = header.type
+        this.type = header.type as Type<T>
         this.nullable = header.nullable
     }
 

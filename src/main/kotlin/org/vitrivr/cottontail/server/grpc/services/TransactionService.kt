@@ -48,10 +48,10 @@ interface TransactionService {
 
         /* Finalize implicit user transactions. */
         if (context.type === TransactionType.USER_IMPLICIT) {
-            if (context.state === TransactionStatus.ERROR) {
-                context.rollback()
-            } else {
+            if (context.state == TransactionStatus.READY) {
                 context.commit()
+            } else if (context.state == TransactionStatus.ERROR) {
+                context.rollback()
             }
         }
     }

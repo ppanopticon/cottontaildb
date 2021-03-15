@@ -19,19 +19,12 @@ import java.util.*
  * @author Ralph Gasser
  * @version 1.1.0
  */
-class StandaloneRecord(
-    override var tupleId: TupleId,
-    columns: Array<ColumnDef<*>> = emptyArray(),
-    values: Array<Value?> = emptyArray()
-) : Record {
+class StandaloneRecord(override var tupleId: TupleId, columns: Array<ColumnDef<*>> = emptyArray(), values: Array<Value?> = emptyArray()) : Record {
 
     /**
      *
      */
-    constructor(
-        tupleId: TupleId,
-        collection: Collection<Pair<ColumnDef<*>, Value?>>
-    ) : this(tupleId) {
+    constructor(tupleId: TupleId, collection: Collection<Pair<ColumnDef<*>, Value?>>) : this(tupleId) {
         collection.forEach {
             if (!it.first.validate(it.second)) {
                 throw IllegalArgumentException("Provided value ${it.first} is incompatible with column ${it.second}.")
@@ -77,10 +70,9 @@ class StandaloneRecord(
      *
      * @param action The action to apply to each [ColumnDef], [Value] pair.
      */
-    override fun forEach(action: (ColumnDef<*>, Value?) -> Unit) =
-        Object2ObjectMaps.fastForEach(this.map) { (c, v) ->
-            action(c, v)
-        }
+    override fun forEach(action: (ColumnDef<*>, Value?) -> Unit) = Object2ObjectMaps.fastForEach(this.map) { (c, v) ->
+        action(c, v)
+    }
 
     /**
      * Returns true, if this [StandaloneRecord] contains the specified [ColumnDef] and false otherwise.

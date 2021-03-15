@@ -20,27 +20,32 @@ import org.vitrivr.cottontail.model.recordset.StandaloneRecord
  */
 class SelectProjectionOperator(
     parent: Operator,
-    fields: List<Pair<ColumnDef<*>, Name.ColumnName?>>
+    fields: List<Pair<Name.ColumnName, Name.ColumnName?>>
 ) : Operator.PipelineOperator(parent) {
 
     /** True if names should be flattened, i.e., prefixes should be removed. */
-    private val flattenNames =
-        fields.all { it.first.name.schema() == fields.first().first.name.schema() }
+    private val flattenNames = fields.all { it.first.schema() == fields.first().first.schema() }
 
     /** Columns produced by [SelectProjectionOperator]. */
-    override val columns: Array<ColumnDef<*>> = fields.map {
-        val alias = it.second
-        if (alias != null) {
-            it.first.copy(name = alias)
-        } else if (flattenNames) {
-            it.first.copy(name = Name.ColumnName(it.first.name.simple))
+    override val columns: Array<ColumnDef<*>> = this.parent.columns.mapNotNull { c ->
+        val match = fields.find { f -> f.first.matches(c.name) }
+        if (match != null) {
+            val alias = match.second
+            when {
+                alias != null -> c.copy(name = alias)
+                this.flattenNames -> c.copy(name = Name.ColumnName(c.name.simple))
+                else -> c
+            }
         } else {
-            it.first
+            null
         }
     }.toTypedArray()
 
+
     /** Parent [ColumnDef] to access and aggregate. */
-    private val parentColumns = fields.map { it.first }
+    private val parentColumns = this.parent.columns.filter { c ->
+        fields.any { f -> f.first.matches(c.name) }
+    }
 
     /** [SelectProjectionOperator] does not act as a pipeline breaker. */
     override val breaker: Boolean = false
@@ -53,11 +58,7 @@ class SelectProjectionOperator(
      */
     override fun toFlow(context: TransactionContext): Flow<Record> {
         return this.parent.toFlow(context).map { r ->
-            StandaloneRecord(
-                r.tupleId,
-                this.columns,
-                this.parentColumns.map { r[it] }.toTypedArray()
-            )
+            StandaloneRecord(r.tupleId, this.columns, this.parentColumns.map { r[it] }.toTypedArray())
         }
     }
 }

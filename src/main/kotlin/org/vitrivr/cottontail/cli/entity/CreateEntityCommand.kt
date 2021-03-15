@@ -12,7 +12,7 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.measureTimedValue
 
 /**
- * Command to create a new a [org.vitrivr.cottontail.database.entity.Entity].
+ * Command to create a new a [org.vitrivr.cottontail.database.entity.DefaultEntity].
  *
  * @author Ralph Gasser
  * @version 1.0.0

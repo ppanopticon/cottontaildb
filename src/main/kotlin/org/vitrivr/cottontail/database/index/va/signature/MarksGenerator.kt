@@ -100,11 +100,7 @@ object MarksGenerator {
         return getEquidistantMarks(min, max, marksPerDimension)
     }
 
-    fun getEquidistantMarks(
-        min: DoubleArray,
-        max: DoubleArray,
-        marksPerDimension: IntArray
-    ): Marks {
+    fun getEquidistantMarks(min: DoubleArray, max: DoubleArray, marksPerDimension: IntArray): Marks {
         return Marks(Array(min.size) { i ->
             require(marksPerDimension[i] > 2) { "Need to request more than 2 mark per dimension! (Faulty dimension: $i)" }
             val a = DoubleArray(marksPerDimension[i]) {
@@ -121,10 +117,7 @@ object MarksGenerator {
      * Create marks per dimension (equally spaced). Min and max of data are not included! -> 1 mark is in middle
      * of data range, 2 marks divide the range into 3 thirds, etc...
      */
-    fun getEquidistantMarksWithoutMinMax(
-        data: Array<DoubleArray>,
-        marksPerDimension: IntArray
-    ): Marks {
+    fun getEquidistantMarksWithoutMinMax(data: Array<DoubleArray>, marksPerDimension: IntArray): Marks {
         val min = getMin(data)
         val max = getMax(data)
         return Marks(Array(min.size) { i ->
@@ -148,8 +141,7 @@ object MarksGenerator {
         // we can sort? Easiest is probably to copy, but this isn't gonna be cheap on ram...
         return Marks(Array(marksPerDimension.size) { dim ->
             val n = marksPerDimension[dim]
-            val vecsPerRegion =
-                (data.size / (n - 1)) // check effects of constant rounding down... probably last region gets more on avg
+            val vecsPerRegion = (data.size / (n - 1)) // check effects of constant rounding down... probably last region gets more on avg
             require(vecsPerRegion > 0) { "More regions than data! Better use equidistant marks!" }
             val dimData = DoubleArray(data.size) { data[it][dim] }
             dimData.sort()

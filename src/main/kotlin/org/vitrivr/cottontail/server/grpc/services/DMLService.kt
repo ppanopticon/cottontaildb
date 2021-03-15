@@ -4,38 +4,37 @@ import com.google.protobuf.Empty
 import io.grpc.Status
 import io.grpc.stub.StreamObserver
 import org.slf4j.LoggerFactory
-import org.vitrivr.cottontail.database.catalogue.Catalogue
-import org.vitrivr.cottontail.database.entity.Entity
+import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
+import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.binding.GrpcQueryBinder
 import org.vitrivr.cottontail.database.queries.planning.CottontailQueryPlanner
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.management.InsertPhysicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.rules.logical.LeftConjunctionRewriteRule
 import org.vitrivr.cottontail.database.queries.planning.rules.logical.RightConjunctionRewriteRule
-import org.vitrivr.cottontail.database.queries.planning.rules.physical.implementation.*
 import org.vitrivr.cottontail.database.queries.planning.rules.physical.index.BooleanIndexScanRule
 import org.vitrivr.cottontail.execution.TransactionManager
 import org.vitrivr.cottontail.execution.TransactionType
+import org.vitrivr.cottontail.execution.operators.sinks.SpoolerSinkOperator
 import org.vitrivr.cottontail.execution.operators.utility.NoOpSinkOperator
 import org.vitrivr.cottontail.grpc.CottontailGrpc
 import org.vitrivr.cottontail.grpc.DMLGrpc
 import org.vitrivr.cottontail.model.exceptions.ExecutionException
 import org.vitrivr.cottontail.model.exceptions.QueryException
 import org.vitrivr.cottontail.model.exceptions.TransactionException
-import org.vitrivr.cottontail.server.grpc.operators.SpoolerSinkOperator
 import java.util.*
 import kotlin.time.ExperimentalTime
 import kotlin.time.measureTime
 import kotlin.time.measureTimedValue
 
 /**
- * Implementation of [DMLGrpc.DMLImplBase], the gRPC endpoint for inserting data into Cottontail DB [Entity]s.
+ * Implementation of [DMLGrpc.DMLImplBase], the gRPC endpoint for inserting data into Cottontail DB [DefaultEntity]s.
  *
  * @author Ralph Gasser
  * @version 1.4.0
  */
 @ExperimentalTime
-class DMLService(val catalogue: Catalogue, override val manager: TransactionManager) : DMLGrpc.DMLImplBase(), TransactionService {
+class DMLService(val catalogue: DefaultCatalogue, override val manager: TransactionManager) : DMLGrpc.DMLImplBase(), TransactionService {
     /** Logger used for logging the output. */
     companion object {
         private val LOGGER = LoggerFactory.getLogger(DMLService::class.java)
@@ -46,18 +45,8 @@ class DMLService(val catalogue: Catalogue, override val manager: TransactionMana
 
     /** [CottontailQueryPlanner] instance used to generate execution plans from query definitions. */
     private val planner = CottontailQueryPlanner(
-        logicalRewriteRules = listOf(
-            LeftConjunctionRewriteRule,
-            RightConjunctionRewriteRule
-        ),
-        physicalRewriteRules = listOf(
-            BooleanIndexScanRule,
-            EntityScanImplementationRule,
-            FilterImplementationRule,
-            DeleteImplementationRule,
-            UpdateImplementationRule,
-            InsertImplementationRule
-        ),
+        logicalRules = listOf(LeftConjunctionRewriteRule, RightConjunctionRewriteRule),
+        physicalRules = listOf(BooleanIndexScanRule),
         this.catalogue.config.cache.planCacheSize
     )
 
@@ -67,11 +56,11 @@ class DMLService(val catalogue: Catalogue, override val manager: TransactionMana
     override fun update(request: CottontailGrpc.UpdateMessage, responseObserver: StreamObserver<CottontailGrpc.QueryResponseMessage>) = try {
         this.withTransactionContext(request.txId) { tx, q ->
             try {
-                val ctx = QueryContext()
+                val ctx = QueryContext(tx)
                 val totalDuration = measureTime {
                     /* Bind query and create logical plan. */
                     val bindTime = measureTime {
-                        this.binder.bind(request, ctx, tx)
+                        this.binder.bind(request, ctx)
                     }
                     LOGGER.debug(formatMessage(tx, q, "Parsing & binding UPDATE took $bindTime."))
 
@@ -126,11 +115,11 @@ class DMLService(val catalogue: Catalogue, override val manager: TransactionMana
     override fun delete(request: CottontailGrpc.DeleteMessage, responseObserver: StreamObserver<CottontailGrpc.QueryResponseMessage>) = try {
         this.withTransactionContext(request.txId) { tx, q ->
             try {
-                val ctx = QueryContext()
+                val ctx = QueryContext(tx)
                 val totalDuration = measureTime {
                     /* Bind query and create logical plan. */
                     val bindTime = measureTime {
-                        this.binder.bind(request, ctx, tx)
+                        this.binder.bind(request, ctx)
                     }
                     LOGGER.debug(formatMessage(tx, q, "Parsing & binding DELETE took $bindTime."))
 
@@ -185,11 +174,11 @@ class DMLService(val catalogue: Catalogue, override val manager: TransactionMana
     override fun insert(request: CottontailGrpc.InsertMessage, responseObserver: StreamObserver<CottontailGrpc.QueryResponseMessage>) = try {
         this.withTransactionContext(request.txId) { tx, q ->
             try {
-                val ctx = QueryContext()
+                val ctx = QueryContext(tx)
                 val totalDuration = measureTime {
                     /* Bind query and create logical plan. */
                     val bindTime = measureTime {
-                        this.binder.bind(request, ctx, tx)
+                        this.binder.bind(request, ctx)
                     }
                     LOGGER.debug(formatMessage(tx, q, "Parsing & binding INSERT took $bindTime."))
 
@@ -258,9 +247,9 @@ class DMLService(val catalogue: Catalogue, override val manager: TransactionMana
             try {
                 val localContext = this.queryContext
                 if (localContext == null) {
-                    val newQueryContext = QueryContext()
+                    val newQueryContext = QueryContext(this.transaction)
                     val bindTime = measureTime {
-                        this@DMLService.binder.bind(value, newQueryContext, this.transaction)
+                        this@DMLService.binder.bind(value, newQueryContext)
                     }
                     LOGGER.debug(formatMessage(this.transaction, this.queryId, "Parsing & binding INSERT took $bindTime."))
 
@@ -272,7 +261,7 @@ class DMLService(val catalogue: Catalogue, override val manager: TransactionMana
                     this.queryContext = newQueryContext
                 } else {
                     val bindTime = measureTime {
-                        val binding = this@DMLService.binder.bindValues(value, localContext, this.transaction)
+                        val binding = this@DMLService.binder.bindValues(value, localContext)
                         (localContext.physical as InsertPhysicalOperatorNode).records.add(binding)
                     }
                     LOGGER.debug(formatMessage(this.transaction, this.queryId, "Parsing & binding INSERT took $bindTime."))
@@ -329,7 +318,7 @@ class DMLService(val catalogue: Catalogue, override val manager: TransactionMana
                 LOGGER.info(message)
                 responseObserver.onError(Status.INTERNAL.withDescription(message).asException())
             } catch (e: Throwable) {
-                val message = formatMessage(this.transaction, this.queryId,"INSERT failed due an unhandled error: ${e.message}")
+                val message = formatMessage(this.transaction, this.queryId, "INSERT failed due an unhandled error: ${e.message}")
                 LOGGER.error(message, e)
                 responseObserver.onError(Status.UNKNOWN.withDescription(message).asException())
             }

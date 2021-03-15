@@ -1,41 +1,73 @@
 package org.vitrivr.cottontail.database.catalogue
 
+import org.mapdb.DataInput2
+import org.mapdb.DataOutput2
+import org.vitrivr.cottontail.database.general.DBOVersion
+import org.vitrivr.cottontail.model.exceptions.DatabaseException
+import java.nio.file.Path
+import java.nio.file.Paths
+import java.util.*
+
 /**
- * The header section of the [Catalogue] data structure.
+ * The header section of the [DefaultCatalogue] data structure.
  *
- * @see [Catalogue]
+ * @see [DefaultCatalogue]
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 2.0.0
  */
-internal data class CatalogueHeader(val size: Long = 0, val created: Long = System.currentTimeMillis(), val modified: Long = System.currentTimeMillis(), val schemas: LongArray = LongArray(0)) {
-    companion object {
-        /** The identifier that is used to identify a Cottontail DB [Catalogue] file. */
-        internal const val IDENTIFIER: String = "COTTONT_CAT"
+internal data class CatalogueHeader(
+    val uid: String = UUID.randomUUID().toString(),
+    val created: Long = System.currentTimeMillis(),
+    val modified: Long = System.currentTimeMillis(),
+    val schemas: List<SchemaRef> = emptyList()
+) {
 
-        /** The version of the Cottontail DB [Catalogue]  file. */
-        internal const val VERSION: Short = 1
+    companion object Serializer : org.mapdb.Serializer<CatalogueHeader> {
+        override fun serialize(out: DataOutput2, value: CatalogueHeader) {
+            out.packInt(DBOVersion.V2_0.ordinal)
+            out.writeUTF(value.uid)
+            out.writeLong(value.created)
+            out.writeLong(value.modified)
+            out.packInt(value.schemas.size)
+            value.schemas.forEach { SchemaRef.serialize(out, it) }
+        }
+
+        override fun deserialize(input: DataInput2, available: Int): CatalogueHeader {
+            val version = DBOVersion.values()[input.unpackInt()]
+            if (version != DBOVersion.V2_0)
+                throw DatabaseException.VersionMismatchException(version, DBOVersion.V2_0)
+            return CatalogueHeader(
+                input.readUTF(),
+                input.readLong(),
+                input.readLong(),
+                (0 until input.unpackInt()).map { SchemaRef.deserialize(input, available) }
+            )
+        }
     }
 
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
+    /**
+     * A reference to a schema.
+     */
+    data class SchemaRef(val name: String, val path: Path? = null) {
+        companion object Serializer : org.mapdb.Serializer<SchemaRef> {
+            override fun serialize(out: DataOutput2, value: SchemaRef) {
+                out.writeUTF(value.name)
+                out.writeBoolean(value.path != null)
+                if (value.path != null) {
+                    out.writeUTF(value.path.toString())
+                }
+            }
 
-        other as CatalogueHeader
-
-        if (size != other.size) return false
-        if (created != other.created) return false
-        if (modified != other.modified) return false
-        if (!schemas.contentEquals(other.schemas)) return false
-
-        return true
-    }
-
-    override fun hashCode(): Int {
-        var result = size.hashCode()
-        result = 31 * result + created.hashCode()
-        result = 31 * result + modified.hashCode()
-        result = 31 * result + schemas.contentHashCode()
-        return result
+            override fun deserialize(input: DataInput2, available: Int): SchemaRef {
+                return SchemaRef(
+                    input.readUTF(), if (input.readBoolean()) {
+                        Paths.get(input.readUTF())
+                    } else {
+                        null
+                    }
+                )
+            }
+        }
     }
 }

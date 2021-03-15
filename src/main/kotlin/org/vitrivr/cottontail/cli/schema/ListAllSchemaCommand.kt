@@ -8,7 +8,7 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.measureTimedValue
 
 /**
- * List all [org.vitrivr.cottontail.database.schema.Schema] stored in Cottontail DB.
+ * List all [org.vitrivr.cottontail.database.schema.DefaultSchema] stored in Cottontail DB.
  *
  * @author Loris Sauter & Ralph Gasser
  * @version 1.0.1

@@ -1,6 +1,6 @@
 package org.vitrivr.cottontail.storage.engine.hare.access.interfaces
 
-import org.vitrivr.cottontail.database.column.Type
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.types.Value
 import org.vitrivr.cottontail.storage.engine.hare.basics.Resource
 import org.vitrivr.cottontail.storage.engine.hare.disk.HareDiskManager

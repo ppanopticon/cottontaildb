@@ -1,14 +1,13 @@
 package org.vitrivr.cottontail.database.column.hare
 
 import org.vitrivr.cottontail.config.HareConfig
-import org.vitrivr.cottontail.database.column.Column
-import org.vitrivr.cottontail.database.column.ColumnCursor
-import org.vitrivr.cottontail.database.column.ColumnTx
+import org.vitrivr.cottontail.database.column.*
 import org.vitrivr.cottontail.database.column.mapdb.MapDBColumn
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.general.AbstractTx
+import org.vitrivr.cottontail.database.general.DBOVersion
+import org.vitrivr.cottontail.database.general.TxSnapshot
 import org.vitrivr.cottontail.execution.TransactionContext
-import org.vitrivr.cottontail.model.basics.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.types.Value
@@ -74,6 +73,15 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val par
 
     override fun newTx(context: TransactionContext): ColumnTx<T> = Tx(context)
 
+    override val maxTupleId: TupleId
+        get() = TODO()
+
+    override val engine: ColumnEngine
+        get() = ColumnEngine.HARE
+
+    override val version: DBOVersion
+        get() = DBOVersion.V2_0
+
     /**
      * Closes the [HareColumn]. Closing an [HareColumn] is a delicate matter since ongoing [HareColumn.Tx] might be involved.
      * Therefore, access to the method is mediated by an global [HareColumn] wide lock.
@@ -87,6 +95,9 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val par
      * A [ColumnTx] that affects this [HareColumn].
      */
     inner class Tx constructor(context: TransactionContext) : AbstractTx(context), ColumnTx<T> {
+
+        override val snapshot: TxSnapshot
+            get() = TODO("Not yet implemented")
 
         /** Reference to the [HareColumn] this [HareColumn.Tx] belongs to. */
         override val dbo: Column<T>
@@ -112,10 +123,6 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val par
             this.reader.count()
         }
 
-        override fun maxTupleId(): TupleId = this.withReadLock {
-            this.reader.maxTupleId()
-        }
-
         override fun read(tupleId: Long): T? = this.withReadLock {
             this.reader.get(tupleId)
         }
@@ -125,7 +132,9 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val par
         }
 
         override fun update(tupleId: TupleId, value: T?) = this.withWriteLock {
+            val old = this.reader.get(tupleId)
             this.writer.update(tupleId, value)
+            old
         }
 
         override fun compareAndUpdate(tupleId: Long, value: T?, expected: T?): Boolean = this.withWriteLock {
@@ -134,10 +143,9 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val par
 
         override fun delete(tupleId: TupleId) = withWriteLock {
             this.writer.delete(tupleId)
-            Unit
         }
 
-        override fun scan(): ColumnCursor<T> = this.scan(0L..this.maxTupleId())
+        override fun scan(): ColumnCursor<T> = this.scan(0L..this@HareColumn.maxTupleId)
 
         override fun scan(range: LongRange) = object : ColumnCursor<T> {
 
@@ -148,25 +156,15 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val par
             /** [FixedHareColumnCursor] instance used for this [ColumnCursor]. */
             private val cursor = FixedHareColumnCursor(this@HareColumn.column, this@Tx.bufferPool, range)
 
-            /** Flag indicating whether this [ColumnCursor] has been closed. */
-            override val isOpen: Boolean
-                get() = cursor.isOpen
-
             /**
              * Returns `true` if the iteration has more elements.
              */
-            override fun hasNext(): Boolean {
-                check(this.isOpen) { "Illegal invocation of next(): This CloseableIterator has been closed." }
-                return this.cursor.hasNext()
-            }
+            override fun hasNext(): Boolean = this.cursor.hasNext()
 
             /**
              * Returns the next [TupleId] in the iteration.
              */
-            override fun next(): TupleId {
-                check(this.isOpen) { "Illegal invocation of next(): This CloseableIterator has been closed." }
-                return this.cursor.next()
-            }
+            override fun next(): TupleId = this.cursor.next()
 
             /**
              * Reads the value at the current [ColumnCursor] position and returns it.
@@ -174,30 +172,8 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val par
              * @return The value [T] at the position of this [ColumnCursor].
              */
             override fun readThrough(): T? = this@Tx.reader.get(this.next())
-
-            /**
-             * Closes this [ColumnCursor] and releases all locks associated with it.
-             */
-            override fun close() {
-                if (this.isOpen) {
-                    this.cursor.close()
-                }
-            }
         }
 
-        /**
-         * Performs a COMMIT of all changes made through this [MapDBColumn.Tx].
-         */
-        override fun performCommit() {
-            this.writer.commit()
-        }
-
-        /**
-         * Performs a ROLLBACK of all changes made through this [MapDBColumn.Tx].
-         */
-        override fun performRollback() {
-            this.writer.rollback()
-        }
 
         /**
          * Releases the [closeLock] on the [MapDBColumn].

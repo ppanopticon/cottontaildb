@@ -5,9 +5,9 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.vitrivr.cottontail.TestConstants
-import org.vitrivr.cottontail.database.column.DoubleColumnType
-import org.vitrivr.cottontail.model.basics.ColumnDef
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.DoubleValue
 import org.vitrivr.cottontail.storage.basics.Units
 import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnCursor
@@ -27,7 +27,7 @@ class HareDoubleCursorTest {
     val path = TestConstants.testDataPath.resolve("test-double-cursor-db.hare")
 
     /** [ColumnDef] for test. */
-    var columnDef = ColumnDef(Name.ColumnName("test"), DoubleColumnType)
+    var columnDef = ColumnDef(Name.ColumnName("test"), Type.Double)
 
     /** [FixedHareColumnFile] for test. */
     var hareFile: FixedHareColumnFile<DoubleValue>? = null
@@ -110,7 +110,6 @@ class HareDoubleCursorTest {
 
         /* Close reader and cursor. */
         reader.close()
-        cursor.close()
 
         println("Reading $read doubles ($diskSize) took $readTime (${diskSize.value / readTime.inSeconds} MB/s).")
     }

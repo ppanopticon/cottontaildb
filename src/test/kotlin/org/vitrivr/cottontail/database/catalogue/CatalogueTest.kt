@@ -4,7 +4,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import org.vitrivr.cottontail.TestConstants
-import org.vitrivr.cottontail.config.ExecutionConfig
+import org.vitrivr.cottontail.database.schema.DefaultSchema
 import org.vitrivr.cottontail.database.schema.Schema
 import org.vitrivr.cottontail.database.schema.SchemaTx
 import org.vitrivr.cottontail.execution.TransactionManager
@@ -13,10 +13,12 @@ import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import java.nio.file.Files
 import java.util.*
+import java.util.concurrent.Executors
+import java.util.concurrent.ThreadPoolExecutor
 import java.util.stream.Collectors
 
 /**
- * A set of unit tests to test basic [Catalogue] functionality.
+ * A set of unit tests to test basic [DefaultCatalogue] functionality.
  *
  * @author Ralph Gasser
  * @version 1.1.0
@@ -24,11 +26,11 @@ import java.util.stream.Collectors
 class CatalogueTest {
     private val schemaName = Name.SchemaName("schema-test")
 
-    /** The [Catalogue] object to run the test with. */
-    private val catalogue: Catalogue = Catalogue(TestConstants.config)
+    /** The [DefaultCatalogue] object to run the test with. */
+    private val catalogue: DefaultCatalogue = DefaultCatalogue(TestConstants.config)
 
     /** The [TransactionManager] used for this [CatalogueTest] instance. */
-    private val manager = TransactionManager(ExecutionConfig())
+    private val manager = TransactionManager(Executors.newFixedThreadPool(1) as ThreadPoolExecutor)
 
     @AfterEach
     fun teardown() {
@@ -39,7 +41,7 @@ class CatalogueTest {
     }
 
     /**
-     * Creates a new [Schema] and runs some basic tests on the existence of the required files and initialization of the correct attributes.
+     * Creates a new [DefaultSchema] and runs some basic tests on the existence of the required files and initialization of the correct attributes.
      */
     @Test
     fun createSchemaCommitTest() {
@@ -73,7 +75,7 @@ class CatalogueTest {
     }
 
     /**
-     * Creates a new [Schema] and runs some basic tests on the existence of the required files and initialization of the correct attributes.
+     * Creates a new [DefaultSchema] and runs some basic tests on the existence of the required files and initialization of the correct attributes.
      */
     @Test
     fun createSchemaRollbackTest() {
@@ -101,7 +103,7 @@ class CatalogueTest {
     }
 
     /**
-     * Creates a new [Schema] and then drops it.
+     * Creates a new [DefaultSchema] and then drops it.
      *
      * Runs some basic tests on the existence of the required files and initialization of the correct attributes.
      */

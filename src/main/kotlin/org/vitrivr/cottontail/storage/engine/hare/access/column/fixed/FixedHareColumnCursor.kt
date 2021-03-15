@@ -30,14 +30,6 @@ class FixedHareColumnCursor<T : Value>(val file: FixedHareColumnFile<T>, private
     /** Maximum [TupleId] that can be accessed through this [FixedHareColumnCursor]. */
     override val end: TupleId
 
-    /** Flag indicating whether this [FixedHareColumnCursor] is open.  */
-    @Volatile
-    override var isOpen: Boolean = true
-        private set
-
-    /** Obtains a lock on the [FixedHareColumnFile]. */
-    private val lockHandle = this.file.obtainLock()
-
     /** [start] and [end] are initialized once! Hence [FixedHareColumnCursor] won't reflect changes to the file.*/
     init {
         require(this.file.isOpen) { "FixedHareColumnFile has been closed (file = ${this.file.path})." }
@@ -100,15 +92,5 @@ class FixedHareColumnCursor<T : Value>(val file: FixedHareColumnFile<T>, private
         val ret = (page.getInt(entryOffset) and FixedHareColumnFile.MASK_DELETED) == 0
         page.release()
         return ret
-    }
-
-    /**
-     * Closes this [FixedHareColumnCursor].
-     */
-    override fun close() {
-        if (this.isOpen) {
-            this.isOpen = false
-            this.file.releaseLock(this.lockHandle)
-        }
     }
 }

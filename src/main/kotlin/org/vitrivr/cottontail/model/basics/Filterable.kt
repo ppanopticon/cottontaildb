@@ -9,7 +9,7 @@ import org.vitrivr.cottontail.model.exceptions.QueryException
  * @see Record
  *
  * @author Ralph Gasser
- * @version 1.1
+ * @version 1.2.0
  */
 interface Filterable {
     /**
@@ -21,16 +21,16 @@ interface Filterable {
     fun canProcess(predicate: Predicate): Boolean
 
     /**
-     * Filters this [Filterable] thereby creating and returning a new [Iterable] for all
+     * Filters this [Filterable] thereby creating and returning a new [Iterator] for all
      * the [Record]s contained in this [Filterable].
      *
      * @param predicate [Predicate] to filter [Record]s.
-     * @return New [Iterable]
+     * @return New [Iterator]
      *
      * @throws QueryException.UnsupportedPredicateException If predicate is not supported by this [Filterable]
      */
     @Throws(QueryException.UnsupportedPredicateException::class)
-    fun filter(predicate: Predicate): CloseableIterator<Record>
+    fun filter(predicate: Predicate): Iterator<Record>
 }
 
 

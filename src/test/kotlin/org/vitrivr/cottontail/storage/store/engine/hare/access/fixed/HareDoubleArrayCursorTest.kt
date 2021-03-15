@@ -5,9 +5,9 @@ import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
 import org.vitrivr.cottontail.TestConstants
-import org.vitrivr.cottontail.database.column.DoubleVectorColumnType
-import org.vitrivr.cottontail.model.basics.ColumnDef
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.DoubleVectorValue
 import org.vitrivr.cottontail.storage.basics.Units
 import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnCursor
@@ -44,7 +44,7 @@ class HareDoubleArrayCursorTest : AbstractCursorTest() {
     @ParameterizedTest
     @MethodSource("dimensions")
     fun test(dimensions: Int) {
-        val columnDef = ColumnDef(Name.ColumnName("test"), DoubleVectorColumnType, logicalSize = dimensions)
+        val columnDef = ColumnDef(Name.ColumnName("test"), Type.DoubleVector(dimensions))
         FixedHareColumnFile.createDirect(this.path, columnDef)
         val tid = 0L
         val hareFile: FixedHareColumnFile<DoubleVectorValue> = FixedHareColumnFile(this.path)
@@ -102,7 +102,6 @@ class HareDoubleArrayCursorTest : AbstractCursorTest() {
 
         /* Close reader and cursor. */
         reader.close()
-        cursor.close()
 
         println("Reading ${TestConstants.collectionSize} doubles vectors (d=$dimensions) to a total of $physSize took $readTime (${physSize.value / readTime.inSeconds} MB/s).")
     }

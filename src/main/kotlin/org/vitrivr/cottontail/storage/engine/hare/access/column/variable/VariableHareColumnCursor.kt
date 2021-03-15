@@ -33,14 +33,6 @@ class VariableHareColumnCursor<T : Value>(val file: VariableHareColumnFile<T>, p
     /** The [BufferPool] instance used by this [VariableHareColumnCursor] is always shared with the [Directory]. */
     private val bufferPool: BufferPool = this.directory.bufferPool
 
-    /** Flag indicating whether this [VariableHareColumnCursor] is open.  */
-    @Volatile
-    override var isOpen: Boolean = true
-        private set
-
-    /** Obtains a lock on the [FixedHareColumnFile]. */
-    private val lockHandle = this.file.obtainLock()
-
     /** [start] and [end] are initialized once! Hence [VariableHareColumnCursor] won't reflect changes to the file.*/
     init {
         require(this.file.isOpen) { "VariableHareColumnFile has been closed (file = ${this.file.path})." }
@@ -81,17 +73,7 @@ class VariableHareColumnCursor<T : Value>(val file: VariableHareColumnFile<T>, p
     /**
      * Returns a boolean indicating whether the entry for the given [TupleId] has been deleted.
      *
-     * @return true if the entry at the current position of the [FixedHareCursor] has been deleted and false otherwise.
+     * @return true if the entry at the current position of the [VariableHareColumnCursor] has been deleted and false otherwise.
      */
     private fun isValid(tupleId: TupleId): Boolean = !this.directory.flags(tupleId).isDeleted()
-
-    /**
-     * Closes this [VariableHareColumnWriter].
-     */
-    override fun close() {
-        if (this.isOpen) {
-            this.isOpen = false
-            this.file.releaseLock(this.lockHandle)
-        }
-    }
 }

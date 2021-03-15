@@ -1,10 +1,14 @@
 package org.vitrivr.cottontail.database.index.lucene
 
-import org.junit.jupiter.api.*
+import org.junit.jupiter.api.AfterAll
+import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInstance
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.index.AbstractIndexTest
 import org.vitrivr.cottontail.database.index.IndexType
 import org.vitrivr.cottontail.model.basics.Name
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.LongValue
 import org.vitrivr.cottontail.model.values.StringValue
@@ -16,10 +20,11 @@ import java.util.*
  * @author Ralph Gasser & Silvan Heller
  * @version 1.2.0
  */
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class LuceneIndexText : AbstractIndexTest() {
     override val columns: Array<ColumnDef<*>> = arrayOf(
-        ColumnDef.withAttributes(this.entityName.column("id"), "LONG"),
-        ColumnDef.withAttributes(this.entityName.column("feature"), "STRING")
+        ColumnDef(this.entityName.column("id"), Type.Long),
+        ColumnDef(this.entityName.column("feature"), Type.String)
     )
 
     override val indexColumn: ColumnDef<*>
@@ -58,6 +63,6 @@ class LuceneIndexText : AbstractIndexTest() {
     override fun nextRecord(): StandaloneRecord {
         val id = LongValue(this.id++)
         val value = StringValue.random(128, this.random)
-        return StandaloneRecord(columns = this.columns, values = arrayOf(id, value))
+        return StandaloneRecord(this.id, columns = this.columns, values = arrayOf(id, value))
     }
 }

@@ -1,7 +1,7 @@
 package org.vitrivr.cottontail.database.queries.planning.rules.logical
 
 import org.vitrivr.cottontail.database.queries.OperatorNode
-import org.vitrivr.cottontail.database.queries.planning.exceptions.NodeExpressionTreeException
+import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.predicates.FilterLogicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.rules.RewriteRule
 import org.vitrivr.cottontail.database.queries.predicates.bool.BooleanPredicate
@@ -12,7 +12,7 @@ import org.vitrivr.cottontail.database.queries.predicates.bool.ConnectionOperato
  * connected with a [ConnectionOperator.AND] into a sequence of two [FilterLogicalOperatorNode]s.
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.1.0
  */
 object LeftConjunctionRewriteRule : RewriteRule {
 
@@ -29,37 +29,20 @@ object LeftConjunctionRewriteRule : RewriteRule {
 
 
     /**
-     *  Decomposes the provided [FilterLogicalOperatorNode] with a conjunction into two consecutive
+     * Decomposes the provided [FilterLogicalOperatorNode] with a conjunction into two consecutive
      * [FilterLogicalOperatorNode]s, where each resulting [FilterLogicalOperatorNode] covers
      * one part of the conjunction. Gives precedence to the left part of the conjunction.
      *
      * @param node The input [OperatorNode].
+     * @param ctx The [QueryContext] in which query planning takes place.
+     *
      * @return The output [OperatorNode] or null, if no rewrite was done.
      */
-    override fun apply(node: OperatorNode): OperatorNode? {
-        if (node is FilterLogicalOperatorNode &&
-            node.predicate is BooleanPredicate.Compound &&
-            node.predicate.connector == ConnectionOperator.AND
-        ) {
-
-            val parent = (node.deepCopy() as FilterLogicalOperatorNode).input
-                ?: throw NodeExpressionTreeException.IncompleteNodeExpressionTreeException(
-                    node,
-                    "Expected parent but none was found."
-                )
-            val p1 = FilterLogicalOperatorNode(node.predicate.p1)
-            val p2 = FilterLogicalOperatorNode(node.predicate.p2)
-
-            /* Connect parents of node with p1. */
-            p1.addInput(parent)
-
-            /* Connect parents with p1 with p2. */
-            p2.addInput(p1)
-
-            /* Connect p2 with children of node. */
-            node.copyOutput()?.addInput(p2)
-
-            return p1
+    override fun apply(node: OperatorNode, ctx: QueryContext): OperatorNode? {
+        if (node is FilterLogicalOperatorNode && node.predicate is BooleanPredicate.Compound && node.predicate.connector == ConnectionOperator.AND) {
+            val parent = node.input?.copyWithInputs() ?: throw IllegalStateException("Encountered null node in logical operator node tree (node = $node). This is a programmer's error!")
+            val ret = FilterLogicalOperatorNode(FilterLogicalOperatorNode(parent, node.predicate.p1), node.predicate.p2)
+            return node.output?.copyWithOutput(ret) ?: ret
         }
         return null
     }

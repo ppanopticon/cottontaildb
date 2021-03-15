@@ -26,13 +26,7 @@ import org.vitrivr.cottontail.model.values.BooleanValue
 class ExistsProjectionOperator(parent: Operator) : Operator.PipelineOperator(parent) {
 
     /** Column returned by [ExistsProjectionOperator]. */
-    override val columns: Array<ColumnDef<*>> = arrayOf(
-        ColumnDef(
-            name = parent.columns.first().name.entity()?.column(Projection.EXISTS.label())
-                ?: Name.ColumnName(Projection.EXISTS.label()),
-            type = Type.Boolean
-        )
-    )
+    override val columns: Array<ColumnDef<*>> = arrayOf(ColumnDef(Name.ColumnName(Projection.EXISTS.label()), Type.Boolean))
 
     /** [ExistsProjectionOperator] does act as a pipeline breaker. */
     override val breaker: Boolean = true
@@ -55,13 +49,7 @@ class ExistsProjectionOperator(parent: Operator) : Operator.PipelineOperator(par
             } catch (e: AbortFlowException) {
                 e.checkOwnership(this)
             }
-            emit(
-                StandaloneRecord(
-                    0L,
-                    this@ExistsProjectionOperator.columns[0],
-                    BooleanValue(exists)
-                )
-            )
+            emit(StandaloneRecord(0L, this@ExistsProjectionOperator.columns[0], BooleanValue(exists)))
         }
     }
 }

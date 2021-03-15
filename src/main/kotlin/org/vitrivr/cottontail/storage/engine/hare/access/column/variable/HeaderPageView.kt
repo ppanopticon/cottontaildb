@@ -1,7 +1,8 @@
 package org.vitrivr.cottontail.storage.engine.hare.access.column.variable
 
-import org.vitrivr.cottontail.model.basics.ColumnDef
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.model.basics.TupleId
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.storage.engine.hare.DataCorruptionException
 import org.vitrivr.cottontail.storage.engine.hare.PageId
 import org.vitrivr.cottontail.storage.engine.hare.access.column.directory.DirectoryPageView
@@ -62,7 +63,7 @@ inline class HeaderPageView(override val page: Page) : PageView {
             require(type == PageConstants.PAGE_TYPE_UNINITIALIZED) { "Cannot initialize page of type $type as ${DirectoryPageView::class.java.simpleName} (type = ${PageConstants.PAGE_TYPE_DIRECTORY})." }
             page.putInt(0, PageConstants.PAGE_TYPE_HEADER_VARIABLE_COLUMN)
             page.putInt(HEADER_OFFSET_TYPE, columnDef.type.ordinal)                                 /* 4: Type of column. See ColumnDef.forOrdinal() */
-            page.putInt(HEADER_OFFSET_LSIZE, columnDef.logicalSize)                                 /* 8: Logical size of column (for structured data types). */
+            page.putInt(HEADER_OFFSET_LSIZE, columnDef.type.logicalSize)                            /* 8: Logical size of column (for structured data types). */
             page.putLong(HEADER_OFFSET_FLAGS, if (columnDef.nullable) {                             /* 12: Flags. */
                 (0L or HEADER_MASK_NULLABLE)
             } else {
@@ -76,13 +77,13 @@ inline class HeaderPageView(override val page: Page) : PageView {
         }
     }
 
-    /** The [ColumnType] held by this [VariableHareColumnFile]. */
-    val type: ColumnType<*>
-        get() = ColumnType.forOrdinal(this.page.getInt(HEADER_OFFSET_TYPE))
-
     /** The logical size of the [ColumnDef] held by this [VariableHareColumnFile]. */
     val size: Int
         get() = this.page.getInt(HEADER_OFFSET_LSIZE)
+
+    /** The [Type] held by this [VariableHareColumnFile]. */
+    val type: Type<*>
+        get() = Type.forOrdinal(this.page.getInt(HEADER_OFFSET_TYPE), this.size)
 
     /** Special flags set for this [VariableHareColumnFile], such as, nullability. */
     val flags: Long

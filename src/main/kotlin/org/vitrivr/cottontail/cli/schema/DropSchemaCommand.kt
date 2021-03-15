@@ -11,7 +11,7 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.measureTimedValue
 
 /**
- * Command to drop a [org.vitrivr.cottontail.database.schema.Schema] from Cottontail DB.
+ * Command to drop a [org.vitrivr.cottontail.database.schema.DefaultSchema] from Cottontail DB.
  *
  * @author Ralph Gasser
  * @version 1.0.1

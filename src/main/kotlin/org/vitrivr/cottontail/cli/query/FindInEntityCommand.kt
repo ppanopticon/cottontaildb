@@ -32,12 +32,10 @@ class FindInEntityCommand(dqlStub: DQLGrpc.DQLBlockingStub) : AbstractQueryComma
                 .setProjection(MatchAll())
                 .setWhere(
                     Where(
-                        CottontailGrpc.AtomicLiteralBooleanPredicate.newBuilder()
+                        CottontailGrpc.AtomicBooleanPredicate.newBuilder()
                             .setLeft(CottontailGrpc.ColumnName.newBuilder().setName(this.col))
                             .setOp(CottontailGrpc.ComparisonOperator.EQUAL)
-                            .addRight(
-                                CottontailGrpc.Literal.newBuilder().setStringData(this.value)
-                            )
+                            .setRight(CottontailGrpc.AtomicBooleanOperand.newBuilder().setLiterals(CottontailGrpc.Literals.newBuilder().addLiteral(CottontailGrpc.Literal.newBuilder().setStringData(this.value))))
                             .build()
                     )
                 )

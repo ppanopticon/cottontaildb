@@ -2,8 +2,8 @@ package org.vitrivr.cottontail.execution.operators.definition
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.catalogue.CatalogueTx
+import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.execution.operators.basics.Operator
 import org.vitrivr.cottontail.model.basics.Name
@@ -18,7 +18,7 @@ import kotlin.time.measureTimedValue
  * @version 1.0.0
  */
 @ExperimentalTime
-class DropSchemaOperator(val catalogue: Catalogue, val name: Name.SchemaName) : AbstractDataDefinitionOperator(name, "DROP SCHEMA") {
+class DropSchemaOperator(val catalogue: DefaultCatalogue, val name: Name.SchemaName) : AbstractDataDefinitionOperator(name, "DROP SCHEMA") {
     override fun toFlow(context: TransactionContext): Flow<Record> {
         val txn = context.getTx(this.catalogue) as CatalogueTx
         return flow {

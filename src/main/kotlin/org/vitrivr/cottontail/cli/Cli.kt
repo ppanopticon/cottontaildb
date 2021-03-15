@@ -11,11 +11,11 @@ import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import org.jline.reader.EndOfFileException
 import org.jline.reader.LineReaderBuilder
+import org.jline.reader.UserInterruptException
 import org.jline.reader.impl.completer.AggregateCompleter
 import org.jline.reader.impl.completer.ArgumentCompleter
 import org.jline.reader.impl.completer.NullCompleter
 import org.jline.reader.impl.completer.StringsCompleter
-import org.jline.terminal.Terminal
 import org.jline.terminal.TerminalBuilder
 import org.vitrivr.cottontail.cli.entity.*
 import org.vitrivr.cottontail.cli.query.CountEntityCommand
@@ -28,9 +28,8 @@ import org.vitrivr.cottontail.cli.schema.ListAllSchemaCommand
 import org.vitrivr.cottontail.cli.schema.ListEntitiesCommand
 import org.vitrivr.cottontail.cli.system.ListLocksCommand
 import org.vitrivr.cottontail.cli.system.ListTransactionsCommand
+import org.vitrivr.cottontail.cli.system.MigrationCommand
 import org.vitrivr.cottontail.grpc.*
-import org.vitrivr.cottontail.server.grpc.services.DMLService
-import org.vitrivr.cottontail.server.grpc.services.TXNService
 import java.io.IOException
 import java.util.*
 import java.util.regex.Pattern
@@ -43,7 +42,7 @@ import kotlin.time.ExperimentalTime
  * This is basically a port of https://github.com/lucaro/DRES 's CLI
  *
  * @author Loris Sauter
- * @version 1.0
+ * @version 1.0.2
  */
 @ExperimentalTime
 class Cli(val host: String = "localhost", val port: Int = 1865) {
@@ -71,9 +70,10 @@ class Cli(val host: String = "localhost", val port: Int = 1865) {
      */
     fun updateCompletion(strings: List<String>) {
         this.completer.delegate = AggregateCompleter(
-                StringsCompleter("help"),
-                StringsCompleter(clikt.registeredSubcommandNames()),
-                StringsCompleter(strings))
+            StringsCompleter("help"),
+            StringsCompleter(clikt.registeredSubcommandNames()),
+            StringsCompleter(strings)
+        )
     }
 
     /**
@@ -108,17 +108,19 @@ class Cli(val host: String = "localhost", val port: Int = 1865) {
      * Blocking REPL of the CLI
      */
     fun loop() {
-        val terminal: Terminal?
-        try {
-            terminal = TerminalBuilder.terminal()
+        val terminal = try {
+            TerminalBuilder.builder().jansi(true).build()
         } catch (e: IOException) {
-            error("Could not init terminal for reason:\n" +
-                    "${e.message}\n" +
-                    "Exiting...")
+            System.err.println("Could not initialize terminal: ${e.message}. Aborting...")
+            return
         }
 
         /* Initialize auto complete. */
-        this.clikt.initCompletion()
+        try {
+            this.clikt.initCompletion()
+        } catch (e: StatusRuntimeException) {
+            System.err.println("Failed to fetch schema from Cottontail DB instance; some commands may be unavailable!")
+        }
 
         /* Start CLI loop. */
         val lineReader = LineReaderBuilder.builder().terminal(terminal).completer(completer).build()
@@ -127,8 +129,13 @@ class Cli(val host: String = "localhost", val port: Int = 1865) {
             val line = try {
                 lineReader.readLine(PROMPT).trim()
             } catch (e: EndOfFileException) {
-                "stop"
+                System.err.println("Could not read from terminal. If you're running Cottontail DB in Docker, then either run Docker in interactive mode (-it) or switch off the Cottontail DB CLI via the config.")
+                break
+            } catch (e: UserInterruptException) {
+                System.err.println("Cottontail DB was interrupted by the user (Ctrl-C).")
+                break
             }
+
             if (line.toLowerCase() == "help") {
                 println(clikt.getFormattedHelp())
                 continue
@@ -201,10 +208,10 @@ class Cli(val host: String = "localhost", val port: Int = 1865) {
 
         /** The [ManagedChannel] used to conect to Cottontail DB. */
         private val channel: ManagedChannel = ManagedChannelBuilder
-                .forAddress(this@Cli.host, this@Cli.port)
-                .enableFullStreamDecompression()
-                .usePlaintext()
-                .build()
+            .forAddress(this@Cli.host, this@Cli.port)
+            .enableFullStreamDecompression()
+            .usePlaintext()
+            .build()
 
         /** The [DQLGrpc.DQLBlockingStub] used for querying Cottontail DB. */
         private val dqlService = DQLGrpc.newBlockingStub(this.channel)
@@ -212,123 +219,124 @@ class Cli(val host: String = "localhost", val port: Int = 1865) {
         /** The [DDLGrpc.DDLBlockingStub] used for changing Cottontail DB DBOs. */
         private val ddlService = DDLGrpc.newBlockingStub(this.channel)
 
-        /** The [DMLService.DMLBlockingStub] used for changing Cottontail DB data. */
+        /** The [DMLGrpc.DMLBlockingStub] used for changing Cottontail DB data. */
         private val dmlService = DMLGrpc.newBlockingStub(this.channel)
 
-        /** The [TXNService.TXNBlockingStub] used for changing Cottontail DB data. */
+        /** The [TXNGrpc.TXNBlockingStub] used for changing Cottontail DB data. */
         private val txnService = TXNGrpc.newBlockingStub(this.channel)
 
         /** A list of aliases: mapping of alias name to commands */
         override fun aliases(): Map<String, List<String>> {
             /* List of top-level aliases */
             return mapOf(
-                    "sls" to listOf("schema", "all"),
-                    "els" to listOf("schema", "list"),
-                    "tls" to listOf("system", "list-transactions"),
-                    "ls" to listOf("entity", "all"),
-                    "edelete" to listOf("entity", "drop"),
-                    "edel" to listOf("entity", "drop"),
-                    "erm" to listOf("entity", "drop"),
-                    "eremove" to listOf("entity", "drop"),
-                    "delete" to listOf("schema", "drop"),
-                    "del" to listOf("schema", "drop"),
-                    "rm" to listOf("schema", "drop"),
-                    "remove" to listOf("schema", "drop"),
-                    "li" to listOf("entity", "list-indices"),
-                    "quit" to listOf("stop"),
-                    "exit" to listOf("stop"),
-                    "schemas" to listOf("schema"),
-                    "entities" to listOf("entity"),
+                "sls" to listOf("schema", "all"),
+                "els" to listOf("schema", "list"),
+                "tls" to listOf("system", "list-transactions"),
+                "ls" to listOf("entity", "all"),
+                "edelete" to listOf("entity", "drop"),
+                "edel" to listOf("entity", "drop"),
+                "erm" to listOf("entity", "drop"),
+                "eremove" to listOf("entity", "drop"),
+                "delete" to listOf("schema", "drop"),
+                "del" to listOf("schema", "drop"),
+                "rm" to listOf("schema", "drop"),
+                "remove" to listOf("schema", "drop"),
+                "li" to listOf("entity", "list-indices"),
+                "quit" to listOf("stop"),
+                "exit" to listOf("stop"),
+                "schemas" to listOf("schema"),
+                "entities" to listOf("entity"),
             )
         }
 
         init {
             context { helpFormatter = CliHelpFormatter() }
             subcommands(
-                    /* Entity related commands. */
-                    object : NoOpCliktCommand(
-                            name = "entity",
-                            help = "Groups commands that act on Cottontail DB entities. Usually requires the entity's qualified name.",
-                            epilog = "Entity related commands usually have the form: entity <command> <name>, `entity about schema_name.entity_name. Check help for command specific parameters.",
-                            invokeWithoutSubcommand = true,
-                            printHelpOnEmptyArgs = true
-                    ) {
-                        override fun aliases(): Map<String, List<String>> {
-                            /* List of entity aliases: entity <alias> */
-                            return mapOf(
-                                "ls" to listOf("list"),
-                                "list-indexes" to listOf("list-indices")
-                            )
-                        }
-                    }.subcommands(
-                        AboutEntityCommand(this.ddlService),
-                        ClearEntityCommand(this.dmlService),
-                        CreateEntityCommand(this.ddlService),
-                        DropEntityCommand(this.ddlService),
-                        DumpEntityCommand(this.dqlService),
-                        ListAllEntitiesCommand(this.ddlService),
-                        OptimizeEntityCommand(this.ddlService),
-                        CreateIndexCommand(this.ddlService),
-                        DropIndexCommand(this.ddlService),
-                        ImportDataCommand(this.ddlService, this.dmlService, this.txnService)
-                    ),
+                /* Entity related commands. */
+                object : NoOpCliktCommand(
+                    name = "entity",
+                    help = "Groups commands that act on Cottontail DB entities. Usually requires the entity's qualified name.",
+                    epilog = "Entity related commands usually have the form: entity <command> <name>, `entity about schema_name.entity_name. Check help for command specific parameters.",
+                    invokeWithoutSubcommand = true,
+                    printHelpOnEmptyArgs = true
+                ) {
+                    override fun aliases(): Map<String, List<String>> {
+                        /* List of entity aliases: entity <alias> */
+                        return mapOf(
+                            "ls" to listOf("list"),
+                            "list-indexes" to listOf("list-indices")
+                        )
+                    }
+                }.subcommands(
+                    AboutEntityCommand(this.ddlService),
+                    ClearEntityCommand(this.dmlService),
+                    CreateEntityCommand(this.ddlService),
+                    DropEntityCommand(this.ddlService),
+                    DumpEntityCommand(this.dqlService),
+                    ListAllEntitiesCommand(this.ddlService),
+                    OptimizeEntityCommand(this.ddlService),
+                    CreateIndexCommand(this.ddlService),
+                    DropIndexCommand(this.ddlService),
+                    ImportDataCommand(this.ddlService, this.dmlService, this.txnService)
+                ),
 
-                    /* Schema related commands. */
-                    object : NoOpCliktCommand(
-                            name = "schema",
-                            help = "Groups commands that act on Cottontail DB  schemas. Usually requires the schema's qualified name",
-                            epilog = "Schema related commands usually have the form: schema <command> <name>, e.g., `schema list schema_name` Check help for command specific parameters.",
-                            invokeWithoutSubcommand = true,
-                            printHelpOnEmptyArgs = true
-                    ) {
-                        override fun aliases(): Map<String, List<String>> {
-                            return mapOf(
-                                    "ls" to listOf("list")
-                            )
-                        }
-                    }.subcommands(
-                            CreateSchemaCommand(this.ddlService),
-                            DropSchemaCommand(this.ddlService),
-                            ListAllSchemaCommand(this.ddlService),
-                            ListEntitiesCommand(this.ddlService)
-                    ),
+                /* Schema related commands. */
+                object : NoOpCliktCommand(
+                    name = "schema",
+                    help = "Groups commands that act on Cottontail DB  schemas. Usually requires the schema's qualified name",
+                    epilog = "Schema related commands usually have the form: schema <command> <name>, e.g., `schema list schema_name` Check help for command specific parameters.",
+                    invokeWithoutSubcommand = true,
+                    printHelpOnEmptyArgs = true
+                ) {
+                    override fun aliases(): Map<String, List<String>> {
+                        return mapOf(
+                            "ls" to listOf("list")
+                        )
+                    }
+                }.subcommands(
+                    CreateSchemaCommand(this.ddlService),
+                    DropSchemaCommand(this.ddlService),
+                    ListAllSchemaCommand(this.ddlService),
+                    ListEntitiesCommand(this.ddlService)
+                ),
 
-                    /* Transaction related commands. */
-                    object : NoOpCliktCommand(
-                            name = "query",
-                            help = "Groups commands that can be used to query Cottontail DB.",
-                            epilog = "Transaction related commands usually have the form: query <command>, e.g., `query execute`.",
-                            invokeWithoutSubcommand = true,
-                            printHelpOnEmptyArgs = true
-                    ) {}.subcommands(
-                            CountEntityCommand(this.dqlService),
-                            PreviewEntityCommand(this.dqlService),
-                            FindInEntityCommand(this.dqlService),
-                            ExecuteQueryCommand(this.dqlService)
-                    ),
+                /* Transaction related commands. */
+                object : NoOpCliktCommand(
+                    name = "query",
+                    help = "Groups commands that can be used to query Cottontail DB.",
+                    epilog = "Transaction related commands usually have the form: query <command>, e.g., `query execute`.",
+                    invokeWithoutSubcommand = true,
+                    printHelpOnEmptyArgs = true
+                ) {}.subcommands(
+                    CountEntityCommand(this.dqlService),
+                    PreviewEntityCommand(this.dqlService),
+                    FindInEntityCommand(this.dqlService),
+                    ExecuteQueryCommand(this.dqlService)
+                ),
 
-                    /* Transaction related commands. */
-                    object : NoOpCliktCommand(
-                            name = "system",
-                            help = "Groups commands that act on the Cottontail DB on a system level.",
-                            epilog = "Transaction related commands usually have the form: system <command> <txId>, e.g., `transaction list-transactions`.",
-                            invokeWithoutSubcommand = true,
-                            printHelpOnEmptyArgs = true
-                    ) {
-                        override fun aliases(): Map<String, List<String>> {
-                            return mapOf(
-                                    "ls" to listOf("list"),
-                                    "tls" to listOf("transactions"),
-                                    "list-transactionstls" to listOf("transactions")
-                            )
-                        }
-                    }.subcommands(
-                            ListTransactionsCommand(this.txnService),
-                            ListLocksCommand(this.txnService)
-                    ),
+                /* Transaction related commands. */
+                object : NoOpCliktCommand(
+                    name = "system",
+                    help = "Groups commands that act on the Cottontail DB on a system level.",
+                    epilog = "Transaction related commands usually have the form: system <command> <txId>, e.g., `transaction list-transactions`.",
+                    invokeWithoutSubcommand = true,
+                    printHelpOnEmptyArgs = true
+                ) {
+                    override fun aliases(): Map<String, List<String>> {
+                        return mapOf(
+                            "ls" to listOf("list"),
+                            "tls" to listOf("transactions"),
+                            "list-transactionstls" to listOf("transactions")
+                        )
+                    }
+                }.subcommands(
+                    ListTransactionsCommand(this.txnService),
+                    ListLocksCommand(this.txnService),
+                    MigrationCommand()
+                ),
 
-                    /* General commands. */
-                    StopCommand()
+                /* General commands. */
+                StopCommand()
             )
         }
 
@@ -349,10 +357,11 @@ class Cli(val host: String = "localhost", val port: Int = 1865) {
          */
         inner class CliHelpFormatter : CliktHelpFormatter() {
             override fun formatHelp(
-                    prolog: String,
-                    epilog: String,
-                    parameters: List<HelpFormatter.ParameterHelp>,
-                    programName: String): String = buildString {
+                prolog: String,
+                epilog: String,
+                parameters: List<HelpFormatter.ParameterHelp>,
+                programName: String
+            ): String = buildString {
                 if (programName.contains(" ")) {
                     addUsage(parameters, programName.split(" ")[1]) // hack to not include the base command
                 } else {
@@ -362,8 +371,10 @@ class Cli(val host: String = "localhost", val port: Int = 1865) {
                 addArguments(parameters)
                 addCommands(parameters)
                 if (programName.endsWith("cottontail")) { // hack for beautification
-                    addEpilog("              ((`\\\u0085            ___ \\\\ '--._\u0085         .'`   `'    o  )\u0085        /    \\   '. __.'\u0085       _|    /_  \\ \\_\\_\u0085      {_\\______\\-'\\__\\_\\\u0085\u0085" +
-                            "by jks from https://www.asciiart.eu/animals/rabbits")
+                    addEpilog(
+                        "              ((`\\\u0085            ___ \\\\ '--._\u0085         .'`   `'    o  )\u0085        /    \\   '. __.'\u0085       _|    /_  \\ \\_\\_\u0085      {_\\______\\-'\\__\\_\\\u0085\u0085" +
+                                "by jks from https://www.asciiart.eu/animals/rabbits"
+                    )
                 }
             }
         }

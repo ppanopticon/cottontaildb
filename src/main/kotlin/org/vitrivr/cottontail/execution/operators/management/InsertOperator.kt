@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.flow
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
+import org.vitrivr.cottontail.database.queries.GroupId
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.execution.operators.basics.Operator
 import org.vitrivr.cottontail.model.basics.Name
@@ -22,18 +23,19 @@ import kotlin.time.measureTimedValue
  * [Entity] that it receives with the provided [Value].
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.1.0
  */
-class InsertOperator(val entity: Entity, val record: Record) : Operator.SourceOperator() {
+class InsertOperator(groupId: GroupId, val entity: Entity, val records: List<Record>) : Operator.SourceOperator(groupId) {
 
     companion object {
+        /** The columns produced by the [InsertOperator]. */
         val COLUMNS: Array<ColumnDef<*>> = arrayOf(
             ColumnDef(Name.ColumnName("tupleId"), Type.Long, false),
             ColumnDef(Name.ColumnName("duration_ms"), Type.Double, false)
         )
     }
 
-    /** Columns returned by [UpdateOperator]. */
+    /** Columns produced by [InsertOperator]. */
     override val columns: Array<ColumnDef<*>> = COLUMNS
 
     /**
@@ -46,10 +48,10 @@ class InsertOperator(val entity: Entity, val record: Record) : Operator.SourceOp
     override fun toFlow(context: TransactionContext): Flow<Record> {
         val tx = context.getTx(this.entity) as EntityTx
         return flow {
-            val timedTupleId = measureTimedValue {
-                tx.insert(this@InsertOperator.record)
+            for (record in this@InsertOperator.records) {
+                val timedTupleId = measureTimedValue { tx.insert(record) }
+                emit(StandaloneRecord(0L, this@InsertOperator.columns, arrayOf(LongValue(timedTupleId.value!!), DoubleValue(timedTupleId.duration.inMilliseconds))))
             }
-            emit(StandaloneRecord(0L, this@InsertOperator.columns, arrayOf(LongValue(timedTupleId.value!!), DoubleValue(timedTupleId.duration.inMilliseconds))))
         }
     }
 }

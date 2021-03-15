@@ -17,6 +17,7 @@ import org.vitrivr.cottontail.storage.engine.hare.toSlotId
 import org.vitrivr.cottontail.storage.engine.hare.views.SlottedPageView
 import org.vitrivr.cottontail.storage.engine.hare.views.isDeleted
 import org.vitrivr.cottontail.storage.engine.hare.views.isNull
+import org.vitrivr.cottontail.storage.serializers.hare.HareSerializer
 import org.vitrivr.cottontail.utilities.extensions.exclusive
 import org.vitrivr.cottontail.utilities.extensions.shared
 import java.util.concurrent.locks.StampedLock
@@ -38,7 +39,7 @@ class VariableHareColumnReader<T : Value>(val file: VariableHareColumnFile<T>, p
         private set
 
     /** The [Serializer] used to read data through this [FixedHareColumnReader]. */
-    private val serializer: Serializer<T> = this.file.columnType.serializer(this.file.logicalSize)
+    private val serializer: HareSerializer<T> = this.file.type.serializerFactory().hare(this.file.type.logicalSize)
 
     /** Flag indicating whether this [VariableHareColumnReader] has been closed.  */
     var closed: Boolean = false

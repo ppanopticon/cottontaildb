@@ -1,72 +1,77 @@
 package org.vitrivr.cottontail.database.queries.planning.rules.physical.index
 
+import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.queries.OperatorNode
-import org.vitrivr.cottontail.database.queries.planning.exceptions.NodeExpressionTreeException
-import org.vitrivr.cottontail.database.queries.planning.nodes.logical.predicates.KnnLogicalOperatorNode
-import org.vitrivr.cottontail.database.queries.planning.nodes.logical.sources.EntityScanLogicalOperatorNode
-import org.vitrivr.cottontail.database.queries.planning.nodes.physical.predicates.KnnPhysicalOperatorNode
-import org.vitrivr.cottontail.database.queries.planning.nodes.physical.projection.FetchPhysicalOperatorNode
-import org.vitrivr.cottontail.database.queries.planning.nodes.physical.sources.IndexKnnPhysicalOperatorNode
+import org.vitrivr.cottontail.database.queries.QueryContext
+import org.vitrivr.cottontail.database.queries.planning.nodes.physical.sort.SortPhysicalOperatorNode
+import org.vitrivr.cottontail.database.queries.planning.nodes.physical.sources.EntityScanPhysicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.sources.IndexScanPhysicalOperatorNode
+import org.vitrivr.cottontail.database.queries.planning.nodes.physical.transform.DistancePhysicalOperatorNode
+import org.vitrivr.cottontail.database.queries.planning.nodes.physical.transform.FetchPhysicalOperatorNode
+import org.vitrivr.cottontail.database.queries.planning.nodes.physical.transform.LimitPhysicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.rules.RewriteRule
 import org.vitrivr.cottontail.utilities.math.KnnUtilities
 
 /**
- * A [RewriteRule] that implements a [KnnLogicalOperatorNode] preceded by a [EntityScanLogicalOperatorNode]
- * through a single [IndexScanPhysicalOperatorNode].
+ * A [RewriteRule] that implements a NNS operator constellation (scan -> distance -> sort -> limit) by an index scan.
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.2.0
  */
 object KnnIndexScanRule : RewriteRule {
-    override fun canBeApplied(node: OperatorNode): Boolean =
-        node is KnnLogicalOperatorNode && node.input is EntityScanLogicalOperatorNode
+    override fun canBeApplied(node: OperatorNode): Boolean = node is DistancePhysicalOperatorNode
 
-    override fun apply(node: OperatorNode): OperatorNode? {
-        if (node is KnnLogicalOperatorNode) {
-            val parent = node.input
-                ?: throw NodeExpressionTreeException.IncompleteNodeExpressionTreeException(
-                    node,
-                    "Expected parent but none was found."
-                )
-            if (parent is EntityScanLogicalOperatorNode) {
-                /* Produce a candidate given the index hints. */
-                val hints = node.predicate.hint
-                val candidate = if (hints != null) {
-                    parent.entity.allIndexes()
-                        .find { it.canProcess(node.predicate) && hints.satisfies(it) }
-                } else {
-                    parent.entity.allIndexes().find { it.canProcess(node.predicate) }
-                }
+    override fun apply(node: OperatorNode, ctx: QueryContext): OperatorNode? {
+        if (node is DistancePhysicalOperatorNode) {
+            val scan = node.input
+            if (scan is EntityScanPhysicalOperatorNode) {
+                val sort = node.output
+                if (sort is SortPhysicalOperatorNode) {
+                    val limit = sort.output
+                    if (limit is LimitPhysicalOperatorNode) {
+                        /* Produce a candidate given the index hints. */
+                        val hints = node.predicate.hint
+                        val entityTx = (ctx.txn.getTx(scan.entity) as EntityTx)
+                        val candidate = if (hints != null) {
+                            entityTx.listIndexes().find { it.canProcess(node.predicate) && hints.satisfies(it) }
+                        } else {
+                            entityTx.listIndexes().find { it.canProcess(node.predicate) }
+                        }
 
-                /* Column produced by the kNN. */
-                if (candidate != null) {
-                    val res = when {
-                        candidate.produces.contains(node.predicate.column) -> { /* Case 1: Index produces the column needed for the kNN operation. */
-                            val kNN = KnnPhysicalOperatorNode(node.predicate)
-                            val p = IndexKnnPhysicalOperatorNode(candidate, node.predicate)
-                            kNN.addInput(p)
+                        /* Column produced by the kNN. */
+                        val column = KnnUtilities.distanceColumnDef(node.predicate.column.name.entity())
+                        if (candidate != null) {
+                            when {
+                                /* Case 1: Index produces distance, hence no distance calculation required! */
+                                candidate.produces.contains(column) -> {
+                                    var p: OperatorNode.Physical = IndexScanPhysicalOperatorNode(node.groupId, candidate, node.predicate)
+                                    val delta = scan.columns.filter { !candidate.produces.contains(it) && it != node.predicate.column }
+                                    if (delta.isNotEmpty()) {
+                                        p = FetchPhysicalOperatorNode(p, candidate.parent, delta.toTypedArray())
+                                    }
+                                    return sort.output?.copyWithOutput(p) ?: p /* TODO: Index should indicate if results are sorted. */
+                                }
+
+                                /* Case 2: Index produces the columns needed for the NNS operation. */
+                                candidate.produces.contains(node.predicate.column) -> {
+                                    val index = IndexScanPhysicalOperatorNode(node.groupId, candidate, node.predicate)
+                                    var p: OperatorNode.Physical = DistancePhysicalOperatorNode(index, node.predicate)
+                                    val delta = scan.columns.filter { !candidate.produces.contains(it) }
+                                    if (delta.isNotEmpty()) {
+                                        p = FetchPhysicalOperatorNode(p, candidate.parent, delta.toTypedArray())
+                                    }
+                                    return node.output?.copyWithOutput(p) ?: p
+                                }
+
+                                /* Case 3: Index only produces TupleIds. Column for NSS needs to be fetched in an extra step. */
+                                else -> {
+                                    val index = IndexScanPhysicalOperatorNode(node.groupId, candidate, node.predicate)
+                                    val distance = DistancePhysicalOperatorNode(index, node.predicate)
+                                    val p = FetchPhysicalOperatorNode(distance, scan.entity, scan.columns.filter { !candidate.produces.contains(it) }.toTypedArray())
+                                    return node.output?.copyWithOutput(p) ?: p
+                                }
+                            }
                         }
-                        candidate.produces.contains(KnnUtilities.distanceColumnDef(node.predicate.column.name.entity())) -> { /* Case 2: Index produces distance, no kNN calculation needed. */
-                            IndexKnnPhysicalOperatorNode(candidate, node.predicate)
-                        }
-                        else -> {  /* Case 3: Index only produces TupleIds (and potentially useless columns). Column for kNN needs to be fetched in an extra step. */
-                            val kNN = KnnPhysicalOperatorNode(node.predicate)
-                            val fetch = FetchPhysicalOperatorNode(
-                                parent.entity,
-                                arrayOf(node.predicate.column)
-                            )
-                            val p = IndexKnnPhysicalOperatorNode(candidate, node.predicate)
-                            kNN.addInput(fetch).addInput(p)
-                        }
-                    }
-                    val delta = parent.columns.filter { !candidate.produces.contains(it) }
-                    return if (delta.isNotEmpty()) {
-                        val fetch =
-                            FetchPhysicalOperatorNode(candidate.parent, delta.toTypedArray())
-                        node.copyOutput()?.addInput(fetch)?.addInput(res.root)
-                    } else {
-                        node.copyOutput()?.addInput(res.root)
                     }
                 }
             }

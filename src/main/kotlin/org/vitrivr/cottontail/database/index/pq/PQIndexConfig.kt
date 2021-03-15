@@ -2,19 +2,20 @@ package org.vitrivr.cottontail.database.index.pq
 
 import org.mapdb.DataInput2
 import org.mapdb.DataOutput2
+import org.vitrivr.cottontail.database.index.IndexConfig
 
 /**
  * Configuration class for [PQIndex].
  *
  * @author Gabriel Zihlmann & Ralph Gasser
- * @version 1.0.0
+ * @version 1.1.0
  */
 data class PQIndexConfig(
     val numSubspaces: Int,
     val numCentroids: Int,
     val sampleSize: Int,
     val seed: Long
-) {
+) : IndexConfig {
 
     companion object Serializer : org.mapdb.Serializer<PQIndexConfig> {
 
@@ -72,11 +73,11 @@ data class PQIndexConfig(
     }
 
     /**
-     * Converts this [PQIndexConfig] to a parameters map and returns it.
+     * Converts this [PQIndexConfig] to a [Map] representation.
      *
-     * @return Parameter map for this [PQIndexConfig]
+     * @return [Map] representation of this [PQIndexConfig].
      */
-    fun toParams(): Map<String, String> = mapOf(
+    override fun toMap(): Map<String, String> = mapOf(
         NUM_SUBSPACES_KEY to this.numSubspaces.toString(),
         NUM_CENTROIDS_KEY to this.numCentroids.toString(),
         SAMPLE_SIZE to this.sampleSize.toString(),

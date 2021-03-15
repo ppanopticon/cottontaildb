@@ -12,6 +12,7 @@ import org.vitrivr.cottontail.storage.engine.hare.buffer.Priority
 import org.vitrivr.cottontail.storage.engine.hare.serializer.Serializer
 import org.vitrivr.cottontail.storage.engine.hare.views.SlottedPageView
 import org.vitrivr.cottontail.storage.engine.hare.views.VARIABLE_FLAGS_MASK_NULL
+import org.vitrivr.cottontail.storage.serializers.hare.HareSerializer
 import org.vitrivr.cottontail.utilities.extensions.exclusive
 import org.vitrivr.cottontail.utilities.extensions.shared
 import java.lang.Long.max
@@ -34,11 +35,10 @@ class VariableHareColumnWriter<T : Value>(val file: VariableHareColumnFile<T>, p
         private set
 
     /** The [Serializer] used to read data through this [VariableHareColumnFile]. */
-    private val serializer: Serializer<T> = this.file.type.serializer()
+    private val serializer: HareSerializer<T> = this.file.type.serializerFactory().hare(this.file.type.logicalSize)
 
     /** The [BufferPool] instance used by this [VariableHareColumnWriter] is always shared with the [Directory]. */
     private val bufferPool: BufferPool = this.directory.bufferPool
-
 
     /** A [StampedLock] that mediates access to methods of this [VariableHareColumnWriter]. */
     private val localLock = StampedLock()
@@ -74,7 +74,7 @@ class VariableHareColumnWriter<T : Value>(val file: VariableHareColumnFile<T>, p
         val allocationSize = if (value == null) {
             2
         } else {
-            this.serializer.physicalSize
+            this.file.type.physicalSize
         }
 
         /** Get header page. */

@@ -20,7 +20,8 @@ import kotlin.time.measureTimedValue
  * @version 1.0.3
  */
 @ExperimentalTime
-class CreateIndexCommand(private val ddlStub: DDLGrpc.DDLBlockingStub) : AbstractEntityCommand(name = "create-index", help = "Creates an index on the given entity and rebuilds the newly created index. Usage: entity createIndex <schema>.<entity> <column> <index>") {
+class CreateIndexCommand(private val ddlStub: DDLGrpc.DDLBlockingStub) :
+    AbstractEntityCommand(name = "create-index", help = "Creates an index on the given entity and rebuilds the newly created index. Usage: entity createIndex <schema>.<entity> <column> <index>") {
 
     private val attribute by argument(
         name = "column",

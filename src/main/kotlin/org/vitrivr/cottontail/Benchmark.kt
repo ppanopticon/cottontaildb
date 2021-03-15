@@ -63,7 +63,7 @@ object Benchmark {
                             CottontailGrpc.From.newBuilder()
                                 .setScan(CottontailGrpc.Scan.newBuilder().setEntity(entity))
                         )
-                            .setKnn(CottontailGrpc.Knn.newBuilder().addQuery(vector).setDistance(CottontailGrpc.Knn.Distance.L2).setK(k).setAttribute(CottontailGrpc.ColumnName.newBuilder().setName("feature")).setHint(CottontailGrpc.KnnHint.newBuilder().setParallelIndexHint(CottontailGrpc.KnnHint.ParallelKnnHint.newBuilder().setMin(p).setMax(p))))
+                            .setKnn(CottontailGrpc.Knn.newBuilder().setQuery(vector).setDistance(CottontailGrpc.Knn.Distance.L2).setK(k).setAttribute(CottontailGrpc.ColumnName.newBuilder().setName("feature")).setHint(CottontailGrpc.KnnHint.newBuilder().setParallelIndexHint(CottontailGrpc.KnnHint.ParallelKnnHint.newBuilder().setMin(p).setMax(p))))
                             .setProjection(CottontailGrpc.Projection.newBuilder().addColumns(CottontailGrpc.Projection.ProjectionElement.newBuilder().setColumn(CottontailGrpc.ColumnName.newBuilder().setName("id"))).addColumns(CottontailGrpc.Projection.ProjectionElement.newBuilder().setColumn(CottontailGrpc.ColumnName.newBuilder().setName("distance"))))
             )
             val results = this.dqlService.query(query.build())
@@ -91,7 +91,7 @@ object Benchmark {
                         CottontailGrpc.From.newBuilder()
                             .setScan(CottontailGrpc.Scan.newBuilder().setEntity(entity))
                     )
-                            .setKnn(CottontailGrpc.Knn.newBuilder().addQuery(vector).setDistance(CottontailGrpc.Knn.Distance.L2).setK(k).setAttribute(CottontailGrpc.ColumnName.newBuilder().setName("feature")).setHint(CottontailGrpc.KnnHint.newBuilder().setParallelIndexHint(CottontailGrpc.KnnHint.ParallelKnnHint.newBuilder().setMin(p).setMax(p))))
+                            .setKnn(CottontailGrpc.Knn.newBuilder().setQuery(vector).setDistance(CottontailGrpc.Knn.Distance.L2).setK(k).setAttribute(CottontailGrpc.ColumnName.newBuilder().setName("feature")).setHint(CottontailGrpc.KnnHint.newBuilder().setParallelIndexHint(CottontailGrpc.KnnHint.ParallelKnnHint.newBuilder().setMin(p).setMax(p))))
                             .setProjection(CottontailGrpc.Projection.newBuilder().addColumns(CottontailGrpc.Projection.ProjectionElement.newBuilder().setColumn(CottontailGrpc.ColumnName.newBuilder().setName("id"))).addColumns(CottontailGrpc.Projection.ProjectionElement.newBuilder().setColumn(CottontailGrpc.ColumnName.newBuilder().setName("distance"))))
             )
 

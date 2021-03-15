@@ -7,14 +7,15 @@ import org.apache.lucene.analysis.en.EnglishAnalyzer
 import org.apache.lucene.analysis.standard.StandardAnalyzer
 import org.mapdb.DataInput2
 import org.mapdb.DataOutput2
+import org.vitrivr.cottontail.database.index.IndexConfig
 
 /**
  * A configuration class used with [LuceneIndex] instances.
  *
  * @author Ralph Gasser
- * @version 1.0.1
+ * @version 1.1.0
  */
-data class LuceneIndexConfig(val type: LuceneAnalyzerType) {
+data class LuceneIndexConfig(val type: LuceneAnalyzerType) : IndexConfig {
     companion object Serializer : org.mapdb.Serializer<LuceneIndexConfig> {
         const val ANALYZER_TYPE_KEY = "analyzer_type"
 
@@ -54,11 +55,11 @@ data class LuceneIndexConfig(val type: LuceneAnalyzerType) {
     }
 
     /**
-     * Converts this [LuceneIndexConfig] to a parameters map and returns it.
+     * Converts this [LuceneIndexConfig] to a [Map] representation.
      *
-     * @return Parameter map for this [LuceneIndexConfig]
+     * @return [Map] representation of this [LuceneIndexConfig].
      */
-    fun toParams(): Map<String, String> = mapOf(
+    override fun toMap(): Map<String, String> = mapOf(
         ANALYZER_TYPE_KEY to this.type.toString()
     )
 }

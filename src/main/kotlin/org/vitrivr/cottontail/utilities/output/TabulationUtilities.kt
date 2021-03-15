@@ -94,10 +94,10 @@ object TabulationUtilities {
                     CottontailGrpc.Vector.VectorDataCase.COMPLEX32VECTOR -> this@TabulationUtilities.vectorToString(it.vectorData.complex32Vector.vectorList.map { c -> "${c.real} + i${c.imaginary}" })
                     CottontailGrpc.Vector.VectorDataCase.COMPLEX64VECTOR -> this@TabulationUtilities.vectorToString(it.vectorData.complex64Vector.vectorList.map { c -> "${c.real} + i${c.imaginary}" })
                     CottontailGrpc.Vector.VectorDataCase.VECTORDATA_NOT_SET -> "~~NULL~~"
+                    else -> "~~N/A~~"
                 }
                 CottontailGrpc.Literal.DataCase.NULLDATA -> "~~NULL~~"
-                CottontailGrpc.Literal.DataCase.DATA_NOT_SET -> "~~N/A~~"
-                else -> ""
+                else -> "~~N/A~~"
             }
         }.forEach { cell(it) }
     }

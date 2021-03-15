@@ -14,16 +14,16 @@ import java.util.*
 import java.util.concurrent.locks.StampedLock
 
 /**
- * A [Recordset] as returned and processed by Cottontail DB. [Recordset]s are tables. A [Recordset]'s columns are defined by the [ColumnDef]'s
- * it contains ([Recordset.columns] and it contains an arbitrary number of [Record] entries as rows.
+ * A [Recordset] as returned and processed by Cottontail DB. [Recordset]s are tables. A [Recordset]'s
+ * columns are defined by the [ColumnDef]'s it contains ([Recordset.columns] and may contain an arbitrary
+ * number of [Record] entries as rows.
  *
- * [Recordset]s are the unit of data retrieval and processing in Cottontail DB. Whenever information is accessed through an [Entity][org.vitrivr.cottontail.database.entity.Entity],
- * a [Recordset] is being generated. Furthermore, the entire query execution pipeline processes, transforms and produces [Recordset]s.
+ * [Recordset]s are the unit of in-memory data storage and processing in Cottontail DB.
  *
- * @see org.vitrivr.cottontail.database.entity.Entity
+ * @see org.vitrivr.cottontail.database.entity.DefaultEntity
  *
  * @author Ralph Gasser
- * @version 1.5.1
+ * @version 1.6.0
  */
 class Recordset(val columns: Array<ColumnDef<*>>, capacity: Long = 250L) : Scanable, Filterable {
     /** List of all the [Record]s contained in this [Recordset] (TupleId -> Record). */
@@ -154,15 +154,6 @@ class Recordset(val columns: Array<ColumnDef<*>>, capacity: Long = 250L) : Scana
     fun first(): Record? = this.list.first()
 
     /**
-     * Applies the provided action to each [Record] in this [Recordset].
-     *
-     * @param action The action that should be applied.
-     */
-    fun forEachIndexed(action: (Int, Record) -> Unit) = this.lock.read {
-        this.list.forEachIndexed(action)
-    }
-
-    /**
      * Checks if this [Filterable] can process the provided [Predicate].
      *
      * @param predicate [Predicate] to check.
@@ -175,7 +166,7 @@ class Recordset(val columns: Array<ColumnDef<*>>, capacity: Long = 250L) : Scana
     /**
      *
      */
-    override fun filter(predicate: Predicate): CloseableIterator<Record> {
+    override fun filter(predicate: Predicate): Iterator<Record> {
         TODO("Not yet implemented")
     }
 
@@ -204,62 +195,53 @@ class Recordset(val columns: Array<ColumnDef<*>>, capacity: Long = 250L) : Scana
     fun toList(): List<Record> = this.list.toList()
 
     /**
-     * Returns an [Iterator] for this [Recordset]. As long as this [Iterator] exists it will retain a read lock on this [Recordset].
-     * <strong>Important:</strong> The implementation of this [CloseableIterator] is NOT thread safe.
+     * Returns an [Iterator] for this [Recordset]. The [Iterator] is NOT thread safe.
      *
      * @return [Iterator] of this [Recordset].
      */
-    fun iterator(): CloseableIterator<Record> = object: CloseableIterator<Record> {
+    fun iterator() = this.scan(this.columns)
 
-        /** Obtains a stamped read lock from the surrounding [Recordset]. */
-        private val stamp = this@Recordset.lock.readLock()
+    /**
+     * Returns an [Iterator] for this [Recordset] for the given [columns]. The [Iterator] is NOT thread safe.
+     *
+     * @param columns The [ColumnDef] to include in the iteration.
+     * @return [Iterator] of this [Recordset].
+     */
+    override fun scan(columns: Array<ColumnDef<*>>): Iterator<Record> =
+        this.scan(columns, 0L until this.rowCount)
+
+    /**
+     * Returns an [Iterator] for this [Recordset] for the given [columns] and the given [range].
+     * The [Iterator] is NOT thread safe.
+     *
+     * @param columns The [ColumnDef] to include in the iteration.
+     * @param range The range to iterate over.
+     * @return [Iterator] of this [Recordset].
+     */
+    override fun scan(columns: Array<ColumnDef<*>>, range: LongRange) = object : Iterator<Record> {
 
         /** Internal pointer kept as reference to the next [Record]. */
         @Volatile
-        private var pointer = 0L
-
-        /** Flag indicating whether this [CloseableIterator] is open and ready for use. */
-        @Volatile
-        override var isOpen = true
-            private set
+        private var pointer = range.first
 
         /**
-         * Returns true if the next invocation of [CloseableIterator#next()] returns a value and false otherwise.
+         * Returns true if the next invocation of [Iterator#next()] returns a value and false otherwise.
          *
-         * @return Boolean indicating, whether this [CloseableIterator] will return a value.
+         * @return Boolean indicating, whether this [Iterator] will return a value.
          */
         override fun hasNext(): Boolean {
-            check(this.isOpen) { "Illegal invocation of hasNext(): This CloseableIterator has been closed." }
             return this.pointer < this@Recordset.list.size64()
         }
 
         /**
-         * Returns the next value of this [CloseableIterator].
+         * Returns the next value of this [Iterator].
          *
-         * @return Next [Record] of this [CloseableIterator].
+         * @return Next [Record] of this [Iterator].
          */
         override fun next(): Record {
-            check(this.isOpen) { "Illegal invocation of next(): This CloseableIterator has been closed." }
             val record = this@Recordset.list[this.pointer]
             this.pointer += 1
             return record
-        }
-
-        /**
-         * Closes this [CloseableIterator].
-         */
-        override fun close() {
-            if (this.isOpen) {
-                this.isOpen = false
-                this@Recordset.lock.unlockRead(this.stamp)
-            }
-        }
-
-        /**
-         * Closes this [CloseableIterator] upon finalization.
-         */
-        protected fun finalize() {
-            this.close()
         }
     }
 
@@ -363,11 +345,5 @@ class Recordset(val columns: Array<ColumnDef<*>>, capacity: Long = 250L) : Scana
         }
     }
 
-    override fun scan(columns: Array<ColumnDef<*>>): CloseableIterator<Record> {
-        TODO("Not yet implemented")
-    }
 
-    override fun scan(columns: Array<ColumnDef<*>>, range: LongRange): CloseableIterator<Record> {
-        TODO("Not yet implemented")
-    }
 }

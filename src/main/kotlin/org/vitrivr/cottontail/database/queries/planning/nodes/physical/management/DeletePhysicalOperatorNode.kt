@@ -4,6 +4,7 @@ import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
+import org.vitrivr.cottontail.database.queries.planning.nodes.logical.management.DeleteLogicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.UnaryPhysicalOperatorNode
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.execution.operators.basics.Operator
@@ -13,27 +14,63 @@ import org.vitrivr.cottontail.execution.operators.management.DeleteOperator
  * A [DeletePhysicalOperatorNode] that formalizes a delete operation on an [Entity].
  *
  * @author Ralph Gasser
- * @version 1.1.0
+ * @version 2.1.0
  */
-class DeletePhysicalOperatorNode(val entity: Entity) : UnaryPhysicalOperatorNode() {
+class DeletePhysicalOperatorNode(input: Physical? = null, val entity: Entity) : UnaryPhysicalOperatorNode(input) {
+
+    companion object {
+        private const val NODE_NAME = "Delete"
+    }
+
+    /** The name of this [DeleteLogicalOperatorNode]. */
+    override val name: String
+        get() = NODE_NAME
+
     /** The [DeletePhysicalOperatorNode] produces the [ColumnDef]s defined in the [DeleteOperator]. */
     override val columns: Array<ColumnDef<*>> = DeleteOperator.COLUMNS
 
     /** The [DeletePhysicalOperatorNode] produces a single record. */
     override val outputSize: Long = 1L
 
-    override val cost: Cost
-        get() = Cost(io = this.entity.statistics.columns * this.input.outputSize * Cost.COST_DISK_ACCESS_WRITE)
+    /** The [Cost] of this [DeletePhysicalOperatorNode]. */
+    override val cost: Cost = Cost(io = this.entity.numberOfColumns * Cost.COST_DISK_ACCESS_WRITE) * (this.input?.outputSize ?: 0)
 
-    override fun copy(): DeletePhysicalOperatorNode = DeletePhysicalOperatorNode(this.entity)
-
-    override fun toOperator(tx: TransactionContext, ctx: QueryContext): Operator =
-        DeleteOperator(this.input.toOperator(tx, ctx), this.entity)
+    /** The [DeletePhysicalOperatorNode]s cannot be partitioned. */
+    override val canBePartitioned: Boolean = false
 
     /**
-     * Calculates and returns the digest for this [DeletePhysicalOperatorNode].
+     * Creates and returns a copy of this [DeletePhysicalOperatorNode] without any children or parents.
      *
-     * @return Digest for this [DeletePhysicalOperatorNode]e
+     * @return Copy of this [DeletePhysicalOperatorNode].
      */
-    override fun digest(): Long = 31L * super.digest() + this.entity.hashCode()
+    override fun copy() = DeletePhysicalOperatorNode(entity = this.entity)
+
+    /**
+     * Converts this [DeletePhysicalOperatorNode] to a [DeleteOperator].
+     *
+     * @param tx The [TransactionContext] used for execution.
+     * @param ctx The [QueryContext] used for the conversion (e.g. late binding).
+     */
+    override fun toOperator(tx: TransactionContext, ctx: QueryContext): Operator = DeleteOperator(
+        this.input?.toOperator(tx, ctx) ?: throw IllegalStateException("Cannot convert disconnected OperatorNode to Operator (node = $this)"),
+        this.entity
+    )
+
+    /**
+     * [DeletePhysicalOperatorNode] cannot be partitioned.
+     */
+    override fun partition(p: Int): List<Physical> {
+        throw UnsupportedOperationException("DeletePhysicalOperatorNode cannot be partitioned.")
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is DeletePhysicalOperatorNode) return false
+
+        if (entity != other.entity) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int = this.entity.hashCode()
 }

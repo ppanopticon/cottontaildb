@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.database.index.va
 
 import org.mapdb.DataInput2
 import org.mapdb.DataOutput2
+import org.vitrivr.cottontail.database.index.IndexConfig
 
 /**
  * A configuration class for the [VAFIndex].
@@ -9,7 +10,7 @@ import org.mapdb.DataOutput2
  * @author Ralph Gasser
  * @version 1.0.0
  */
-data class VAFIndexConfig(val marksPerDimension: Int) {
+data class VAFIndexConfig(val marksPerDimension: Int) : IndexConfig {
     companion object Serializer : org.mapdb.Serializer<VAFIndexConfig> {
         const val MARKS_PER_DIMENSION_KEY = "marks_per_dimension"
 
@@ -27,15 +28,15 @@ data class VAFIndexConfig(val marksPerDimension: Int) {
          * @return VAFIndexConfig
          */
         fun fromParamMap(params: Map<String, String>) =
-            VAFIndexConfig(params[MARKS_PER_DIMENSION_KEY]!!.toInt())
+            VAFIndexConfig(params[MARKS_PER_DIMENSION_KEY]?.toIntOrNull() ?: 10)
     }
 
     /**
-     * Converts this [VAFIndexConfig] to a parameters map and returns it.
+     * Converts this [VAFIndexConfig] to a [Map] representation.
      *
-     * @return Parameter map for this [VAFIndexConfig]
+     * @return [Map] representation of this [VAFIndexConfig].
      */
-    fun toParams(): Map<String, String> = mapOf(
+    override fun toMap(): Map<String, String> = mapOf(
         MARKS_PER_DIMENSION_KEY to this.marksPerDimension.toString()
     )
 }

@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.RepeatedTest
 import org.vitrivr.cottontail.TestConstants
 import org.vitrivr.cottontail.database.column.ColumnDef
+import org.vitrivr.cottontail.database.column.ColumnEngine
 import org.vitrivr.cottontail.execution.TransactionType
 import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
@@ -29,25 +30,26 @@ class ScalarValueSerializationTest : AbstractSerializationTest() {
     @RepeatedTest(3)
     fun test() {
         val nameEntity = this.schema.name.entity("longvector-test")
-        val idCol = ColumnDef(nameEntity.column("id"), Type.forName("INTEGER"), -1, false)
-        val intCol = ColumnDef(nameEntity.column("intCol"), Type.forName("INTEGER"), -1, false)
-        val longCol = ColumnDef(nameEntity.column("longCol"), Type.forName("LONG"), -1, false)
-        val doubleCol = ColumnDef(nameEntity.column("doubleCol"), Type.forName("DOUBLE"), -1, false)
-        val floatCol = ColumnDef(nameEntity.column("floatCol"), Type.forName("FLOAT"), -1, false)
-        val byteCol = ColumnDef(nameEntity.column("byteCol"), Type.forName("BYTE"), -1, false)
-        val shortCol = ColumnDef(nameEntity.column("shortCol"), Type.forName("SHORT"), -1, false)
+        val idCol = ColumnDef(nameEntity.column("id"), Type.Int)
+        val intCol = ColumnDef(nameEntity.column("intCol"), Type.Int)
+        val longCol = ColumnDef(nameEntity.column("longCol"), Type.Long)
+        val doubleCol = ColumnDef(nameEntity.column("doubleCol"), Type.Double)
+        val floatCol = ColumnDef(nameEntity.column("floatCol"), Type.Float)
+        val byteCol = ColumnDef(nameEntity.column("byteCol"), Type.Byte)
+        val shortCol = ColumnDef(nameEntity.column("shortCol"), Type.Short)
 
 
         /* Prepare entity. */
-        val columns = arrayOf(idCol, intCol, longCol, doubleCol, floatCol, byteCol, shortCol)
+        val columns: Array<ColumnDef<*>> =
+            arrayOf(idCol, intCol, longCol, doubleCol, floatCol, byteCol, shortCol)
         val txn = this.manager.Transaction(TransactionType.USER)
-        val schemaTx = this.schema.Tx(txn)
-        schemaTx.createEntity(nameEntity, *columns)
+        val schemaTx = this.schema.newTx(txn)
+        schemaTx.createEntity(nameEntity, *columns.map { it to ColumnEngine.MAPDB }.toTypedArray())
         schemaTx.commit()
 
         /* Load entity. */
         val entity = schemaTx.entityForName(nameEntity)
-        val entityTx = entity.Tx(context = txn)
+        val entityTx = entity.newTx(context = txn)
 
         /* Prepare random number generator. */
         val seed = System.currentTimeMillis()
@@ -62,7 +64,7 @@ class ScalarValueSerializationTest : AbstractSerializationTest() {
                 DoubleValue(r1.nextDouble()), FloatValue(r1.nextDouble()),
                 ByteValue(r1.nextInt()), ShortValue(r1.nextInt())
             )
-            entityTx.insert(StandaloneRecord(columns = columns, values = values))
+            entityTx.insert(StandaloneRecord(i1, columns = columns, values = values))
         }
         entityTx.commit()
 

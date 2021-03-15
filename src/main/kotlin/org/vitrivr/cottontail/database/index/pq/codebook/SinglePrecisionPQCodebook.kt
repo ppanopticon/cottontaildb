@@ -8,6 +8,7 @@ import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.DoubleVectorValue
 import org.vitrivr.cottontail.model.values.FloatVectorValue
 import org.vitrivr.cottontail.model.values.types.VectorValue
+import org.vitrivr.cottontail.storage.serializers.FloatVectorValueSerializerFactory
 
 /**
  * A [PQCodebook] implementation for [FloatVectorValue]s (single precision).
@@ -30,7 +31,7 @@ class SinglePrecisionPQCodebook(
         override fun serialize(out: DataOutput2, value: SinglePrecisionPQCodebook) {
             /* Serialize logical size of codebook entries. */
             out.packInt(value.logicalSize)
-            val vectorSerializer = value.type.serializer()
+            val vectorSerializer = FloatVectorValueSerializerFactory.mapdb(value.logicalSize)
 
             /* Serialize centroids matrix. */
             out.packInt(value.centroids.size)
@@ -47,7 +48,7 @@ class SinglePrecisionPQCodebook(
 
         override fun deserialize(input: DataInput2, available: Int): SinglePrecisionPQCodebook {
             val logicalSize = input.unpackInt()
-            val vectorSerializer = Type.FloatVector(logicalSize).serializer()
+            val vectorSerializer = FloatVectorValueSerializerFactory.mapdb(logicalSize)
             val centroidsSize = input.unpackInt()
             val centroids = ArrayList<FloatVectorValue>(centroidsSize)
             for (i in 0 until centroidsSize) {

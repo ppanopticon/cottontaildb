@@ -2,8 +2,8 @@ package org.vitrivr.cottontail.execution.operators.definition
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.catalogue.CatalogueTx
+import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.index.IndexType
@@ -23,7 +23,7 @@ import kotlin.time.measureTimedValue
  */
 @ExperimentalTime
 class CreateIndexOperator(
-    private val catalogue: Catalogue,
+    private val catalogue: DefaultCatalogue,
     private val name: Name.IndexName,
     private val type: IndexType,
     private val indexColumns: List<Name.ColumnName>,

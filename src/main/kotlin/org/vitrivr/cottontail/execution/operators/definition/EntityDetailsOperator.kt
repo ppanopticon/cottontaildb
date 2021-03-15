@@ -2,8 +2,8 @@ package org.vitrivr.cottontail.execution.operators.definition
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.catalogue.CatalogueTx
+import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.schema.SchemaTx
@@ -24,7 +24,7 @@ import kotlin.time.ExperimentalTime
  * @author Ralph Gasser
  * @version 1.0.1
  */
-class EntityDetailsOperator(val catalogue: Catalogue, val name: Name.EntityName) : Operator.SourceOperator() {
+class EntityDetailsOperator(val catalogue: DefaultCatalogue, val name: Name.EntityName) : Operator.SourceOperator() {
 
     companion object {
         val COLUMNS: Array<ColumnDef<*>> = arrayOf(
@@ -50,38 +50,30 @@ class EntityDetailsOperator(val catalogue: Catalogue, val name: Name.EntityName)
                 StandaloneRecord(
                     rowId++,
                     this@EntityDetailsOperator.columns,
-                    arrayOf(
-                        StringValue(this@EntityDetailsOperator.name.toString()),
-                        StringValue("ENTITY"),
-                        null,
-                        IntValue(entityTxn.count()),
-                        null,
-                        null
-                    )
-                ))
+                    arrayOf(StringValue(this@EntityDetailsOperator.name.toString()), StringValue("ENTITY"), null, IntValue(entityTxn.count()), null, null)
+                )
+            )
 
             val columns = entityTxn.listColumns()
             columns.forEach {
-                emit(StandaloneRecord(
-                    rowId++,
-                    this@EntityDetailsOperator.columns,
-                    arrayOf(
-                        StringValue(it.name.toString()),
-                        StringValue("COLUMN"),
-                        StringValue(it.type.toString()),
-                        null,
-                        IntValue(it.columnDef.type.logicalSize),
-                        BooleanValue(it.nullable)
+                emit(
+                    StandaloneRecord(
+                        rowId++,
+                        this@EntityDetailsOperator.columns,
+                        arrayOf(StringValue(it.name.toString()), StringValue("COLUMN"), StringValue(it.type.toString()), null, IntValue(it.columnDef.type.logicalSize), BooleanValue(it.nullable))
                     )
-                ))
+                )
             }
 
             val indexes = entityTxn.listIndexes()
             indexes.forEach {
-                emit(StandaloneRecord(rowId++,
+                emit(
+                    StandaloneRecord(
+                        rowId++,
                         this@EntityDetailsOperator.columns,
                         arrayOf(StringValue(it.name.toString()), StringValue("INDEX"), StringValue(it.type.toString()), null, null, null)
-                ))
+                    )
+                )
             }
         }
     }

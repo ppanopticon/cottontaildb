@@ -2,15 +2,17 @@ package org.vitrivr.cottontail.database.index.gg
 
 import org.mapdb.DataInput2
 import org.mapdb.DataOutput2
+import org.vitrivr.cottontail.database.index.IndexConfig
 import org.vitrivr.cottontail.math.knn.metrics.Distances
 
 /**
  * Configuration class for [GGIndex].
  *
  * @author Gabriel Zihlmann
- * @version 1.0.0
+ * @version 1.1.0
  */
-data class GGIndexConfig(val numGroups: Int, val seed: Long, val distance: Distances) {
+data class GGIndexConfig(val numGroups: Int, val seed: Long, val distance: Distances) :
+    IndexConfig {
     companion object Serializer : org.mapdb.Serializer<GGIndexConfig> {
         const val NUM_SUBSPACES_KEY = "num_groups"
         const val SEED_KEY = "seed"
@@ -62,11 +64,11 @@ data class GGIndexConfig(val numGroups: Int, val seed: Long, val distance: Dista
     }
 
     /**
-     * Converts this [GGIndexConfig] to a parameters map and returns it.
+     * Converts this [GGIndexConfig] to a [Map] representation.
      *
-     * @return Parameter map for this [GGIndexConfig]
+     * @return [Map] representation of this [GGIndexConfig].
      */
-    fun toParams(): Map<String, String> = mapOf(
+    override fun toMap(): Map<String, String> = mapOf(
         NUM_SUBSPACES_KEY to this.numGroups.toString(),
         SEED_KEY to this.seed.toString(),
         DISTANCE_KEY to this.distance.toString()

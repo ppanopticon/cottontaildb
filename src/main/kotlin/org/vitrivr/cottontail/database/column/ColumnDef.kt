@@ -1,5 +1,7 @@
 package org.vitrivr.cottontail.database.column
 
+import org.mapdb.DataInput2
+import org.mapdb.DataOutput2
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.types.Value
@@ -10,14 +12,29 @@ import org.vitrivr.cottontail.model.values.types.Value
  * Specifies all the properties of such a and facilitates validation.
  *
  * @author Ralph Gasser
- * @version 1.4.0
+ * @version 1.5.0
  */
-data class ColumnDef<T : Value>(
-    val name: Name.ColumnName,
-    val type: Type<T>,
-    val nullable: Boolean = true,
-    val primary: Boolean = false
-) {
+data class ColumnDef<T : Value>(val name: Name.ColumnName, val type: Type<T>, val nullable: Boolean = true, val primary: Boolean = false) {
+
+    /**
+     * [org.mapdb.Serializer] for [ColumnDef].
+     */
+    companion object Serializer : org.mapdb.Serializer<ColumnDef<*>> {
+        override fun serialize(out: DataOutput2, value: ColumnDef<*>) {
+            out.writeUTF(value.name.toString())
+            out.packInt(value.type.ordinal)
+            out.packInt(value.type.logicalSize)
+            out.writeBoolean(value.nullable)
+            out.writeBoolean(value.primary)
+        }
+
+        override fun deserialize(input: DataInput2, available: Int): ColumnDef<*> = ColumnDef(
+            Name.ColumnName(*input.readUTF().split('.').toTypedArray()),
+            Type.forOrdinal(input.unpackInt(), input.unpackInt()),
+            input.readBoolean(),
+            input.readBoolean()
+        )
+    }
 
     /**
      * Validates a value with regard to this [ColumnDef] return a flag indicating whether validation was passed.
@@ -29,24 +46,6 @@ data class ColumnDef<T : Value>(
         return if (value != null) {
             this.type.compatible(value)
         } else this.nullable
-    }
-
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
-
-        other as ColumnDef<*>
-
-        if (name != other.name) return false
-        if (type != other.type) return false
-
-        return true
-    }
-
-    override fun hashCode(): Int {
-        var result = name.hashCode()
-        result = 31 * result + type.hashCode()
-        return result
     }
 
     override fun toString(): String = "$name(type=$type, nullable=$nullable)"

@@ -38,10 +38,7 @@ sealed class BooleanPredicateHint : PredicateHint {
      * @param name The [Name.IndexName] of the [Index] that should be used for execution.
      * @param parameters The parameters that should be given to the [Index]
      */
-    data class IndexNameHint(
-        val name: Name.IndexName,
-        val parameters: Map<String, String>? = null
-    ) : BooleanPredicateHint() {
+    data class IndexNameHint(val name: Name.IndexName, val parameters: Map<String, String>? = null) : BooleanPredicateHint() {
         override fun satisfies(index: Index): Boolean = index.name == name
     }
 }

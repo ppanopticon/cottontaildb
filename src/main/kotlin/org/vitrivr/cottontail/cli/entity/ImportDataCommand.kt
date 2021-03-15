@@ -103,10 +103,7 @@ class ImportDataCommand(
             if (it.dataList[1].stringData == "COLUMN") {
                 columns.add(
                     ColumnDef(
-                        name = Name.ColumnName(
-                            *it.dataList[0].stringData.split(Name.NAME_COMPONENT_DELIMITER)
-                                .toTypedArray()
-                        ),
+                        name = Name.ColumnName(*it.dataList[0].stringData.split(Name.NAME_COMPONENT_DELIMITER).toTypedArray()),
                         type = Type.forName(it.dataList[2].stringData, it.dataList[4].intData),
                         nullable = it.dataList[5].booleanData
                     )

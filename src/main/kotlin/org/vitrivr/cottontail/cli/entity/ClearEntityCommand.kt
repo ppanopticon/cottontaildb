@@ -10,7 +10,7 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.measureTimedValue
 
 /**
- * Command to clear [org.vitrivr.cottontail.database.entity.Entity], i.e., delete all data from it
+ * Command to clear [org.vitrivr.cottontail.database.entity.DefaultEntity], i.e., delete all data from it
  *
  * @author Ralph Gasser
  * @version 1.0

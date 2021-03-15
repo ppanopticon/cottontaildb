@@ -8,12 +8,12 @@ import org.vitrivr.cottontail.model.values.types.Value
  * it can hold multiple values, each belonging to a different column (defined by [ColumnDef]s). A [ColumnDef]
  * must not necessarily correspond to a physical database [Column][org.vitrivr.cottontail.database.column.Column].
  *
- * Column-wise access to records through the [Entity][org.vitrivr.cottontail.database.entity.Entity]
+ * Column-wise access to records through the [Entity][org.vitrivr.cottontail.database.entity.DefaultEntity]
  * class returns [Record]s. Furthermore, the interface is
  * used in conjunction with the [Recordset][org.vitrivr.cottontail.model.recordset.Recordset] class.
  *
  * @see org.vitrivr.cottontail.model.recordset.Recordset
- * @see org.vitrivr.cottontail.database.entity.Entity
+ * @see org.vitrivr.cottontail.database.entity.DefaultEntity
  *
  * @author Ralph Gasser
  * @version 1.3.0

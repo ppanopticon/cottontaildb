@@ -17,7 +17,7 @@ import java.util.concurrent.locks.StampedLock
  * @version 1.3.1
  * @author Ralph Gasser
  */
-open class HarePage(override val buffer: ByteBuffer) : Page {
+open class HarePage(override  val buffer: ByteBuffer) : Page {
     /** A [StampedLock] that mediates access to this [HarePage]'s [ByteBuffer].  */
     val lock: StampedLock = StampedLock()
 

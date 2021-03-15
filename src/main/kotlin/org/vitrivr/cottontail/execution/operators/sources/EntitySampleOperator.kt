@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.flow
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
+import org.vitrivr.cottontail.database.queries.GroupId
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.execution.exceptions.OperatorSetupException
 import org.vitrivr.cottontail.model.basics.Record
@@ -14,9 +15,9 @@ import java.util.*
  * An [AbstractEntityOperator] that samples an [Entity] and streams all [Record]s found within.
  *
  * @author Ralph Gasser
- * @version 1.1.3
+ * @version 1.2.0
  */
-class EntitySampleOperator(entity: Entity, columns: Array<ColumnDef<*>>, val size: Long, val seed: Long) : AbstractEntityOperator(entity, columns) {
+class EntitySampleOperator(groupId: GroupId, entity: Entity, columns: Array<ColumnDef<*>>, val size: Long, val seed: Long) : AbstractEntityOperator(groupId, entity, columns) {
 
     init {
         if (this.size <= 0L) throw OperatorSetupException(this, "EntitySampleOperator sample size is invalid (size=${this.size}).")

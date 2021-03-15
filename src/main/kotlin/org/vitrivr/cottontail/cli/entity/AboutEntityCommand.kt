@@ -9,7 +9,7 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.measureTimedValue
 
 /**
- * Command for accessing and reviewing [org.vitrivr.cottontail.database.entity.Entity] details.
+ * Command for accessing and reviewing [org.vitrivr.cottontail.database.entity.DefaultEntity] details.
  *
  * @author Loris Sauter & Ralph Gasser
  * @version 1.0.1

@@ -4,11 +4,10 @@ import org.mapdb.HTreeMap
 import org.mapdb.Serializer
 import org.slf4j.LoggerFactory
 import org.vitrivr.cottontail.database.column.Column
-import org.vitrivr.cottontail.database.column.ColumnDef
-import org.vitrivr.cottontail.database.entity.Entity
+import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.events.DataChangeEvent
-import org.vitrivr.cottontail.database.index.Index
+import org.vitrivr.cottontail.database.index.AbstractIndex
 import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.index.IndexType
 import org.vitrivr.cottontail.database.index.lsh.LSHIndex
@@ -25,33 +24,27 @@ import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.model.exceptions.QueryException
 import org.vitrivr.cottontail.model.recordset.Recordset
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
-import org.vitrivr.cottontail.model.values.IntValue
 import org.vitrivr.cottontail.model.values.types.ComplexVectorValue
 import org.vitrivr.cottontail.model.values.types.VectorValue
 import java.nio.file.Path
 import java.util.*
 
 /**
- * Represents a LSH based index in the Cottontail DB data model. An [Index] belongs to an [Entity]
- * and can be used to index one to many [Column]s. Usually, [Index]es allow for faster data access.
+ * Represents a LSH based index in the Cottontail DB data model. An [AbstractIndex] belongs to an [DefaultEntity]
+ * and can be used to index one to many [Column]s. Usually, [AbstractIndex]es allow for faster data access.
  * They process [Predicate]s and return
  * [Recordset]s.
  *
  * @author Manuel Huerbin, Gabriel Zihlmann & Ralph Gasser
- * @version 1.5.0
+ * @version 2.1.0
  */
 class SuperBitLSHIndex<T : VectorValue<*>>(
-    name: Name.IndexName,
-    parent: Entity,
-    columns: Array<ColumnDef<*>>,
     path: Path,
+    parent: DefaultEntity,
     config: SuperBitLSHIndexConfig? = null
-) : LSHIndex<T>(name, parent, columns, path) {
+) : LSHIndex<T>(path, parent) {
 
     companion object {
-        private const val SBLSH_INDEX_CONFIG = "lsh_config"
-        private const val SBLSH_INDEX_DIRTY = "lsh_dirty"
-
         private val LOGGER = LoggerFactory.getLogger(SuperBitLSHIndex::class.java)
     }
 
@@ -61,21 +54,14 @@ class SuperBitLSHIndex<T : VectorValue<*>>(
     /** False since [SuperBitLSHIndex] doesn't support partitioning. */
     override val supportsPartitioning: Boolean = false
 
-    /** Indicates if this [SuperBitLSHIndex] is currently considered dirty, i.e., out of sync with [Entity]. */
-    override val dirty: Boolean
-        get() = this.dirtyStore.get()
-
     /** The [IndexType] of this [SuperBitLSHIndex]. */
     override val type = IndexType.LSH_SB
 
     /** The [SuperBitLSHIndexConfig] used by this [SuperBitLSHIndex] instance. */
-    private val config: SuperBitLSHIndexConfig
+    override val config: SuperBitLSHIndexConfig
 
     /** The [SuperBitLSHIndexConfig] used by this [SuperBitLSHIndex] instance. */
     private val maps: List<HTreeMap<Int, LongArray>>
-
-    /** Internal storage variable for the dirty flag. */
-    private val dirtyStore = this.db.atomicBoolean(SBLSH_INDEX_DIRTY).createOrOpen()
 
     init {
         if (!columns.all { it.type.vector }) {
@@ -85,7 +71,8 @@ class SuperBitLSHIndex<T : VectorValue<*>>(
             )
         }
         val configOnDisk =
-            this.db.atomicVar(SBLSH_INDEX_CONFIG, SuperBitLSHIndexConfig.Serializer).createOrOpen()
+            this.store.atomicVar(INDEX_CONFIG_FIELD, SuperBitLSHIndexConfig.Serializer)
+                .createOrOpen()
         if (configOnDisk.get() == null) {
             if (config != null) {
                 this.config = config
@@ -98,12 +85,16 @@ class SuperBitLSHIndex<T : VectorValue<*>>(
             this.config = configOnDisk.get()
         }
         this.maps = List(this.config.stages) {
-            this.db.hashMap(MAP_FIELD_NAME + "_stage$it", Serializer.INTEGER, Serializer.LONG_ARRAY)
+            this.store.hashMap(
+                LSH_MAP_FIELD + "_stage$it",
+                Serializer.INTEGER,
+                Serializer.LONG_ARRAY
+            )
                 .counterEnable().createOrOpen()
         }
 
         /* Initial commit to underlying DB. */
-        this.db.commit()
+        this.store.commit()
     }
 
     /**
@@ -119,7 +110,7 @@ class SuperBitLSHIndex<T : VectorValue<*>>(
                 && (predicate.distance is CosineDistance
                 || predicate.distance is RealInnerProductDistance
                 || predicate.distance is AbsoluteInnerProductDistance)
-                && (!this.config.considerImaginary || predicate.query.all { it is ComplexVectorValue<*> })
+                && (!this.config.considerImaginary || predicate.query is ComplexVectorValue<*>)
 
     /**
      * Calculates the cost estimate of this [SuperBitLSHIndex] processing the provided [Predicate].
@@ -134,16 +125,16 @@ class SuperBitLSHIndex<T : VectorValue<*>>(
     }
 
     /**
-     * Opens and returns a new [IndexTx] object that can be used to interact with this [Index].
+     * Opens and returns a new [IndexTx] object that can be used to interact with this [AbstractIndex].
      *
      * @param context The [TransactionContext] to create this [IndexTx] for.
      */
     override fun newTx(context: TransactionContext): IndexTx = Tx(context)
 
     /**
-     * A [IndexTx] that affects this [Index].
+     * A [IndexTx] that affects this [AbstractIndex].
      */
-    private inner class Tx(context: TransactionContext) : Index.Tx(context) {
+    private inner class Tx(context: TransactionContext) : AbstractIndex.Tx(context) {
         /**
          * Returns the number of [VAFSignature]s in this [SuperBitLSHIndex]
          *
@@ -163,14 +154,7 @@ class SuperBitLSHIndex<T : VectorValue<*>>(
             val tx = this.context.getTx(this.dbo.parent) as EntityTx
             val specimen = this.acquireSpecimen(tx)
                 ?: throw DatabaseException("Could not gather specimen to create index.") // todo: find better exception
-            val lsh = SuperBitLSH(
-                this@SuperBitLSHIndex.config.stages,
-                this@SuperBitLSHIndex.config.buckets,
-                this@SuperBitLSHIndex.config.seed,
-                specimen,
-                this@SuperBitLSHIndex.config.considerImaginary,
-                this@SuperBitLSHIndex.config.samplingMethod
-            )
+            val lsh = SuperBitLSH(this@SuperBitLSHIndex.config.stages, this@SuperBitLSHIndex.config.buckets, this@SuperBitLSHIndex.config.seed, specimen, this@SuperBitLSHIndex.config.considerImaginary, this@SuperBitLSHIndex.config.samplingMethod)
 
 
             /* Locally (Re-)create index entries and sort bucket for each stage to corresponding map. */
@@ -180,8 +164,7 @@ class SuperBitLSHIndex<T : VectorValue<*>>(
 
             /* for every record get bucket-signature, then iterate over stages and add tid to the list of that bucket of that stage */
             tx.scan(this@SuperBitLSHIndex.columns).forEach {
-                val value = it[this.columns[0]]
-                    ?: throw DatabaseException("Could not find column for entry in index $this") // todo: what if more columns? This should never happen -> need to change type and sort this out on index creation
+                val value = it[this.columns[0]] ?: throw DatabaseException("Could not find column for entry in index $this") // todo: what if more columns? This should never happen -> need to change type and sort this out on index creation
                 if (value is VectorValue<*>) {
                     val buckets = lsh.hash(value)
                     (buckets zip local).forEach { (bucket, map) ->
@@ -201,7 +184,7 @@ class SuperBitLSHIndex<T : VectorValue<*>>(
             }
 
             /* Update dirty flag. */
-            this@SuperBitLSHIndex.dirtyStore.compareAndSet(true, false)
+            this@SuperBitLSHIndex.dirtyField.compareAndSet(true, false)
             LOGGER.debug("Rebuilding SB-LSH index completed.")
         }
 
@@ -212,126 +195,96 @@ class SuperBitLSHIndex<T : VectorValue<*>>(
          * @param event [DataChangeEvent]s to process.
          */
         override fun update(event: DataChangeEvent) = this.withWriteLock {
-            this@SuperBitLSHIndex.dirtyStore.compareAndSet(false, true)
+            this@SuperBitLSHIndex.dirtyField.compareAndSet(false, true)
             Unit
         }
 
         /**
-         * Performs a lookup through this [SuperBitLSHIndex] and returns a [CloseableIterator] of
+         * Clears the [SuperBitLSHIndex] underlying this [Tx] and removes all entries it contains.
+         */
+        override fun clear() = this.withWriteLock {
+            this@SuperBitLSHIndex.dirtyField.compareAndSet(false, true)
+            (this@SuperBitLSHIndex.maps).forEach { map ->
+                map.clear()
+            }
+        }
+
+        /**
+         * Performs a lookup through this [SuperBitLSHIndex] and returns a [Iterator] of
          * all [TupleId]s that match the [Predicate]. Only supports [KnnPredicate]s.
          *
-         * The [CloseableIterator] is not thread safe!
-         *
-         * <strong>Important:</strong> It remains to the caller to close the [CloseableIterator]
+         * The [Iterator] is not thread safe!
          *
          * @param predicate The [Predicate] for the lookup*
-         * @return The resulting [CloseableIterator]
+         * @return The resulting [Iterator]
          */
-        override fun filter(predicate: Predicate) = object : CloseableIterator<Record> {
+        override fun filter(predicate: Predicate) = object : Iterator<Record> {
 
             /** Cast [KnnPredicate] (if such a cast is possible).  */
-            val predicate = if (predicate is KnnPredicate) {
+            private val predicate = if (predicate is KnnPredicate) {
                 predicate
             } else {
                 throw QueryException.UnsupportedPredicateException("Index '${this@SuperBitLSHIndex.name}' (LSH Index) does not support predicates of type '${predicate::class.simpleName}'.")
             }
 
-            /** Prepare new [SuperBitLSH] data structure to calculate the bucket index. */
-            private val lsh = SuperBitLSH(
-                this@SuperBitLSHIndex.config.stages,
-                this@SuperBitLSHIndex.config.buckets,
-                this@SuperBitLSHIndex.config.seed,
-                this.predicate.query.first(),
-                this@SuperBitLSHIndex.config.considerImaginary,
-                this@SuperBitLSHIndex.config.samplingMethod
-            )
-
-            /** Flag indicating whether this [CloseableIterator] has been closed. */
-            @Volatile
-            private var closed = false
-
-            /** The index of the current query vector. */
-            private var queryIndex = -1
-
-            /** List of [TupleId]s returned by this [CloseableIterator]. */
-            private val tupleIds = LinkedList<TupleId>()
+            /** List of [TupleId]s returned by this [Iterator]. */
+            private val tupleIds: LinkedList<TupleId>
 
             /* Performs some sanity checks. */
             init {
                 if (this.predicate.columns.first() != this@SuperBitLSHIndex.columns[0] || !(this.predicate.distance is CosineDistance || this.predicate.distance is AbsoluteInnerProductDistance)) {
                     throw QueryException.UnsupportedPredicateException("Index '${this@SuperBitLSHIndex.name}' (lsh-index) does not support the provided predicate.")
                 }
-                this@Tx.withReadLock { /* No op. */ }
-                this.prepareMatchesForNextQueryVector()
-            }
 
-            override fun hasNext(): Boolean {
-                check(!this.closed) { "Illegal invocation of hasNext(): This CloseableIterator has been closed." }
-                return this.tupleIds.isNotEmpty() || (this.queryIndex < this.predicate.query.size)
-            }
+                /* Assure correctness of query vector. */
+                val value = this.predicate.query.value
+                check(value is VectorValue<*>) { "Bound value for query vector has wrong type (found = ${value.type})." }
 
-            override fun next(): Record {
-                check(!this.closed) { "Illegal invocation of next(): This CloseableIterator has been closed." }
-                val ret = StandaloneRecord(
-                    this.tupleIds.removeFirst(),
-                    this@SuperBitLSHIndex.produces,
-                    arrayOf(IntValue(this.queryIndex))
+                /** Prepare SuperBitLSH data structure. */
+                this@Tx.withReadLock { }
+                val lsh = SuperBitLSH(
+                    this@SuperBitLSHIndex.config.stages,
+                    this@SuperBitLSHIndex.config.buckets,
+                    this@SuperBitLSHIndex.config.seed,
+                    value,
+                    this@SuperBitLSHIndex.config.considerImaginary,
+                    this@SuperBitLSHIndex.config.samplingMethod
                 )
-                if (this.tupleIds.isEmpty()) {
-                    this.prepareMatchesForNextQueryVector()
-                }
-                return ret
-            }
 
-            override fun close() {
-                if (!this.closed) {
-                    this.closed = true
-                }
-            }
-
-            /**
-             * Prepares the matches for the next query vector by adding all [TupleId]s to this [tupleIds] list.
-             */
-            private fun prepareMatchesForNextQueryVector() {
-                if ((++this.queryIndex) >= this.predicate.query.size) return
-                val query = this.predicate.query[this.queryIndex]
-                val signature = this.lsh.hash(query)
+                /** Prepare list of matches. */
+                this.tupleIds = LinkedList<TupleId>()
+                val signature = lsh.hash(value)
                 for (stage in signature.indices) {
                     for (tupleId in this@SuperBitLSHIndex.maps[stage].getValue(signature[stage])) {
                         this.tupleIds.offer(tupleId)
                     }
                 }
             }
+
+            override fun hasNext(): Boolean {
+                return this.tupleIds.isNotEmpty()
+            }
+
+            override fun next(): Record = StandaloneRecord(this.tupleIds.removeFirst(), this@SuperBitLSHIndex.produces, arrayOf())
+
         }
 
         /**
          * The [SuperBitLSHIndex] does not support ranged filtering!
          *
-         * @param predicate The [Predicate] to perform the lookup.
-         * @param range The [LongRange] to consider.
-         * @return The resulting [CloseableIterator].
+         * @param predicate The [Predicate] for the lookup.
+         * @param partitionIndex The [partitionIndex] for this [filterRange] call.
+         * @param partitions The total number of partitions for this [filterRange] call.
+         * @return The resulting [Iterator].
          */
-        override fun filterRange(
-            predicate: Predicate,
-            range: LongRange
-        ): CloseableIterator<Record> {
+        override fun filterRange(predicate: Predicate, partitionIndex: Int, partitions: Int): Iterator<Record> {
             throw UnsupportedOperationException("The SuperBitLSHIndex does not support ranged filtering!")
         }
 
-        /** Performs the actual COMMIT operation by rolling back the [IndexTx]. */
-        override fun performCommit() {
-            this@SuperBitLSHIndex.db.commit()
-        }
-
-        /** Performs the actual ROLLBACK operation by rolling back the [IndexTx]. */
-        override fun performRollback() {
-            this@SuperBitLSHIndex.db.rollback()
-        }
-
         /**
-         * Tries to find a specimen of the [VectorValue] in the [Entity] underpinning this [SuperBitLSHIndex]
+         * Tries to find a specimen of the [VectorValue] in the [DefaultEntity] underpinning this [SuperBitLSHIndex]
          *
-         * @param tx [Entity.Tx] used to read from [Entity]
+         * @param tx [DefaultEntity.Tx] used to read from [DefaultEntity]
          * @return A specimen of the [VectorValue] that should be indexed.
          */
         private fun acquireSpecimen(tx: EntityTx): VectorValue<*>? {

@@ -11,6 +11,7 @@ import org.vitrivr.cottontail.storage.engine.hare.buffer.Priority
 import org.vitrivr.cottontail.storage.engine.hare.serializer.Serializer
 import org.vitrivr.cottontail.storage.engine.hare.toPageId
 import org.vitrivr.cottontail.storage.engine.hare.toSlotId
+import org.vitrivr.cottontail.storage.serializers.hare.HareSerializer
 import org.vitrivr.cottontail.utilities.extensions.exclusive
 import org.vitrivr.cottontail.utilities.extensions.shared
 
@@ -35,7 +36,7 @@ class FixedHareColumnWriter<T : Value>(val file: FixedHareColumnFile<T>, private
         private set
 
     /** The [Serializer] used to read data through this [FixedHareColumnReader]. */
-    private val serializer: Serializer<T> = this.file.type.serializer()
+    private val serializer: HareSerializer<T> = this.file.type.serializerFactory().hare(this.file.type.logicalSize)
 
     /** A [StampedLock] that mediates access to methods of this [FixedHareColumnWriter]. */
     private val localLock = StampedLock()

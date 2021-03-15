@@ -1,9 +1,5 @@
 package org.vitrivr.cottontail.storage.engine.hare.buffer
 
-import io.micrometer.core.instrument.Clock
-import io.micrometer.core.instrument.MeterRegistry
-import io.micrometer.jmx.JmxConfig
-import io.micrometer.jmx.JmxMeterRegistry
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap
 import org.vitrivr.cottontail.model.basics.TransactionId
 import org.vitrivr.cottontail.storage.engine.hare.PageId
@@ -34,12 +30,6 @@ import java.util.concurrent.locks.StampedLock
  * @author Ralph Gasser
  */
 class BufferPool(val disk: HareDiskManager, val tid: TransactionId, val size: Int = 25, val evictionPolicy: EvictionPolicy) : Resource {
-
-    companion object {
-        val METER_REGISTRY: MeterRegistry = JmxMeterRegistry(JmxConfig.DEFAULT, Clock.SYSTEM)
-        val PAGE_MISS_COUNTER = METER_REGISTRY.counter("Cottontail.Hare.BufferPool.PageMiss")
-        val PAGE_ACCESS_COUNTER = METER_REGISTRY.counter("Cottontail.Hare.BufferPool.PageAccess")
-    }
 
     /** Creates a new [ByteBuffer] for this [BufferPool]. */
     private val memory = ByteBuffer.allocate(this.size shl this.disk.pageShift)
@@ -98,11 +88,9 @@ class BufferPool(val disk: HareDiskManager, val tid: TransactionId, val size: In
      */
     fun get(pageId: PageId, priority: Priority = Priority.DEFAULT): PageReference = this.closeLock.read {
         check(this.isOpen) { "DiskManager for this HARE page file was closed and cannot be used to access data (file: ${this.disk.path})." }
-        PAGE_ACCESS_COUNTER.increment()
         var directoryStamp = this.directoryLock.readLock()  /* Acquire non-exclusive lock to close lock.  */
         try {
             return this.pageDirectory.getOrElse(pageId) {
-                PAGE_MISS_COUNTER.increment()
                 val upgradedLock = this.directoryLock.tryConvertToWriteLock(directoryStamp)
                 if (upgradedLock == 0L) {
                     this.directoryLock.unlockRead(directoryStamp)

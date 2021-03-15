@@ -2,93 +2,83 @@ package org.vitrivr.cottontail.database.entity
 
 import org.mapdb.DataInput2
 import org.mapdb.DataOutput2
+import org.vitrivr.cottontail.database.column.ColumnEngine
+import org.vitrivr.cottontail.database.general.DBOVersion
+import org.vitrivr.cottontail.database.index.IndexType
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
 
 /**
- * The header section of the [Entity] data structure.
+ * The header section of the [DefaultEntity] data structure.
  *
- * @see Entity
+ * @see DefaultEntity
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 2.0.0
  */
-internal data class EntityHeader(
-    var size: Long = 0,
+data class EntityHeader(
+    var name: String,
     var created: Long = System.currentTimeMillis(),
     var modified: Long = System.currentTimeMillis(),
-    var columns: LongArray = LongArray(0),
-    var indexes: LongArray = LongArray(0)
+    var columns: List<ColumnRef> = emptyList(),
+    var indexes: List<IndexRef> = emptyList()
 ) {
     companion object Serializer : org.mapdb.Serializer<EntityHeader> {
-        /** The identifier that is used to identify a Cottontail DB [Entity] file. */
-        const val IDENTIFIER: String = "COTTONT_ENT"
-
-        /** The version of the Cottontail DB [Entity]  file. */
-        const val VERSION: Short = 1
-
         override fun serialize(out: DataOutput2, value: EntityHeader) {
-            out.writeUTF(IDENTIFIER)
-            out.writeShort(VERSION.toInt())
-            out.packLong(value.size)
+            out.packInt(DBOVersion.V2_0.ordinal)
+            out.writeUTF(value.name)
             out.writeLong(value.created)
             out.writeLong(value.modified)
-            out.writeShort(value.columns.size)
-            value.columns.forEach { out.packLong(it) }
-            out.writeShort(value.indexes.size)
-            value.indexes.forEach { out.packLong(it) }
+            out.packInt(value.columns.size)
+            value.columns.forEach { ColumnRef.serialize(out, it) }
+            out.packInt(value.indexes.size)
+            value.indexes.forEach { IndexRef.serialize(out, it) }
         }
 
         override fun deserialize(input: DataInput2, available: Int): EntityHeader {
-            if (!validate(input)) {
-                throw DatabaseException.InvalidFileException("Cottontail DB Entity")
-            }
-            val size = input.unpackLong()
-            val created = input.readLong()
-            val modified = input.readLong()
-            val columns = LongArray(input.readShort().toInt())
-            for (i in columns.indices) {
-                columns[i] = input.unpackLong()
-            }
-            val indexes = LongArray(input.readShort().toInt())
-            for (i in indexes.indices) {
-                indexes[i] = input.unpackLong()
-            }
-            return EntityHeader(size, created, modified, columns, indexes)
-        }
-
-        /**
-         * Validates the [EntityHeader]. Must be executed before deserialization
-         *
-         * @return True if validation was successful, false otherwise.
-         */
-        private fun validate(input: DataInput2): Boolean {
-            val identifier = input.readUTF()
-            val version = input.readShort()
-            return (version == VERSION) and (identifier == IDENTIFIER)
+            val version = DBOVersion.values()[input.unpackInt()]
+            if (version != DBOVersion.V2_0)
+                throw DatabaseException.VersionMismatchException(version, DBOVersion.V2_0)
+            return EntityHeader(
+                input.readUTF(),
+                input.readLong(),
+                input.readLong(),
+                (0 until input.unpackInt()).map { ColumnRef.deserialize(input, available) },
+                (0 until input.unpackInt()).map { IndexRef.deserialize(input, available) }
+            )
         }
     }
 
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
+    /**
+     * Reference pointing to a column.
+     */
+    data class ColumnRef(val name: String, val type: ColumnEngine) {
+        companion object Serializer : org.mapdb.Serializer<ColumnRef> {
+            override fun serialize(out: DataOutput2, value: ColumnRef) {
+                out.writeUTF(value.name)
+                out.packInt(value.type.ordinal)
+            }
 
-        other as EntityHeader
-
-        if (size != other.size) return false
-        if (created != other.created) return false
-        if (modified != other.modified) return false
-        if (!columns.contentEquals(other.columns)) return false
-        if (!indexes.contentEquals(other.indexes)) return false
-
-        return true
+            override fun deserialize(input: DataInput2, available: Int): ColumnRef = ColumnRef(
+                input.readUTF(),
+                ColumnEngine.values()[input.unpackInt()]
+            )
+        }
     }
 
-    override fun hashCode(): Int {
-        var result = size.hashCode()
-        result = 31 * result + created.hashCode()
-        result = 31 * result + modified.hashCode()
-        result = 31 * result + columns.contentHashCode()
-        result = 31 * result + indexes.contentHashCode()
-        return result
+    /**
+     * Reference pointing to an index.
+     */
+    data class IndexRef(val name: String, val type: IndexType) {
+        companion object Serializer : org.mapdb.Serializer<IndexRef> {
+            override fun serialize(out: DataOutput2, value: IndexRef) {
+                out.writeUTF(value.name)
+                out.packInt(value.type.ordinal)
+            }
+
+            override fun deserialize(input: DataInput2, available: Int): IndexRef = IndexRef(
+                input.readUTF(),
+                IndexType.values()[input.unpackInt()]
+            )
+        }
     }
 }

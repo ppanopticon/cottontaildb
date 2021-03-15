@@ -2,31 +2,57 @@ package org.vitrivr.cottontail.database.queries.planning.nodes.logical.managemen
 
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
+import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.UnaryLogicalOperatorNode
+import org.vitrivr.cottontail.database.queries.planning.nodes.physical.management.DeletePhysicalOperatorNode
 import org.vitrivr.cottontail.execution.operators.management.DeleteOperator
 
 /**
  * A [DeleteLogicalOperatorNode] that formalizes a DELETE operation on an [Entity].
  *
  * @author Ralph Gasser
- * @version 1.1.0
+ * @version 2.1.0
  */
-class DeleteLogicalOperatorNode(val entity: Entity) : UnaryLogicalOperatorNode() {
+class DeleteLogicalOperatorNode(input: OperatorNode.Logical? = null, val entity: Entity) : UnaryLogicalOperatorNode(input) {
+
+    companion object {
+        private const val NODE_NAME = "Delete"
+    }
+
+    /** The name of this [DeleteLogicalOperatorNode]. */
+    override val name: String
+        get() = NODE_NAME
+
     /** The [DeleteLogicalOperatorNode] produces the columns defined in the [DeleteOperator] */
     override val columns: Array<ColumnDef<*>> = DeleteOperator.COLUMNS
 
     /**
-     * Returns a copy of this [DeleteLogicalOperatorNode]
+     * Creates and returns a copy of this [DeleteLogicalOperatorNode] without any children or parents.
      *
-     * @return Copy of this [DeleteLogicalOperatorNode]
+     * @return Copy of this [DeleteLogicalOperatorNode].
      */
-    override fun copy(): DeleteLogicalOperatorNode = DeleteLogicalOperatorNode(this.entity)
+    override fun copy() = DeleteLogicalOperatorNode(entity = this.entity)
 
     /**
-     * Calculates and returns the digest for this [DeleteLogicalOperatorNode].
+     * Returns a [DeletePhysicalOperatorNode] representation of this [DeleteLogicalOperatorNode]
      *
-     * @return Digest for this [DeleteLogicalOperatorNode]
+     * @return [DeletePhysicalOperatorNode]
      */
-    override fun digest(): Long = 31L * super.digest() + this.entity.hashCode()
+    override fun implement() = DeletePhysicalOperatorNode(this.input?.implement(), this.entity)
 
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is DeleteLogicalOperatorNode) return false
+
+        if (entity != other.entity) return false
+        if (!columns.contentEquals(other.columns)) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = entity.hashCode()
+        result = 31 * result + columns.contentHashCode()
+        return result
+    }
 }

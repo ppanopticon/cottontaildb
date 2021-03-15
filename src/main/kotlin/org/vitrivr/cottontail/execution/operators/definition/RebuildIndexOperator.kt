@@ -2,8 +2,8 @@ package org.vitrivr.cottontail.execution.operators.definition
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.catalogue.CatalogueTx
+import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.schema.SchemaTx
@@ -20,7 +20,7 @@ import kotlin.time.measureTimedValue
  * @version 1.0.0
  */
 @ExperimentalTime
-class RebuildIndexOperator(val catalogue: Catalogue, val name: Name.IndexName) : AbstractDataDefinitionOperator(name, "REBUILD INDEX") {
+class RebuildIndexOperator(val catalogue: DefaultCatalogue, val name: Name.IndexName) : AbstractDataDefinitionOperator(name, "REBUILD INDEX") {
     override fun toFlow(context: TransactionContext): Flow<Record> {
         val catTxn = context.getTx(this.catalogue) as CatalogueTx
         val schemaTxn = context.getTx(catTxn.schemaForName(this.name.schema())) as SchemaTx

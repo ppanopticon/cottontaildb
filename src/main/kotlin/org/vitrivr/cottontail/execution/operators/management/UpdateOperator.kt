@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
+import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.execution.operators.basics.Operator
 import org.vitrivr.cottontail.model.basics.Name
@@ -50,7 +51,7 @@ class UpdateOperator(parent: Operator, val entity: Entity, val values: List<Pair
     override fun toFlow(context: TransactionContext): Flow<Record> {
         var updated = 0L
         val parent = this.parent.toFlow(context)
-        val tx = context.getTx(this.entity) as Entity.Tx
+        val tx = context.getTx(this.entity) as EntityTx
         return flow {
             val time = measureTime {
                 parent.collect { record ->

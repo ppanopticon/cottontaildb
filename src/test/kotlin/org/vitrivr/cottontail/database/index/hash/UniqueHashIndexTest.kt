@@ -7,13 +7,16 @@ import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.index.AbstractIndexTest
 import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.index.IndexType
-import org.vitrivr.cottontail.database.queries.components.AtomicBooleanPredicate
+import org.vitrivr.cottontail.database.queries.binding.BindingContext
+import org.vitrivr.cottontail.database.queries.predicates.bool.BooleanPredicate
 import org.vitrivr.cottontail.database.queries.predicates.bool.ComparisonOperator
 import org.vitrivr.cottontail.execution.TransactionType
 import org.vitrivr.cottontail.model.basics.Name
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.FloatVectorValue
 import org.vitrivr.cottontail.model.values.StringValue
+import org.vitrivr.cottontail.model.values.types.Value
 import java.util.*
 import kotlin.collections.HashMap
 
@@ -28,8 +31,8 @@ class UniqueHashIndexTest : AbstractIndexTest() {
 
     /** List of columns for this [NonUniqueHashIndexTest]. */
     override val columns = arrayOf(
-        ColumnDef.withAttributes(this.entityName.column("id"), "STRING", -1, false),
-        ColumnDef.withAttributes(this.entityName.column("feature"), "FLOAT_VEC", 128, false)
+        ColumnDef(this.entityName.column("id"), Type.String),
+        ColumnDef(this.entityName.column("feature"), Type.FloatVector(128))
     )
     override val indexColumn: ColumnDef<*>
         get() = this.columns.first()
@@ -76,22 +79,20 @@ class UniqueHashIndexTest : AbstractIndexTest() {
         val txn = this.manager.Transaction(TransactionType.SYSTEM)
         val indexTx = txn.getTx(this.index!!) as IndexTx
         val entityTx = txn.getTx(this.entity!!) as EntityTx
+        val context = BindingContext<Value>()
         for (entry in this.list.entries) {
-            val predicate = AtomicBooleanPredicate(
+            val predicate = BooleanPredicate.Atomic.Literal(
                 this.columns[0] as ColumnDef<StringValue>,
-                ComparisonOperator.EQUAL,
+                ComparisonOperator.Binary.Equal(context.bind(entry.key)),
                 false,
-                listOf(entry.key)
             )
-            indexTx.filter(predicate).use {
-                it.forEach { r ->
-                    val rec = entityTx.read(r.tupleId, this.columns)
-                    assertEquals(entry.key, rec[this.columns[0]])
-                    assertArrayEquals(
-                        entry.value.data,
-                        (rec[this.columns[1]] as FloatVectorValue).data
-                    )
-                }
+            indexTx.filter(predicate).forEach { r ->
+                val rec = entityTx.read(r.tupleId, this.columns)
+                assertEquals(entry.key, rec[this.columns[0]])
+                assertArrayEquals(
+                    entry.value.data,
+                    (rec[this.columns[1]] as FloatVectorValue).data
+                )
             }
         }
         txn.commit()
@@ -105,16 +106,13 @@ class UniqueHashIndexTest : AbstractIndexTest() {
         val txn = this.manager.Transaction(TransactionType.SYSTEM)
         val indexTx = txn.getTx(this.index!!) as IndexTx
         var count = 0
-        indexTx.filter(
-            AtomicBooleanPredicate(
-                this.columns[0] as ColumnDef<StringValue>,
-                ComparisonOperator.EQUAL,
-                false,
-                listOf(StringValue(UUID.randomUUID().toString()))
-            )
-        ).use {
-            it.forEach { count += 1 }
-        }
+        val context = BindingContext<Value>()
+        val predicate = BooleanPredicate.Atomic.Literal(
+            this.columns[0] as ColumnDef<StringValue>,
+            ComparisonOperator.Binary.Equal(context.bind(StringValue(UUID.randomUUID().toString()))),
+            false
+        )
+        indexTx.filter(predicate).forEach { count += 1 }
         assertEquals(0, count)
         txn.commit()
     }
@@ -128,6 +126,6 @@ class UniqueHashIndexTest : AbstractIndexTest() {
         if (this.random.nextBoolean() && this.list.size <= 1000) {
             this.list[uuid] = vector
         }
-        return StandaloneRecord(columns = this.columns, values = arrayOf(uuid, vector))
+        return StandaloneRecord(0L, columns = this.columns, values = arrayOf(uuid, vector))
     }
 }

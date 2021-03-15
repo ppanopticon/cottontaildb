@@ -1,6 +1,7 @@
 package org.vitrivr.cottontail.math.selection
 
 import org.junit.jupiter.api.Assertions
+import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import org.vitrivr.cottontail.math.knn.selection.ComparablePair
@@ -71,6 +72,7 @@ class MinHeapSelectionTest {
     @ExperimentalTime
     @ParameterizedTest
     @ValueSource(ints = [10, 100, 500, 1000])
+    @Disabled
     fun testSelectionSpeed(k: Int) {
         val rng = SplittableRandom(1234L)
         val numEntries = 10000000

@@ -2,14 +2,16 @@ package org.vitrivr.cottontail.storage.serialization
 
 import org.junit.jupiter.params.provider.Arguments
 import org.vitrivr.cottontail.TestConstants
-import org.vitrivr.cottontail.config.ExecutionConfig
-import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.catalogue.CatalogueTest
+import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
+import org.vitrivr.cottontail.database.schema.Schema
 import org.vitrivr.cottontail.execution.TransactionManager
 import org.vitrivr.cottontail.execution.TransactionType
 import org.vitrivr.cottontail.model.basics.Name
 import java.nio.file.Files
 import java.util.*
+import java.util.concurrent.Executors
+import java.util.concurrent.ThreadPoolExecutor
 import java.util.stream.Collectors
 import java.util.stream.Stream
 
@@ -27,11 +29,11 @@ abstract class AbstractSerializationTest {
         /** Random set of dimensions used for generating test vectors. */
         @JvmStatic
         fun dimensions(): Stream<Arguments> = Stream.of(
-                Arguments.of(TestConstants.smallVectorMaxDimension),
-                Arguments.of(this.random.nextInt(TestConstants.smallVectorMaxDimension)),
-                Arguments.of(TestConstants.mediumVectorMaxDimension),
-                Arguments.of(this.random.nextInt(TestConstants.mediumVectorMaxDimension)),
-                Arguments.of(this.random.nextInt(TestConstants.mediumVectorMaxDimension)),
+            Arguments.of(TestConstants.smallVectorMaxDimension),
+            Arguments.of(this.random.nextInt(TestConstants.smallVectorMaxDimension)),
+            Arguments.of(TestConstants.mediumVectorMaxDimension),
+            Arguments.of(this.random.nextInt(TestConstants.mediumVectorMaxDimension)),
+            Arguments.of(this.random.nextInt(TestConstants.mediumVectorMaxDimension)),
             Arguments.of(TestConstants.largeVectorMaxDimension),
             Arguments.of(this.random.nextInt(TestConstants.largeVectorMaxDimension)),
             Arguments.of(this.random.nextInt(TestConstants.largeVectorMaxDimension)),
@@ -39,14 +41,15 @@ abstract class AbstractSerializationTest {
         )
     }
 
-    /** The [Catalogue] instance used for the [AbstractSerializationTest]. */
-    protected val catalogue: Catalogue = Catalogue(TestConstants.config)
+    /** The [DefaultCatalogue] instance used for the [AbstractSerializationTest]. */
+    protected val catalogue: DefaultCatalogue = DefaultCatalogue(TestConstants.config)
 
     /** The [TransactionManager] used for this [CatalogueTest] instance. */
-    protected val manager = TransactionManager(ExecutionConfig())
+    protected val manager =
+        TransactionManager(Executors.newFixedThreadPool(1) as ThreadPoolExecutor)
 
     /** The [Schema] instance used for the [AbstractSerializationTest]. */
-    protected val schema = this.catalogue.let { cat ->
+    protected val schema: Schema = this.catalogue.let { cat ->
         val transaction = manager.Transaction(TransactionType.USER)
         cat.Tx(transaction).use { txn ->
             val name = Name.SchemaName("schema-test")
@@ -57,12 +60,11 @@ abstract class AbstractSerializationTest {
     }
 
     /**
-     * Closes the [Catalogue] and deletes all the files.
+     * Closes the [DefaultCatalogue] and deletes all the files.
      */
     protected fun cleanup() {
         this.catalogue.close()
-        val pathsToDelete = Files.walk(TestConstants.config.root).sorted(Comparator.reverseOrder())
-            .collect(Collectors.toList())
+        val pathsToDelete = Files.walk(TestConstants.config.root).sorted(Comparator.reverseOrder()).collect(Collectors.toList())
         pathsToDelete.forEach { Files.delete(it) }
     }
 }

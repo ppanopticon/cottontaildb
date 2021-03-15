@@ -1,4 +1,4 @@
-FROM zenika/kotlin:1.3-jdk11 AS build
+FROM zenika/kotlin:1.4.20-jdk11 AS build
 
 COPY . /cottontail-src
 RUN cd /cottontail-src && \
@@ -8,7 +8,7 @@ RUN cd /cottontail-src && \
   tar xf ../build/distributions/cottontaildb-bin.tar
 
 
-FROM zenika/kotlin:1.3-jdk11-slim
+FROM zenika/kotlin:1.4.20-jdk11-slim
 
 RUN mkdir /cottontaildb-data
 COPY config.json /cottontaildb-data/

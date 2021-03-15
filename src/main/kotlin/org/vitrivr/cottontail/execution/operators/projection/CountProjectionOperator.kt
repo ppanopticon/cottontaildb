@@ -1,7 +1,7 @@
 package org.vitrivr.cottontail.execution.operators.projection
 
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.count
 import kotlinx.coroutines.flow.flow
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.queries.projection.Projection
@@ -44,9 +44,7 @@ class CountProjectionOperator(parent: Operator) : Operator.PipelineOperator(pare
     override fun toFlow(context: TransactionContext): Flow<Record> {
         val parentFlow = this.parent.toFlow(context)
         return flow {
-            var counter = 0L
-            parentFlow.collect { counter += 1 }
-            emit(StandaloneRecord(0L, this@CountProjectionOperator.columns[0], LongValue(counter)))
+            emit(StandaloneRecord(0L, this@CountProjectionOperator.columns[0], LongValue(parentFlow.count())))
         }
     }
 }

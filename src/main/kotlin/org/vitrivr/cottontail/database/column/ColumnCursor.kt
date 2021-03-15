@@ -1,11 +1,10 @@
 package org.vitrivr.cottontail.database.column
 
-import org.vitrivr.cottontail.model.basics.CloseableIterator
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.types.Value
 
 /**
- * A [CloseableIterator] implementation for [TupleId]s of a [Column] that allows for direct
+ * A [Iterator] implementation for [TupleId]s of a [Column] that allows for direct
  * read-through at the current position.
  *
  * This may allow for certain optimization depending on the [ColumnCursor] implementation.
@@ -13,7 +12,7 @@ import org.vitrivr.cottontail.model.values.types.Value
  * @author Ralph Gasser
  * @version 1.0.0
  */
-interface ColumnCursor<T : Value> : CloseableIterator<TupleId> {
+interface ColumnCursor<T : Value> : Iterator<TupleId> {
 
     /**
      * Reads the value at the current [ColumnCursor] position and returns it.

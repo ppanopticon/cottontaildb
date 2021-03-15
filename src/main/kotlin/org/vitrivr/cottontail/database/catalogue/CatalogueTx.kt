@@ -6,7 +6,8 @@ import org.vitrivr.cottontail.model.basics.Name
 import java.nio.file.Path
 
 /**
- * A [Tx] that operates on a single [Catalogue]. [Tx]s are a unit of isolation for data operations (read/write).
+ * A [Tx] that operates on a single [Catalogue]. [Tx]s are a unit of isolation for data
+ * operations (read/write).
  *
  * @author Ralph Gasser
  * @version 1.0.0
@@ -16,11 +17,11 @@ interface CatalogueTx : Tx {
     override val dbo: Catalogue
 
     /**
-     * Returns a list of [Name.SchemaName] held by this [Catalogue].
+     * Returns a list of [Schema] held by this [Catalogue].
      *
-     * @return [List] of all [Name.SchemaName].
+     * @return [List] of all [Schema].
      */
-    fun listSchemas(): List<Name.SchemaName>
+    fun listSchemas(): List<Schema>
 
     /**
      * Returns the [Schema] for the given [Name.SchemaName].

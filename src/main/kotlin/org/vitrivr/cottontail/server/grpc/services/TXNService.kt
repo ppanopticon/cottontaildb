@@ -2,18 +2,16 @@ package org.vitrivr.cottontail.server.grpc.services
 
 import com.google.protobuf.Empty
 import io.grpc.Status
-
 import io.grpc.stub.StreamObserver
 import org.slf4j.LoggerFactory
-
 import org.vitrivr.cottontail.execution.TransactionManager
 import org.vitrivr.cottontail.execution.TransactionType
+import org.vitrivr.cottontail.execution.operators.sinks.SpoolerSinkOperator
 import org.vitrivr.cottontail.execution.operators.system.ListLocksOperator
 import org.vitrivr.cottontail.execution.operators.system.ListTransactionsOperator
 import org.vitrivr.cottontail.grpc.CottontailGrpc
 import org.vitrivr.cottontail.grpc.TXNGrpc
 import org.vitrivr.cottontail.model.exceptions.TransactionException
-import org.vitrivr.cottontail.server.grpc.operators.SpoolerSinkOperator
 import java.util.*
 
 /**
@@ -44,7 +42,7 @@ class TXNService(override val manager: TransactionManager) : TXNGrpc.TXNImplBase
      * gRPC for committing a [TransactionManager.Transaction].
      */
     override fun commit(request: CottontailGrpc.TransactionId, responseObserver: StreamObserver<Empty>) = try {
-        this.withTransactionContext(request) { tx, q ->
+        this.withTransactionContext(request) { tx, _ ->
             tx.commit()
             responseObserver.onNext(Empty.getDefaultInstance())
             responseObserver.onCompleted()
@@ -59,7 +57,7 @@ class TXNService(override val manager: TransactionManager) : TXNGrpc.TXNImplBase
      * gRPC for rolling back a [TransactionManager.Transaction].
      */
     override fun rollback(request: CottontailGrpc.TransactionId, responseObserver: StreamObserver<Empty>) = try {
-        this.withTransactionContext(request) { tx, q ->
+        this.withTransactionContext(request) { tx, _ ->
             tx.rollback()
             responseObserver.onNext(Empty.getDefaultInstance())
             responseObserver.onCompleted()

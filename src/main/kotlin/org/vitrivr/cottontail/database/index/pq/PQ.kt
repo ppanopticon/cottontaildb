@@ -53,14 +53,8 @@ class PQ(val type: Type<*>, val codebooks: List<PQCodebook<VectorValue<*>>>) {
             out.packInt(value.codebooks.size)
             value.codebooks.forEach {
                 when (val cast = it as PQCodebook<*>) {
-                    is DoublePrecisionPQCodebook -> DoublePrecisionPQCodebook.Serializer.serialize(
-                        out,
-                        cast
-                    )
-                    is SinglePrecisionPQCodebook -> SinglePrecisionPQCodebook.Serializer.serialize(
-                        out,
-                        cast
-                    )
+                    is DoublePrecisionPQCodebook -> DoublePrecisionPQCodebook.Serializer.serialize(out, cast)
+                    is SinglePrecisionPQCodebook -> SinglePrecisionPQCodebook.Serializer.serialize(out, cast)
                 }
             }
         }
@@ -81,22 +75,10 @@ class PQ(val type: Type<*>, val codebooks: List<PQCodebook<VectorValue<*>>>) {
             for (i in 0 until size) {
                 codebooks.add(
                     when (type) {
-                        is Type.Float -> SinglePrecisionPQCodebook.Serializer.deserialize(
-                            input,
-                            available
-                        )
-                        is Type.Double -> DoublePrecisionPQCodebook.Serializer.deserialize(
-                            input,
-                            available
-                        )
-                        is Type.Complex32Vector -> SinglePrecisionPQCodebook.Serializer.deserialize(
-                            input,
-                            available
-                        )
-                        is Type.Complex64Vector -> DoublePrecisionPQCodebook.Serializer.deserialize(
-                            input,
-                            available
-                        )
+                        is Type.FloatVector -> SinglePrecisionPQCodebook.Serializer.deserialize(input, available)
+                        is Type.DoubleVector -> DoublePrecisionPQCodebook.Serializer.deserialize(input, available)
+                        is Type.Complex32Vector -> SinglePrecisionPQCodebook.Serializer.deserialize(input, available)
+                        is Type.Complex64Vector -> DoublePrecisionPQCodebook.Serializer.deserialize(input, available)
                         else -> throw IllegalStateException("")
                     } as PQCodebook<VectorValue<*>>
                 )
@@ -126,7 +108,6 @@ class PQ(val type: Type<*>, val codebooks: List<PQCodebook<VectorValue<*>>>) {
             require(config.numSubspaces > 0) { "Number of subspaces must be greater than zero for PQIndex." }
             require(config.numCentroids > 0) { "Number of centroids must be greater than zero for PQIndex." }
             require(column.type.logicalSize >= config.numSubspaces) { "Logical size of column must be greater or equal to number of subspaces." }
-            require(column.type.logicalSize % config.numSubspaces == 0) { "Logical size of column modulo number of subspaces must be zero." }
 
             /* Calculate some important metrics. */
             val dimensionsPerSubspace = column.type.logicalSize / config.numSubspaces

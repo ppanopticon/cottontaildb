@@ -2,38 +2,59 @@ package org.vitrivr.cottontail.database.queries.planning.nodes.logical.managemen
 
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
-import org.vitrivr.cottontail.database.queries.binding.RecordBinding
-import org.vitrivr.cottontail.database.queries.planning.nodes.logical.UnaryLogicalOperatorNode
+import org.vitrivr.cottontail.database.queries.GroupId
+import org.vitrivr.cottontail.database.queries.binding.Binding
+import org.vitrivr.cottontail.database.queries.planning.nodes.logical.NullaryLogicalOperatorNode
+import org.vitrivr.cottontail.database.queries.planning.nodes.physical.management.InsertPhysicalOperatorNode
 import org.vitrivr.cottontail.execution.operators.management.InsertOperator
+import org.vitrivr.cottontail.model.basics.Record
 
 /**
  * A [InsertLogicalOperatorNode] that formalizes a INSERT operation on an [Entity].
  *
  * @author Ralph Gasser
- * @version 1.1.0
+ * @version 2.1.0
  */
-class InsertLogicalOperatorNode(val entity: Entity, val records: MutableList<RecordBinding>) :
-    UnaryLogicalOperatorNode() {
+class InsertLogicalOperatorNode(override val groupId: GroupId, val entity: Entity, val records: MutableList<Binding<Record>>) : NullaryLogicalOperatorNode() {
+
+    companion object {
+        private const val NODE_NAME = "Insert"
+    }
+
+    /** The name of this [InsertLogicalOperatorNode]. */
+    override val name: String
+        get() = NODE_NAME
+
     /** The [InsertLogicalOperatorNode] produces the columns defined in the [InsertOperator] */
     override val columns: Array<ColumnDef<*>> = InsertOperator.COLUMNS
 
     /**
-     * Returns a copy of this [DeleteLogicalOperatorNode]
+     * Creates and returns a copy of this [InsertLogicalOperatorNode] without any children or parents.
      *
-     * @return Copy of this [DeleteLogicalOperatorNode]
+     * @return Copy of this [InsertLogicalOperatorNode].
      */
-    override fun copy(): InsertLogicalOperatorNode =
-        InsertLogicalOperatorNode(this.entity, this.records)
+    override fun copy() = InsertLogicalOperatorNode(this.groupId, this.entity, this.records)
 
     /**
-     * Calculates and returns the digest for this [InsertLogicalOperatorNode].
+     * Returns a [InsertPhysicalOperatorNode] representation of this [InsertLogicalOperatorNode]
      *
-     * @return Digest for this [InsertLogicalOperatorNode]
+     * @return [InsertPhysicalOperatorNode]
      */
-    override fun digest(): Long {
-        var result = 31L * super.digest()
-        result = 31 * result + this.entity.hashCode()
-        result = 31 * result + this.records.hashCode()
+    override fun implement() = InsertPhysicalOperatorNode(this.groupId, this.entity, this.records)
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is InsertLogicalOperatorNode) return false
+
+        if (entity != other.entity) return false
+        if (records != other.records) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = entity.hashCode()
+        result = 31 * result + records.hashCode()
         return result
     }
 }

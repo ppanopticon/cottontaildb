@@ -3,6 +3,7 @@ package org.vitrivr.cottontail.execution.operators.projection
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.onEach
 import org.vitrivr.cottontail.database.column.*
 import org.vitrivr.cottontail.database.queries.projection.Projection
 import org.vitrivr.cottontail.execution.TransactionContext
@@ -27,33 +28,40 @@ import kotlin.math.min
  * @author Ralph Gasser
  * @version 1.2.0
  */
-class MinProjectionOperator(parent: Operator, fields: List<Pair<ColumnDef<*>, Name.ColumnName?>>) :
-    Operator.PipelineOperator(parent) {
+class MinProjectionOperator(
+    parent: Operator,
+    fields: List<Pair<Name.ColumnName, Name.ColumnName?>>
+) : Operator.PipelineOperator(parent) {
 
     /** [MinProjectionOperator] does act as a pipeline breaker. */
     override val breaker: Boolean = true
 
     /** Columns produced by [MinProjectionOperator]. */
-    override val columns: Array<ColumnDef<*>> = fields.map {
-        if (!it.first.type.numeric) {
-            throw OperatorSetupException(
+    override val columns: Array<ColumnDef<*>> = this.parent.columns.mapNotNull { c ->
+        val match = fields.find { f -> f.first.matches(c.name) }
+        if (match != null) {
+            if (!c.type.numeric) throw OperatorSetupException(
                 this,
-                "The provided column ${it.first} cannot be used for a ${Projection.MIN} projection. It either doesn't exist or has the wrong type."
+                "The provided column $match cannot be used for a ${Projection.MIN} projection because it has the wrong type."
             )
-        }
-        val alias = it.second
-        if (alias != null) {
-            it.first.copy(alias)
+            val alias = match.second
+            if (alias != null) {
+                c.copy(name = alias)
+            } else {
+                val columnNameStr = "${Projection.MIN.label()}_${c.name.simple})"
+                val columnName =
+                    c.name.entity()?.column(columnNameStr) ?: Name.ColumnName(columnNameStr)
+                c.copy(name = columnName)
+            }
         } else {
-            val columnNameStr = "${Projection.MIN.label()}_${it.first.name.simple})"
-            val columnName =
-                it.first.name.entity()?.column(columnNameStr) ?: Name.ColumnName(columnNameStr)
-            it.first.copy(columnName)
+            null
         }
     }.toTypedArray()
 
     /** Parent [ColumnDef] to access and aggregate. */
-    private val parentColumns = fields.map { it.first }
+    private val parentColumns = this.parent.columns.filter { c ->
+        fields.any { f -> f.first.matches(c.name) }
+    }
 
     /**
      * Converts this [MinProjectionOperator] to a [Flow] and returns it.
@@ -65,9 +73,8 @@ class MinProjectionOperator(parent: Operator, fields: List<Pair<ColumnDef<*>, Na
         val parentFlow = this.parent.toFlow(context)
         return flow {
             /* Prepare holder of type double, which can hold all types of values and collect incoming flow */
-            val min =
-                this@MinProjectionOperator.parentColumns.map { Double.MAX_VALUE }.toTypedArray()
-            parentFlow.collect {
+            val min = this@MinProjectionOperator.parentColumns.map { Double.MAX_VALUE }.toTypedArray()
+            parentFlow.onEach {
                 this@MinProjectionOperator.parentColumns.forEachIndexed { i, c ->
                     min[i] = when (val value = it[c]) {
                         is ByteValue -> min(min[i], value.value.toDouble())
@@ -77,13 +84,10 @@ class MinProjectionOperator(parent: Operator, fields: List<Pair<ColumnDef<*>, Na
                         is FloatValue -> min(min[i], value.value.toDouble())
                         is DoubleValue -> min(min[i], value.value)
                         null -> min[i]
-                        else -> throw ExecutionException.OperatorExecutionException(
-                            this@MinProjectionOperator,
-                            "The provided column $c cannot be used for a MIN projection. "
-                        )
+                        else -> throw ExecutionException.OperatorExecutionException(this@MinProjectionOperator, "The provided column $c cannot be used for a MIN projection. ")
                     }
                 }
-            }
+            }.collect()
 
             /* Convert to original value type. */
             val results = Array<Value?>(min.size) {
@@ -95,10 +99,7 @@ class MinProjectionOperator(parent: Operator, fields: List<Pair<ColumnDef<*>, Na
                     Type.Long -> LongValue(min[it])
                     Type.Float -> FloatValue(min[it])
                     Type.Double -> DoubleValue(min[it])
-                    else -> throw ExecutionException.OperatorExecutionException(
-                        this@MinProjectionOperator,
-                        "The provided column $column cannot be used for a MIN projection."
-                    )
+                    else -> throw ExecutionException.OperatorExecutionException(this@MinProjectionOperator, "The provided column $column cannot be used for a MIN projection.")
                 }
             }
 

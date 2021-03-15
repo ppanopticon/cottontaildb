@@ -2,7 +2,7 @@ package org.vitrivr.cottontail.server.grpc
 
 import io.grpc.ServerBuilder
 import org.vitrivr.cottontail.config.Config
-import org.vitrivr.cottontail.database.catalogue.Catalogue
+import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
 import org.vitrivr.cottontail.execution.TransactionManager
 import org.vitrivr.cottontail.server.grpc.services.DDLService
 import org.vitrivr.cottontail.server.grpc.services.DMLService
@@ -18,7 +18,7 @@ import kotlin.time.ExperimentalTime
  * @version 1.1.0
  */
 @ExperimentalTime
-class CottontailGrpcServer(val config: Config, val catalogue: Catalogue) {
+class CottontailGrpcServer(val config: Config, val catalogue: DefaultCatalogue) {
 
     /** The [ThreadPoolExecutor] used for handling gRPC calls and executing queries. */
     private val executor = this.config.execution.newExecutor()

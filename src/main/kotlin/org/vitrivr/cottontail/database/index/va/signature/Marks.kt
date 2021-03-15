@@ -27,6 +27,11 @@ inline class Marks(val marks: Array<DoubleArray>) {
             })
     }
 
+    /** The dimensionality of this [Marks] object. */
+    val d: Int
+        get() = this.marks.size
+
+
     /**
      * This methods calculates the signature of a [RealVectorValue]. It checks for every mark if the
      * corresponding vector is beyond that mark or not. If so, the preceding mark is the corresponding mark.

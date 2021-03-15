@@ -1,7 +1,6 @@
 package org.vitrivr.cottontail.database.column
 
 import org.vitrivr.cottontail.database.general.Tx
-import org.vitrivr.cottontail.model.basics.CloseableIterator
 import org.vitrivr.cottontail.model.basics.Countable
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
@@ -11,12 +10,12 @@ import org.vitrivr.cottontail.model.values.types.Value
  * A [Tx] that operates on a single [Column]. [Tx]s are a unit of isolation for data operations
  * (read/write).
  *
- * This interface defines the basic operations supported by such a [Tx]. However,  it does not
- * dictate the isolation level. It is up to the implementation to define and implement  the desired
+ * This interface defines the basic operations supported by such a [Tx]. However, it does not
+ * dictate the isolation level. It is up to the implementation to define and implement the desired
  * level of isolation.
  *
  * @author Ralph Gasser
- * @version 1.2.0
+ * @version 1.3.0
  */
 interface ColumnTx<T : Value> : Tx, Countable {
     /** Reference to the [Column] this [ColumnTx] belongs to. */
@@ -72,19 +71,19 @@ interface ColumnTx<T : Value> : Tx, Countable {
     fun delete(tupleId: TupleId): T?
 
     /**
-     * Creates and returns a new [CloseableIterator] for this [ColumnTx] that returns all
+     * Creates and returns a new [Iterator] for this [ColumnTx] that returns all
      * [TupleId]s contained within the surrounding [Column].
      *
-     * @return [CloseableIterator]
+     * @return [Iterator]
      */
-    fun scan(): CloseableIterator<TupleId>
+    fun scan(): Iterator<TupleId>
 
     /**
-     * Creates and returns a new [CloseableIterator] for this [ColumnTx] that returns
+     * Creates and returns a new [Iterator] for this [ColumnTx] that returns
      * all [TupleId]s contained within the surrounding [Column] and a certain range.
      *
      * @param range The [LongRange] that should be scanned.
-     * @return [CloseableIterator]
+     * @return [Iterator]
      */
-    fun scan(range: LongRange): CloseableIterator<TupleId>
+    fun scan(range: LongRange): Iterator<TupleId>
 }

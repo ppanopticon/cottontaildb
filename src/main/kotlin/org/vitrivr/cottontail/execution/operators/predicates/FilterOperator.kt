@@ -29,6 +29,5 @@ class FilterOperator(parent: Operator, private val predicate: BooleanPredicate) 
      * @param context The [TransactionContext] used for execution
      * @return [Flow] representing this [FilterOperator]
      */
-    override fun toFlow(context: TransactionContext): Flow<Record> =
-            this.parent.toFlow(context).filter { this.predicate.matches(it) }
+    override fun toFlow(context: TransactionContext): Flow<Record> = this.parent.toFlow(context).filter { this.predicate.matches(it) }
 }

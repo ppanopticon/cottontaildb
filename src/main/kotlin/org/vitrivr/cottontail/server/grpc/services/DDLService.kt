@@ -3,18 +3,21 @@ package org.vitrivr.cottontail.server.grpc.services
 import io.grpc.Status
 import io.grpc.stub.StreamObserver
 import org.slf4j.LoggerFactory
-import org.vitrivr.cottontail.database.catalogue.Catalogue
+import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
 import org.vitrivr.cottontail.database.column.ColumnDef
+import org.vitrivr.cottontail.database.column.ColumnEngine
 import org.vitrivr.cottontail.database.index.IndexType
 import org.vitrivr.cottontail.database.queries.binding.extensions.fqn
+import org.vitrivr.cottontail.database.queries.sort.SortOrder
 import org.vitrivr.cottontail.execution.TransactionManager
 import org.vitrivr.cottontail.execution.operators.definition.*
+import org.vitrivr.cottontail.execution.operators.sinks.SpoolerSinkOperator
+import org.vitrivr.cottontail.execution.operators.sort.HeapSortOperator
 import org.vitrivr.cottontail.grpc.CottontailGrpc
 import org.vitrivr.cottontail.grpc.DDLGrpc
 import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.model.exceptions.TransactionException
-import org.vitrivr.cottontail.server.grpc.operators.SpoolerSinkOperator
 import java.util.*
 import kotlin.time.ExperimentalTime
 
@@ -25,20 +28,26 @@ import kotlin.time.ExperimentalTime
  * @version 1.3.1
  */
 @ExperimentalTime
-class DDLService(val catalogue: Catalogue, override val manager: TransactionManager) : DDLGrpc.DDLImplBase(), TransactionService {
+class DDLService(val catalogue: DefaultCatalogue, override val manager: TransactionManager) : DDLGrpc.DDLImplBase(), TransactionService {
     /** Logger used for logging the output. */
     companion object {
         private val LOGGER = LoggerFactory.getLogger(DDLService::class.java)
     }
 
     /**
-     * gRPC endpoint listing the available [org.vitrivr.cottontail.database.schema.Schema]s.
+     * gRPC endpoint listing the available [org.vitrivr.cottontail.database.schema.DefaultSchema]s.
      */
     override fun listSchemas(request: CottontailGrpc.ListSchemaMessage, responseObserver: StreamObserver<CottontailGrpc.QueryResponseMessage>) = try {
         this.withTransactionContext(request.txId) { tx, q ->
             try {
                 /* Prepare and execute transaction. */
-                val op = SpoolerSinkOperator(ListSchemaOperator(this.catalogue), q, 0, responseObserver)
+                val op = SpoolerSinkOperator(
+                    HeapSortOperator(
+                        ListSchemaOperator(this.catalogue),
+                        arrayOf(Pair(ListSchemaOperator.COLUMNS[0], SortOrder.ASCENDING)),
+                        100
+                    ), q, 0, responseObserver
+                )
                 tx.execute(op)
 
                 responseObserver.onCompleted()
@@ -64,7 +73,7 @@ class DDLService(val catalogue: Catalogue, override val manager: TransactionMana
     }
 
     /**
-     * gRPC endpoint for creating a new [org.vitrivr.cottontail.database.schema.Schema]
+     * gRPC endpoint for creating a new [org.vitrivr.cottontail.database.schema.DefaultSchema]
      */
     override fun createSchema(request: CottontailGrpc.CreateSchemaMessage, responseObserver: StreamObserver<CottontailGrpc.QueryResponseMessage>) = try {
         this.withTransactionContext(request.txId) function@{ tx, q ->
@@ -74,41 +83,22 @@ class DDLService(val catalogue: Catalogue, override val manager: TransactionMana
             try {
                 /* Execute operation. */
                 LOGGER.info("Creating schema '$schemaName'...")
-                val op = SpoolerSinkOperator(
-                    CreateSchemaOperator(this.catalogue, schemaName),
-                    q,
-                    0,
-                    responseObserver
-                )
+                val op = SpoolerSinkOperator(CreateSchemaOperator(this.catalogue, schemaName), q, 0, responseObserver)
                 tx.execute(op)
 
                 /* Finalize transaction. */
                 responseObserver.onCompleted()
                 LOGGER.info("Schema '$schemaName' created successfully!")
             } catch (e: DatabaseException.SchemaAlreadyExistsException) {
-                val message = formatMessage(
-                    tx,
-                    q,
-                    "Failed to create schema '${request.schema.fqn()}': Schema with identical name already exists."
-                )
+                val message = formatMessage(tx, q, "Failed to create schema '${request.schema.fqn()}': Schema with identical name already exists.")
                 LOGGER.info(message)
-                responseObserver.onError(
-                    Status.ALREADY_EXISTS.withDescription(message).asException()
-                )
+                responseObserver.onError(Status.ALREADY_EXISTS.withDescription(message).asException())
             } catch (e: TransactionException.DeadlockException) {
-                val message = formatMessage(
-                    tx,
-                    q,
-                    "Failed to create schema '${request.schema.fqn()}': Deadlock with another transaction."
-                )
+                val message = formatMessage(tx, q, "Failed to create schema '${request.schema.fqn()}': Deadlock with another transaction.")
                 LOGGER.info(message)
                 responseObserver.onError(Status.ABORTED.withDescription(message).asException())
             } catch (e: DatabaseException) {
-                val message = formatMessage(
-                    tx,
-                    q,
-                    "Failed to create schema '${request.schema.fqn()}' because of a database error."
-                )
+                val message = formatMessage(tx, q, "Failed to create schema '${request.schema.fqn()}' because of a database error.")
                 LOGGER.error(message, e)
                 responseObserver.onError(Status.INTERNAL.withDescription(message).asException())
             } catch (e: Throwable) {
@@ -124,7 +114,7 @@ class DDLService(val catalogue: Catalogue, override val manager: TransactionMana
     }
 
     /**
-     * gRPC endpoint for dropping a [org.vitrivr.cottontail.database.schema.Schema]
+     * gRPC endpoint for dropping a [org.vitrivr.cottontail.database.schema.DefaultSchema]
      */
     override fun dropSchema(request: CottontailGrpc.DropSchemaMessage, responseObserver: StreamObserver<CottontailGrpc.QueryResponseMessage>) = try {
         this.withTransactionContext(request.txId) { tx, q ->
@@ -165,7 +155,7 @@ class DDLService(val catalogue: Catalogue, override val manager: TransactionMana
     }
 
     /**
-     * gRPC endpoint for requesting details about a specific [org.vitrivr.cottontail.database.entity.Entity].
+     * gRPC endpoint for requesting details about a specific [org.vitrivr.cottontail.database.entity.DefaultEntity].
      */
     override fun entityDetails(request: CottontailGrpc.EntityDetailsMessage, responseObserver: StreamObserver<CottontailGrpc.QueryResponseMessage>) = try {
         this.withTransactionContext(request.txId) { tx, q ->
@@ -213,7 +203,7 @@ class DDLService(val catalogue: Catalogue, override val manager: TransactionMana
     }
 
     /**
-     * gRPC endpoint for creating a new [org.vitrivr.cottontail.database.entity.Entity]
+     * gRPC endpoint for creating a new [org.vitrivr.cottontail.database.entity.DefaultEntity]
      */
     override fun createEntity(request: CottontailGrpc.CreateEntityMessage, responseObserver: StreamObserver<CottontailGrpc.QueryResponseMessage>) = try {
         this.withTransactionContext(request.txId) { tx, q ->
@@ -225,7 +215,7 @@ class DDLService(val catalogue: Catalogue, override val manager: TransactionMana
                 val columns = request.definition.columnsList.map {
                     val type = Type.forName(it.type.name, it.length)
                     val name = entityName.column(it.name)
-                    ColumnDef(name, type, it.nullable)
+                    ColumnDef(name, type, it.nullable) to ColumnEngine.valueOf(it.engine.toString())
                 }.toTypedArray()
 
                 /* Execution operation. */
@@ -264,7 +254,7 @@ class DDLService(val catalogue: Catalogue, override val manager: TransactionMana
     }
 
     /**
-     * gRPC endpoint for dropping a specific [org.vitrivr.cottontail.database.entity.Entity].
+     * gRPC endpoint for dropping a specific [org.vitrivr.cottontail.database.entity.DefaultEntity].
      */
     override fun dropEntity(request: CottontailGrpc.DropEntityMessage, responseObserver: StreamObserver<CottontailGrpc.QueryResponseMessage>) = try {
         this.withTransactionContext(request.txId) { tx, q ->
@@ -312,7 +302,7 @@ class DDLService(val catalogue: Catalogue, override val manager: TransactionMana
     }
 
     /**
-     * gRPC endpoint for truncating a specific [org.vitrivr.cottontail.database.entity.Entity].
+     * gRPC endpoint for truncating a specific [org.vitrivr.cottontail.database.entity.DefaultEntity].
      */
     override fun truncateEntity(request: CottontailGrpc.TruncateEntityMessage, responseObserver: StreamObserver<CottontailGrpc.QueryResponseMessage>) = try {
         this.withTransactionContext(request.txId) { tx, q ->
@@ -405,7 +395,7 @@ class DDLService(val catalogue: Catalogue, override val manager: TransactionMana
     }
 
     /**
-     * gRPC endpoint listing the available [org.vitrivr.cottontail.database.entity.Entity]s for the provided [org.vitrivr.cottontail.database.schema.Schema].
+     * gRPC endpoint listing the available [org.vitrivr.cottontail.database.entity.DefaultEntity]s for the provided [org.vitrivr.cottontail.database.schema.DefaultSchema].
      */
     override fun listEntities(request: CottontailGrpc.ListEntityMessage, responseObserver: StreamObserver<CottontailGrpc.QueryResponseMessage>) = try {
         this.withTransactionContext(request.txId) function@{ tx, q ->
@@ -418,7 +408,14 @@ class DDLService(val catalogue: Catalogue, override val manager: TransactionMana
 
             try {
                 /* Execution operation. */
-                val op = SpoolerSinkOperator(ListEntityOperator(this.catalogue, schemaName), q, 0, responseObserver)
+                val op = SpoolerSinkOperator(
+                    HeapSortOperator(
+                        ListEntityOperator(this.catalogue, schemaName),
+                        arrayOf(Pair(ListSchemaOperator.COLUMNS[0], SortOrder.ASCENDING)),
+                        100
+                    ), q, 0, responseObserver
+                )
+
                 tx.execute(op)
 
                 /* Finalize invocation. */
@@ -452,7 +449,7 @@ class DDLService(val catalogue: Catalogue, override val manager: TransactionMana
     }
 
     /**
-     * gRPC endpoint for creating a particular [org.vitrivr.cottontail.database.index.Index]
+     * gRPC endpoint for creating a particular [org.vitrivr.cottontail.database.index.AbstractIndex]
      */
     override fun createIndex(request: CottontailGrpc.CreateIndexMessage, responseObserver: StreamObserver<CottontailGrpc.QueryResponseMessage>) = try {
         this.withTransactionContext(request.txId) function@{ tx, q ->
@@ -515,7 +512,7 @@ class DDLService(val catalogue: Catalogue, override val manager: TransactionMana
     }
 
     /**
-     * gRPC endpoint for dropping a particular [org.vitrivr.cottontail.database.index.Index]
+     * gRPC endpoint for dropping a particular [org.vitrivr.cottontail.database.index.AbstractIndex]
      */
     override fun dropIndex(request: CottontailGrpc.DropIndexMessage, responseObserver: StreamObserver<CottontailGrpc.QueryResponseMessage>) = try {
         this.withTransactionContext(request.txId) function@{ tx, q ->
@@ -560,7 +557,7 @@ class DDLService(val catalogue: Catalogue, override val manager: TransactionMana
     }
 
     /**
-     * gRPC endpoint for rebuilding a particular [org.vitrivr.cottontail.database.index.Index]
+     * gRPC endpoint for rebuilding a particular [org.vitrivr.cottontail.database.index.AbstractIndex]
      */
     override fun rebuildIndex(request: CottontailGrpc.RebuildIndexMessage, responseObserver: StreamObserver<CottontailGrpc.QueryResponseMessage>) = try {
         this.withTransactionContext(request.txId) function@{ tx, q ->

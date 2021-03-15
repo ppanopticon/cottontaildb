@@ -1,11 +1,6 @@
-buildscript {
-    ext.luceneVersion = '7.7.3'
-    ext.kotlinVersion = '1.4.21'
-}
-
 plugins {
-    id "org.jetbrains.kotlin.jvm" version "$kotlinVersion"
-    id "org.jetbrains.kotlin.plugin.serialization" version "$kotlinVersion"
+    id "org.jetbrains.kotlin.jvm" version "$version_kotlin"
+    id "org.jetbrains.kotlin.plugin.serialization" version "$version_kotlin"
     id "com.github.johnrengelman.shadow" version "6.1.0"
 }
 
@@ -21,12 +16,15 @@ apply plugin: 'com.github.johnrengelman.shadow'
 
 /* Group and SNAPSHOT version. Update version for each major and minor release. */
 group 'org.vitrivr'
-version '0.11-SNAPSHOT'
+version '0.12.0'
 
 /* General application attributes. */
 mainClassName = 'org.vitrivr.cottontail.CottontailKt'
 applicationDefaultJvmArgs = ["-Xms2G", "-Xmx4G"]
-sourceCompatibility = 1.11
+
+/* Source and target compatibility are set to Java 8. */
+targetCompatibility = 1.8
+sourceCompatibility = 1.8
 
 repositories {
     mavenCentral()
@@ -51,6 +49,14 @@ compileTestKotlin {
 java {
     withJavadocJar()
     withSourcesJar()
+}
+
+javadoc {
+    options.addStringOption("Xdoclint:none", "-quiet")
+    options.memberLevel = JavadocMemberLevel.PRIVATE
+    if (JavaVersion.current().isJava9Compatible()) {
+        options.addBooleanOption("html5", true)
+    }
 }
 
 publishing {
@@ -107,50 +113,52 @@ signing {
 }
 
 dependencies {
-    ///// Cottontail DB Driver
-    compile group: 'org.vitrivr', name: 'cottontaildb-proto', version: '0.12.1-SNAPSHOT'
+    ///// Cottontail DB Driver + gRPC dependencies
+    implementation group: 'org.vitrivr', name: 'cottontaildb-proto', version: version_cottontaildb_driver
+    implementation group: 'io.grpc', name: 'grpc-all', version: version_grpc
+    implementation group: 'com.google.protobuf', name: 'protobuf-java', version: version_protobuf
 
     ///// MapDB dependency
-    compile group: 'org.mapdb', name: 'mapdb', version: '3.0.8'
+    implementation group: 'org.mapdb', name: 'mapdb', version: version_mapdb
 
     ///// FastUtil
-    compile group: 'it.unimi.dsi', name: 'fastutil', version: '8.4.3'
+    implementation group: 'it.unimi.dsi', name: 'fastutil', version: version_fastutil
+
+    ///// Google Guava
+    implementation group: 'com.google.guava', name: 'guava', version: '30.1-jre'
 
     ////// Log4j2 & SLF4j
-    compile group: 'org.apache.logging.log4j', name: 'log4j-api', version: '2.14.0'
-    compile group: 'org.apache.logging.log4j', name: 'log4j-core', version: '2.14.0'
-    compile group: 'org.apache.logging.log4j', name: 'log4j-slf4j-impl', version: '2.14.0'
+    implementation group: 'org.apache.logging.log4j', name: 'log4j-api', version: version_log4j2
+    implementation group: 'org.apache.logging.log4j', name: 'log4j-core', version: version_log4j2
+    implementation group: 'org.apache.logging.log4j', name: 'log4j-slf4j-impl', version: version_log4j2
 
     ////// Lucene
-    compile group: 'org.apache.lucene', name: 'lucene-core', version: luceneVersion
-    compile group: 'org.apache.lucene', name: 'lucene-analyzers-common', version: luceneVersion
-    compile group: 'org.apache.lucene', name: 'lucene-analyzers-phonetic', version: luceneVersion
-    compile group: 'org.apache.lucene', name: 'lucene-codecs', version: luceneVersion
-    compile group: 'org.apache.lucene', name: 'lucene-queryparser', version: luceneVersion
+    implementation group: 'org.apache.lucene', name: 'lucene-core', version: version_lucene
+    implementation group: 'org.apache.lucene', name: 'lucene-analyzers-common', version: version_lucene
+    implementation group: 'org.apache.lucene', name: 'lucene-analyzers-phonetic', version: version_lucene
+    implementation group: 'org.apache.lucene', name: 'lucene-codecs', version: version_lucene
+    implementation group: 'org.apache.lucene', name: 'lucene-queryparser', version: version_lucene
 
     ////// CLI & Terminal
-    compile group: 'com.github.ajalt.clikt', name: 'clikt', version: '3.0.1'
-    compile group: 'com.jakewharton.picnic', name: 'picnic', version: '0.5.0'
-    compile group: 'org.jline', name: 'jline', version: '3.16.0'
-
-    ///// JUnit 5
-    testCompile group: 'org.junit.jupiter', name: 'junit-jupiter-api', version: '5.7.0'
-    testCompile group: 'org.junit.jupiter', name: 'junit-jupiter-engine', version: '5.7.0'
-    testCompile group: 'org.junit.jupiter', name: 'junit-jupiter-params', version: '5.7.0'
-    testImplementation group: 'org.junit.platform', name: 'junit-platform-commons', version: '1.7.0'
+    implementation group: 'org.jline', name: 'jline', version: version_jline
+    implementation group: 'org.jline', name: 'jline-terminal-jansi', version: version_jline
+    implementation group: 'com.github.ajalt.clikt', name: 'clikt', version: version_clikt
+    implementation group: 'com.jakewharton.picnic', name: 'picnic', version: version_picnic
 
     ///// Kotlin
-    compile group: 'org.jetbrains.kotlin', name: 'kotlin-stdlib', version: kotlinVersion
-    compile group: 'org.jetbrains.kotlin', name: 'kotlin-reflect', version: kotlinVersion
-    compile group: 'org.jetbrains.kotlinx', name: 'kotlinx-coroutines-core', version: '1.4.2'
-    compile group: 'org.jetbrains.kotlinx', name: 'kotlinx-serialization-json', version: '1.0.1'
+    implementation group: 'org.jetbrains.kotlin', name: 'kotlin-stdlib', version: version_kotlin
+    implementation group: 'org.jetbrains.kotlin', name: 'kotlin-reflect', version: version_kotlin
+    implementation group: 'org.jetbrains.kotlinx', name: 'kotlinx-coroutines-core', version: version_kotlinx_coroutines
+    implementation group: 'org.jetbrains.kotlinx', name: 'kotlinx-serialization-json-jvm', version: version_kotlinx_json_jvm
 
     ///// Apache Commons Math » 3.6
-    compile group: 'org.apache.commons', name: 'commons-math3', version: '3.6.1'
+    implementation group: 'org.apache.commons', name: 'commons-math3', version: version_commons_math3
 
-    ///// Micrometer API
-    compile group: 'io.micrometer', name: 'micrometer-core', version: '1.5.5'
-    compile group: 'io.micrometer', name: 'micrometer-registry-jmx', version: '1.5.5'
+    ///// JUnit 5
+    testImplementation group: 'org.junit.jupiter', name: 'junit-jupiter-api', version: version_junit
+    testImplementation group: 'org.junit.jupiter', name: 'junit-jupiter-engine', version: version_junit
+    testImplementation group: 'org.junit.jupiter', name: 'junit-jupiter-params', version: version_junit
+    testImplementation group: 'org.junit.platform', name: 'junit-platform-commons', version: version_junit_platform
 }
 
 shadowJar {

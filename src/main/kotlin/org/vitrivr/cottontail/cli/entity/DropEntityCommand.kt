@@ -13,7 +13,7 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.measureTimedValue
 
 /**
- * Command to drop, i.e., remove a [org.vitrivr.cottontail.database.entity.Entity] by its name.
+ * Command to drop, i.e., remove a [org.vitrivr.cottontail.database.entity.DefaultEntity] by its name.
  *
  * @author Ralph Gasser
  * @version 1.0.3

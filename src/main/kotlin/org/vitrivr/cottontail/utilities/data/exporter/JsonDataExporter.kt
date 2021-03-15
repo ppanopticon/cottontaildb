@@ -55,6 +55,7 @@ class JsonDataExporter(override val path: Path, val indent: String = "") : DataE
                     CottontailGrpc.Literal.DataCase.FLOATDATA -> this.writer.value(e.first.floatData)
                     CottontailGrpc.Literal.DataCase.DOUBLEDATA -> this.writer.value(e.first.doubleData)
                     CottontailGrpc.Literal.DataCase.STRINGDATA -> this.writer.value(e.first.stringData)
+                    CottontailGrpc.Literal.DataCase.DATEDATA -> this.writer.value(e.first.dateData.utcTimestamp)
                     CottontailGrpc.Literal.DataCase.COMPLEX32DATA -> this.writeComplex(
                         e.first.complex32Data.real,
                         e.first.complex32Data.imaginary

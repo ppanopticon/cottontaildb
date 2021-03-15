@@ -1,15 +1,11 @@
 package org.vitrivr.cottontail.database.queries.predicates.bool
 
-import it.unimi.dsi.fastutil.objects.ObjectLinkedOpenHashSet
 import org.vitrivr.cottontail.database.column.ColumnDef
-import org.vitrivr.cottontail.database.queries.QueryContext
-import org.vitrivr.cottontail.database.queries.binding.ValueBinding
+import org.vitrivr.cottontail.database.queries.GroupId
+import org.vitrivr.cottontail.database.queries.binding.BindingContext
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
 import org.vitrivr.cottontail.model.basics.Record
-import org.vitrivr.cottontail.model.values.pattern.LikePatternValue
-import org.vitrivr.cottontail.model.values.pattern.LucenePatternValue
 import org.vitrivr.cottontail.model.values.types.Value
-import java.util.*
 
 /**
  * A [Predicate] that can be used to match a [Record]s using boolean [ComparisonOperator]s and [ConnectionOperator]s.
@@ -20,7 +16,7 @@ import java.util.*
  * @see Record
  *
  * @author Ralph Gasser
- * @version 1.1.0
+ * @version 2.0.0
  */
 sealed class BooleanPredicate : Predicate {
     /** The [Atomic]s that make up this [BooleanPredicate]. */
@@ -34,147 +30,46 @@ sealed class BooleanPredicate : Predicate {
     abstract fun matches(record: Record): Boolean
 
     /**
-     * Executes late [Value] binding using the given [QueryContext].
+     * Returns the matching score, if the provided [Record]. Score of 0.0 equates to a non-match,
+     * while 1.0 equates to a full match.
      *
-     * @param context [QueryContext]  used to resolve [ValueBinding]s.
+     * @param record The [Record] that should be checked against the predicate.
      */
-    abstract override fun bindValues(context: QueryContext): BooleanPredicate
+    abstract fun score(record: Record): Double
 
     /**
-     * Calculates and returns the digest of this [BooleanPredicate].
+     * Executes late [Value] binding using the given [BindingContext].
      *
-     * @return Digest of this [BooleanPredicate] as [Long]
+     * @param ctx [BindingContext] used to resolve [Binding]s.
      */
-    override fun digest(): Long = this.javaClass.hashCode().toLong()
+    abstract override fun bindValues(ctx: BindingContext<Value>): BooleanPredicate
 
     /**
-     * An atomic [BooleanPredicate] that compares the column of a [Record] to a provided value (or a set of provided values).
+     * An atomic [BooleanPredicate] that compares the column of a [Record] to a provided value, a set of provided values or another column.
      *
      * @author Ralph Gasser
      * @version 1.1.0
      */
-    data class Atomic(
-        val column: ColumnDef<*>,
-        val operator: ComparisonOperator,
-        val not: Boolean
-    ) : BooleanPredicate() {
-        /** [ValueBinding]s associated with this [BooleanPredicate.Atomic]. */
-        var values: MutableCollection<Value> = ObjectLinkedOpenHashSet()
-            private set
-
-        /** [Value]s associated with this [BooleanPredicate.Atomic]. */
-        private val bindings = LinkedList<ValueBinding>()
+    sealed class Atomic(val left: ColumnDef<*>, val operator: ComparisonOperator, val not: Boolean) : BooleanPredicate() {
 
         /** The number of operations required by this [Atomic]. */
-        override val cost: Float
-            get() = when (this.operator) {
-                ComparisonOperator.ISNULL,
-                ComparisonOperator.ISNOTNULL -> 1.0f
-                ComparisonOperator.EQUAL,
-                ComparisonOperator.GREATER,
-                ComparisonOperator.LESS,
-                ComparisonOperator.GEQUAL,
-                ComparisonOperator.LEQUAL -> 2.0f
-                ComparisonOperator.BETWEEN -> 4.0f
-                ComparisonOperator.IN -> this.values.size + 1.0f
-                ComparisonOperator.LIKE -> 10.0f /* ToDo: Make more explicit. */
-                ComparisonOperator.MATCH -> 10.0f
-            }
-
-        /** Set of [ColumnDef] that are affected by this [Atomic]. */
-        override val columns: Set<ColumnDef<*>>
-            get() = setOf(this.column)
+        override val atomicCpuCost: Float
+            get() = this.operator.atomicCpuCost
 
         /** The [Atomic]s that make up this [BooleanPredicate]. */
         override val atomics: Set<Atomic>
             get() = setOf(this)
 
         /**
-         * Adds a [ValueBinding] to this [Predicate],
-         *
-         * @param value The [ValueBinding] to add.
-         * @return this
-         */
-        fun value(value: ValueBinding): Atomic {
-            this.bindings.add(value)
-            return this
-        }
-
-        /**
-         * Adds a [Value] to this [Predicate],
-         *
-         * @param value The [Value] to add.
-         * @return this
-         */
-        fun value(value: Value): Atomic {
-            if (this.operator == ComparisonOperator.LIKE && value !is LikePatternValue) throw IllegalArgumentException(
-                "Comparison operator of type ${this.operator} requires a LikePatternValue as right operand."
-            )
-            if (this.operator == ComparisonOperator.MATCH && value !is LucenePatternValue) throw IllegalArgumentException(
-                "Comparison operator of type ${this.operator} requires a LucenePatternValue as right operand."
-            )
-            this.values.add(value)
-            return this
-        }
-
-        /**
-         * Clears all [values] and [bindings] in this [BooleanPredicate.Atomic].
-         *
-         * @return this
-         */
-        fun clear(): Atomic {
-            this.values.clear()
-            this.bindings.clear()
-            return this
-        }
-
-        /**
-         * Checks if the provided [Record] matches this [Atomic] and returns true or false respectively.
+         * Checks if the provided [Record] matches this [Atomic] and assigns a score if so.
          *
          * @param record The [Record] to check.
-         * @return true if [Record] matches this [Atomic], false otherwise.
+         * @return Matching score.
          */
-        override fun matches(record: Record): Boolean = if (this.not) {
-            !this.operator.match(record[this.column], this.values)
+        override fun score(record: Record): Double = if (this.matches(record)) {
+            1.0
         } else {
-            this.operator.match(record[this.column], this.values)
-        }
-
-        /**
-         * Prepares this [BooleanPredicate] for use in query execution, e.g., by executing late value binding.
-         *
-         * @param context [QueryContext] to use to resolve [ValueBinding]s.
-         * @return This [BooleanPredicate.Atomic]
-         */
-        override fun bindValues(context: QueryContext): BooleanPredicate {
-            if (!this.bindings.isEmpty()) {
-                this.values.clear()
-                this.bindings.forEach {
-                    val value = it.bind(context)
-                        ?: throw IllegalStateException("Failed to bind value for value binding $it.")
-                    this.value(value)
-                }
-            }
-            return this
-        }
-
-        override fun toString(): String {
-            val builder = StringBuilder()
-            if (this.not) builder.append("!(")
-            builder.append(this.column.name.toString())
-            builder.append(" ")
-            builder.append(this.operator)
-            if (!this.values.isEmpty()) {
-                builder.append(" [")
-                builder.append(this.values.joinToString(","))
-                builder.append("]")
-            } else if (!this.bindings.isEmpty()) {
-                builder.append(" [")
-                builder.append(this.bindings.joinToString(","))
-                builder.append("]")
-            }
-            if (this.not) builder.append(")")
-            return builder.toString()
+            0.0
         }
 
         /**
@@ -182,13 +77,152 @@ sealed class BooleanPredicate : Predicate {
          *
          * @return Digest as [Long]
          */
-        override fun digest(): Long {
-            var result = super.digest()
-            result = 31L * result + this.column.hashCode()
-            result = 31L * result + this.operator.hashCode()
-            result = 31L * result + this.not.hashCode()
-            result = 31L * result + this.bindings.hashCode()
-            return result
+        override fun digest(): Long = 33L * this.hashCode()
+
+        /**
+         * [Atomic.Literal] operator, which compares a column to (a) literal value(s).
+         */
+        class Literal(left: ColumnDef<*>, operator: ComparisonOperator, not: Boolean, val dependsOn: GroupId = -1) : Atomic(left, operator, not) {
+            /** The number of operations required by this [Atomic]. */
+            override val atomicCpuCost: Float
+                get() = this.operator.atomicCpuCost
+
+            /** Set of [ColumnDef] that are affected by this [Literal]. */
+            override val columns: Set<ColumnDef<*>>
+                get() = setOf(this.left)
+
+            /**
+             * Prepares this [BooleanPredicate] for use in query execution, e.g., by executing late value binding.
+             *
+             * @param ctx [BindingContext] to use to resolve [Binding]s.
+             * @return This [BooleanPredicate.Atomic]
+             */
+            override fun bindValues(ctx: BindingContext<Value>): BooleanPredicate {
+                this.operator.bindValues(ctx)
+                return this
+            }
+
+            /**
+             * Checks if the provided [Record] matches this [Atomic] and returns true or false respectively.
+             *
+             * @param record The [Record] to check.
+             * @return true if [Record] matches this [Atomic], false otherwise.
+             */
+            override fun matches(record: Record): Boolean = if (this.not) {
+                !this.operator.match(record[this.left])
+            } else {
+                this.operator.match(record[this.left])
+            }
+
+            /**
+             * Generates a [String] representation of this [BooleanPredicate].
+             *
+             * @return [String]
+             */
+            override fun toString(): String {
+                val builder = StringBuilder()
+                if (this.not) builder.append("!(")
+                builder.append(this.left.name.toString())
+                builder.append(" ")
+                builder.append(this.operator.toString())
+                if (this.not) builder.append(")")
+                return builder.toString()
+            }
+
+            override fun equals(other: Any?): Boolean {
+                if (this === other) return true
+                if (other !is Literal) return false
+
+                if (left != other.left) return false
+                if (operator != other.operator) return false
+                if (not != other.not) return false
+
+                return true
+            }
+
+            override fun hashCode(): Int {
+                var result = left.hashCode()
+                result = 31 * result + operator.hashCode()
+                result = 31 * result + not.hashCode()
+                return result
+            }
+        }
+
+        /**
+         * [Atomic.Reference] operator, which compares a column to another column.
+         *
+         * Only [ComparisonOperator.Binary] operators are allowed for these types of comparisons.
+         */
+        class Reference(left: ColumnDef<*>, val right: ColumnDef<*>, val binaryOperator: ComparisonOperator.Binary, not: Boolean) : Atomic(left, binaryOperator, not) {
+
+            /** [Atomic.Reference] use their own, local [BindingContext]. */
+            private val context = BindingContext<Value>()
+
+            /** Set of [ColumnDef] that are affected by this [Literal]. */
+            override val columns: Set<ColumnDef<*>>
+                get() = setOf(this.left, this.right)
+
+            init {
+                this.context.register(this.binaryOperator.right, null)
+            }
+
+            /**
+             * Checks if the provided [Record] matches this [Atomic.Reference] and returns true or false respectively.
+             *
+             * @param record The [Record] to check.
+             * @return true if [Record] matches this [Atomic.Reference], false otherwise.
+             */
+            override fun matches(record: Record): Boolean {
+                this.context.update(this.binaryOperator.right, record[this.right])
+                return if (this.not) {
+                    !this.binaryOperator.match(record[this.left])
+                } else {
+                    this.binaryOperator.match(record[this.left])
+                }
+            }
+
+            /**
+             * Value binding has no effect on [BooleanPredicate.Atomic.Reference]
+             */
+            override fun bindValues(ctx: BindingContext<Value>): BooleanPredicate {
+                this.binaryOperator.bindValues(this.context)
+                return this
+            }
+
+            /**
+             * Generates a [String] representation of this [BooleanPredicate].
+             *
+             * @return [String]
+             */
+            override fun toString(): String {
+                val builder = StringBuilder()
+                if (this.not) builder.append("!(")
+                builder.append(this.left.name.toString())
+                builder.append(" ")
+                builder.append(this.operator)
+                if (this.not) builder.append(")")
+                return builder.toString()
+            }
+
+            override fun equals(other: Any?): Boolean {
+                if (this === other) return true
+                if (other !is Reference) return false
+
+                if (left != other.left) return false
+                if (right != other.right) return false
+                if (operator != other.operator) return false
+                if (not != other.not) return false
+
+                return true
+            }
+
+            override fun hashCode(): Int {
+                var result = left.hashCode()
+                result = 31 * result + right.hashCode()
+                result = 31 * result + operator.hashCode()
+                result = 31 * result + not.hashCode()
+                return result
+            }
         }
     }
 
@@ -199,11 +233,11 @@ sealed class BooleanPredicate : Predicate {
      * @author Ralph Gasser
      * @version 1.1.0
      */
-    data class Compound(val connector: ConnectionOperator, val p1: BooleanPredicate, val p2: BooleanPredicate) : BooleanPredicate() {
+    class Compound(val connector: ConnectionOperator, val p1: BooleanPredicate, val p2: BooleanPredicate) : BooleanPredicate() {
 
         /** The total number of operations required by this [Compound]. */
-        override val cost
-            get() = this.p1.cost + this.p2.cost
+        override val atomicCpuCost
+            get() = this.p1.atomicCpuCost + this.p2.atomicCpuCost
 
         /** The [Atomic]s that make up this [Compound]. */
         override val atomics
@@ -211,7 +245,7 @@ sealed class BooleanPredicate : Predicate {
 
         /** Set of [ColumnDef] that are affected by this [Compound]. */
         override val columns: Set<ColumnDef<*>>
-            get() =  this.p1.columns + this.p2.columns
+            get() = this.p1.columns + this.p2.columns
 
         /**
          * Checks if the provided [Record] matches this [Compound] and returns true or false respectively.
@@ -224,17 +258,29 @@ sealed class BooleanPredicate : Predicate {
             ConnectionOperator.OR -> this.p1.matches(record) || this.p2.matches(record)
         }
 
+        /**
+         * Checks if the provided [Record] matches this [Compound] and returns a score.
+         *
+         * @param record The [Record] to check.
+         * @return true if [Record] matches this [Atomic], false otherwise.
+         */
+        override fun score(record: Record): Double = when {
+            this.connector == ConnectionOperator.AND && p1.matches(record) && p2.matches(record) -> 1.0
+            this.connector == ConnectionOperator.OR -> ((p1.score(record) + p2.score(record)) / 2.0)
+            else -> 0.0
+        }
+
         override fun toString(): String = "$p1 $connector $p2"
 
         /**
-         * Binds [Value] from the [QueryContext] to this [BooleanPredicate.Compound].
+         * Binds [Value] from the [BindingContext] to this [BooleanPredicate.Compound].
          *
-         * @param context [QueryContext] to use to resolve this [Binding].
+         * @param ctx [BindingContext] to use to resolve this [Binding]s.
          * @return This [BooleanPredicate.Compound]
          */
-        override fun bindValues(context: QueryContext): Compound {
-            this.p1.bindValues(context)
-            this.p2.bindValues(context)
+        override fun bindValues(ctx: BindingContext<Value>): BooleanPredicate {
+            this.p1.bindValues(ctx)
+            this.p2.bindValues(ctx)
             return this
         }
 
@@ -243,11 +289,23 @@ sealed class BooleanPredicate : Predicate {
          *
          * @return Digest as [Long]
          */
-        override fun digest(): Long {
-            var result = super.digest()
-            result = 31L * result + this.p1.digest()
-            result = 31L * result + this.p2.digest()
-            result = 31L * result + this.connector.hashCode()
+        override fun digest(): Long = 33L * this.hashCode()
+
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (other !is Compound) return false
+
+            if (connector != other.connector) return false
+            if (p1 != other.p1) return false
+            if (p2 != other.p2) return false
+
+            return true
+        }
+
+        override fun hashCode(): Int {
+            var result = connector.hashCode()
+            result = 31 * result + p1.hashCode()
+            result = 31 * result + p2.hashCode()
             return result
         }
     }

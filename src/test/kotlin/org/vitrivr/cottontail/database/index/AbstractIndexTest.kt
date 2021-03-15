@@ -3,11 +3,11 @@ package org.vitrivr.cottontail.database.index
 import org.junit.jupiter.api.Assertions
 import org.slf4j.LoggerFactory
 import org.vitrivr.cottontail.TestConstants
-import org.vitrivr.cottontail.config.ExecutionConfig
-import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.catalogue.CatalogueTest
 import org.vitrivr.cottontail.database.catalogue.CatalogueTx
+import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
 import org.vitrivr.cottontail.database.column.ColumnDef
+import org.vitrivr.cottontail.database.column.ColumnEngine
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.schema.Schema
@@ -18,6 +18,8 @@ import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import java.nio.file.Files
 import java.util.*
+import java.util.concurrent.Executors
+import java.util.concurrent.ThreadPoolExecutor
 import java.util.stream.Collectors
 
 /**
@@ -53,7 +55,7 @@ abstract class AbstractIndexTest {
     protected val indexParams: Map<String, String> = emptyMap()
 
     /** Catalogue used for testing. */
-    private var catalogue: Catalogue = Catalogue(TestConstants.config)
+    private var catalogue: DefaultCatalogue = DefaultCatalogue(TestConstants.config)
 
     /** [Schema] used for testing. */
     protected var schema: Schema? = null
@@ -65,10 +67,11 @@ abstract class AbstractIndexTest {
     protected var index: Index? = null
 
     /** The [TransactionManager] used for this [CatalogueTest] instance. */
-    protected val manager = TransactionManager(ExecutionConfig())
+    protected val manager =
+        TransactionManager(Executors.newFixedThreadPool(1) as ThreadPoolExecutor)
 
     /**
-     * Initializes this [AbstractIndexTest] and prepares required [Entity] and [Index].
+     * Initializes this [IndexTest] and prepares required [Entity] and [Index].
      */
     open fun initialize() {
         /* Prepare data structures. */
@@ -85,7 +88,7 @@ abstract class AbstractIndexTest {
     }
 
     /**
-     * Tears down this [AbstractIndexTest].
+     * Tears down this [IndexTest].
      */
     open fun teardown() {
         val pathsToDelete = Files.walk(TestConstants.config.root).sorted(Comparator.reverseOrder())
@@ -113,7 +116,7 @@ abstract class AbstractIndexTest {
         log("Creating schema ${this.entityName}.")
         val txn = this.manager.Transaction(TransactionType.SYSTEM)
         val schemaTx = txn.getTx(this.schema!!) as SchemaTx
-        val ret = schemaTx.createEntity(this.entityName, *this.columns)
+        val ret = schemaTx.createEntity(this.entityName, *this.columns.map { it to ColumnEngine.MAPDB }.toTypedArray())
         txn.commit()
         Assertions.assertTrue(Files.exists(ret.path))
         return ret

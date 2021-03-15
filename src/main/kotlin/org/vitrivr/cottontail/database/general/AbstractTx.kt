@@ -1,34 +1,36 @@
 package org.vitrivr.cottontail.database.general
 
-import org.vitrivr.cottontail.database.index.Index
+import org.vitrivr.cottontail.database.index.AbstractIndex
 import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.locking.LockMode
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.model.exceptions.TxException
-import org.vitrivr.cottontail.model.recordset.Recordset
 
 /**
  * An abstract [Tx] implementation that provides some basic functionality.
  *
  * @author Ralph Gasser
- * @version 1.1.0
+ * @version 1.2.0
  */
-@Suppress("OVERRIDE_BY_INLINE")
 abstract class AbstractTx(override val context: TransactionContext) : Tx {
     /** Flag indicating whether or not this [IndexTx] was closed */
     @Volatile
     final override var status: TxStatus = TxStatus.CLEAN
         protected set
 
+    /** The [TxSnapshot] that captures changes made through this [AbstractIndex] not visible to the surrounding [DBO]. */
+    protected abstract val snapshot: TxSnapshot
+
     /**
      * Commits all changes made through this [AbstractTx] and releases all locks obtained.
      *
-     * This implementation only makes structural changes to the [AbstractTx]. Implementing
-     * classes need to implement [performCommit] to execute the actual commit.
+     * This implementation only makes structural changes to the [AbstractTx] (updates status,
+     * sanity checks etc). Implementing classes need to implement [TxSnapshot] to execute the
+     * actual commit.
      */
     final override fun commit() {
         if (this.status == TxStatus.DIRTY) {
-            this.performCommit()
+            this.snapshot.commit()
             this.status = TxStatus.CLEAN
         }
         this.context.releaseLock(this.dbo)
@@ -37,12 +39,13 @@ abstract class AbstractTx(override val context: TransactionContext) : Tx {
     /**
      * Makes a rollback on all made through this [AbstractTx] and releases all locks obtained.
      *
-     *  This implementation only makes structural changes to the [AbstractTx]. Implementing
-     * classes need to implement [performRollback] to execute the actual commit.
+     * This implementation only makes structural changes to the [AbstractTx] (updates status,
+     * sanity checks etc). Implementing classes need to implement [TxSnapshot] to execute the actual
+     * commit.
      */
     final override fun rollback() {
         if (this.status == TxStatus.DIRTY || this.status == TxStatus.ERROR) {
-            this.performRollback()
+            this.snapshot.rollback()
             this.status = TxStatus.CLEAN
         }
         this.context.releaseLock(this.dbo)
@@ -55,28 +58,10 @@ abstract class AbstractTx(override val context: TransactionContext) : Tx {
     final override fun close() {
         if (this.status != TxStatus.CLOSED) {
             this.rollback()
-            this.status = TxStatus.CLOSED
             this.cleanup()
+            this.status = TxStatus.CLOSED
         }
     }
-
-    /**
-     * Performs the actual COMMIT operation.
-     *
-     * Implementers of this method may safely assume that upon reaching this method, all necessary
-     * locks on Cottontail DB's data structures have been obtained to safely perform the COMMIT operation.
-     * Furthermore, this operation will only be called if the [status] is equal to [TxStatus.DIRTY]
-     */
-    protected abstract fun performCommit()
-
-    /**
-     * Performs the actual ROLLBACK operation.
-     *
-     * Implementers of this method may safely assume that upon reaching this method, all necessary
-     * locks on Cottontail DB's data structures have been obtained to safely perform the ROLLBACK operation.
-     * Furthermore, this operation will only be called if the [status] is equal to [TxStatus.DIRTY] or [TxStatus.ERROR]
-     */
-    protected abstract fun performRollback()
 
     /**
      * Cleans all local resources obtained by this [AbstractTx] implementation. Called as part of and
@@ -88,7 +73,7 @@ abstract class AbstractTx(override val context: TransactionContext) : Tx {
     protected abstract fun cleanup()
 
     /**
-     * Checks if this [Index.Tx] is in a valid state for write operations to happen and sets its
+     * Checks if this [AbstractIndex.Tx] is in a valid state for write operations to happen and sets its
      * [status] to [TxStatus.DIRTY]
      */
     protected inline fun <T> withWriteLock(block: () -> (T)): T {
@@ -104,7 +89,7 @@ abstract class AbstractTx(override val context: TransactionContext) : Tx {
     }
 
     /**
-     * Checks if this [Index.Tx] is in a valid state for read operations to happen.
+     * Checks if this [AbstractIndex.Tx] is in a valid state for read operations to happen.
      */
     protected inline fun <T> withReadLock(block: () -> (T)): T {
         if (this.status == TxStatus.CLOSED) throw TxException.TxClosedException(this.context.txId)
@@ -113,51 +98,5 @@ abstract class AbstractTx(override val context: TransactionContext) : Tx {
             this.context.requestLock(this.dbo, LockMode.SHARED)
         }
         return block()
-    }
-
-    /**
-     * An inline function that can be used to create a transactional context from a [Tx].
-     *
-     * The provided block will be executed as a [Tx] and any exception thrown in the block will result
-     * in a rollback. Once the block has been executed successfully, the [Tx] is committed.
-     *
-     * In both cases, the [Tx] that has been used will be closed.
-     *
-     * @param block The block that should be executed in a [Tx] context.
-     */
-    final override inline fun begin(block: (tx: Tx) -> Boolean) = try {
-        if (block(this)) {
-            commit()
-        } else {
-            rollback()
-        }
-    } catch (e: Throwable) {
-        rollback()
-        throw e
-    } finally {
-        close()
-    }
-
-    /**
-     * An inline function that can be used to create a transactional context from a [Tx].
-     *
-     * The provided block will be executed as a [Tx] and any exception thrown in the block will result
-     * in a rollback. Once the block has been executed successfully, the [Tx] is committed and a [Recordset]
-     * will be returned.
-     *
-     * In both cases, the [Tx] that has been used will be closed.
-     *
-     * @param block The block that should be executed in a [Tx] context.
-     * @return The [Recordset] that resulted from the [Tx].
-     */
-    final override inline fun query(block: (tx: Tx) -> Recordset): Recordset? = try {
-        val result = block(this)
-        commit()
-        result
-    } catch (e: Throwable) {
-        rollback()
-        throw e
-    } finally {
-        close()
     }
 }

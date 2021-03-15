@@ -1,9 +1,9 @@
 package org.vitrivr.cottontail.storage.engine.hare.access.column.fixed
 
-import org.vitrivr.cottontail.database.column.Type
-import org.vitrivr.cottontail.model.basics.ColumnDef
+import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.TupleId
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.types.Value
 import org.vitrivr.cottontail.storage.engine.hare.Address
 import org.vitrivr.cottontail.storage.engine.hare.PageId
@@ -108,7 +108,7 @@ class FixedHareColumnFile<T : Value>(val path: Path) : HareColumnFile<T> {
     /** The size of an individual entry in bytes. */
     val entrySize: Int
 
-    /** A [StampedLock] used to prevent this [FixedHareColumnFile] from closing, when it is being used by other [Resources]. */
+    /** A [StampedLock] used to prevent this [FixedHareColumnFile] from closing, when it is being used by other resources. */
     private val closeLock = StampedLock()
 
     /** The number of slots per page. */
@@ -120,7 +120,7 @@ class FixedHareColumnFile<T : Value>(val path: Path) : HareColumnFile<T> {
         val page = HarePage(ByteBuffer.allocate(this.disk.pageSize))
         this.disk.read(tid, ROOT_PAGE_ID, page)
         val header = HeaderPageView(page).validate()
-        this.type = header.type
+        this.type = header.type as Type<T>
         this.nullable = header.nullable
         this.entrySize = header.entrySize
         this.slotsPerPage = floorDiv(1 shl this@FixedHareColumnFile.disk.pageShift, (header.entrySize + ENTRY_HEADER_SIZE))

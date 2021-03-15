@@ -9,7 +9,7 @@ import org.vitrivr.cottontail.model.basics.Name
 import kotlin.time.ExperimentalTime
 
 /**
- * Counts the number of rows in an [org.vitrivr.cottontail.database.entity.Entity].
+ * Counts the number of rows in an [org.vitrivr.cottontail.database.entity.DefaultEntity].
  *
  * @author Loris Sauter & Ralph Gasser
  * @version 1.0.2

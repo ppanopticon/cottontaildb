@@ -116,7 +116,7 @@ class VariableHareColumnFile<T : Value>(val path: Path, wal: Boolean) : HareColu
         val tid = -1L
 
         this.disk.read(tid, FixedHareColumnFile.ROOT_PAGE_ID, page)
-        val header = HeaderPageView(page).validate()
+        val header = HeaderPageView(page)
         this.type = header.type as Type<T>
         this.nullable = header.nullable
     }

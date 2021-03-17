@@ -15,7 +15,6 @@ import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareC
 import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnReader
 import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnWriter
 import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
-import org.vitrivr.cottontail.storage.engine.hare.buffer.eviction.EvictionPolicy
 import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectHareDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
 import org.vitrivr.cottontail.storage.store.engine.hare.access.AbstractCursorTest
@@ -48,7 +47,7 @@ class HareDoubleArrayCursorTest : AbstractCursorTest() {
         FixedHareColumnFile.createDirect(this.path, columnDef)
         val tid = 0L
         val hareFile: FixedHareColumnFile<DoubleVectorValue> = FixedHareColumnFile(this.path)
-        val bufferPool = BufferPool(hareFile.disk, tid, 25, EvictionPolicy.LRU)
+        val bufferPool = BufferPool(hareFile.disk, tid, 25)
 
         this.initWithData(hareFile, bufferPool, dimensions)
         this.compareData(hareFile, bufferPool, dimensions)
@@ -72,7 +71,7 @@ class HareDoubleArrayCursorTest : AbstractCursorTest() {
                 writer.append(DoubleVectorValue.random(dimensions, random))
             }
         }
-        val physSize = (bufferPool.diskSize `in` Units.MEGABYTE)
+        val physSize = (bufferPool.disk.size `in` Units.MEGABYTE)
 
         /* Commit & close writer. */
         writer.commit()
@@ -98,7 +97,7 @@ class HareDoubleArrayCursorTest : AbstractCursorTest() {
             }
             Assertions.assertEquals(reader.count(), read)
         }
-        val physSize = (bufferPool.diskSize `in` Units.MEGABYTE)
+        val physSize = (bufferPool.disk.size `in` Units.MEGABYTE)
 
         /* Close reader and cursor. */
         reader.close()

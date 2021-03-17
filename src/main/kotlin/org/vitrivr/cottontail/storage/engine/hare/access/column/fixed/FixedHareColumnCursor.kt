@@ -3,9 +3,9 @@ package org.vitrivr.cottontail.storage.engine.hare.access.column.fixed
 import org.vitrivr.cottontail.model.basics.TransactionId
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.types.Value
+import org.vitrivr.cottontail.storage.engine.hare.PageId
 import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareCursor
 import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
-import org.vitrivr.cottontail.storage.engine.hare.buffer.Priority
 import org.vitrivr.cottontail.storage.engine.hare.toPageId
 import org.vitrivr.cottontail.storage.engine.hare.toSlotId
 
@@ -13,7 +13,7 @@ import org.vitrivr.cottontail.storage.engine.hare.toSlotId
  * A [HareCursor] implementation for [FixedHareColumnFile]s. This implementation is not thread safe!
  *
  * @author Ralph Gasser
- * @version 1.0.3
+ * @version 1.1.0
  */
 class FixedHareColumnCursor<T : Value>(val file: FixedHareColumnFile<T>, private val bufferPool: BufferPool, range: LongRange? = null) : HareCursor<T> {
 
@@ -23,6 +23,9 @@ class FixedHareColumnCursor<T : Value>(val file: FixedHareColumnFile<T>, private
 
     /** The [TupleId] this [FixedHareColumnCursor] is currently pointing to. */
     override var tupleId: TupleId = HareCursor.CURSOR_BOF
+
+    /** The [PageId] this [FixedHareColumnCursor] is currently pointing to. */
+    private var pageId: PageId = HareCursor.CURSOR_BOF
 
     /** Minimum [TupleId] that can be accessed through this [FixedHareColumnCursor]. */
     override val start: TupleId
@@ -36,21 +39,18 @@ class FixedHareColumnCursor<T : Value>(val file: FixedHareColumnFile<T>, private
         require(this.file.disk == this.bufferPool.disk) { "FixedHareColumnFile and provided BufferPool do not share the same HareDiskManager." }
 
         /* Fetch header page. */
-        val page = this.bufferPool.get(FixedHareColumnFile.ROOT_PAGE_ID, Priority.HIGH)
-        val pageView = HeaderPageView(page).validate()
+        val page = this.bufferPool.get(FixedHareColumnFile.ROOT_PAGE_ID)
+        val pageView = HeaderPageView(page)
 
         if (range != null) {
-            require(range.first >= 0L) { "Start tupleId must be greater or equal than zero."}
-            require(range.last <= pageView.maxTupleId) { "End tupleId must be smaller or equal to to maximum tupleId for HARE file."}
+            require(range.first >= 0L) { "Start tupleId must be greater or equal than zero." }
+            require(range.last <= pageView.maxTupleId) { "End tupleId must be smaller or equal to to maximum tupleId for HARE file." }
             this.start = range.first
             this.end = range.last
         } else {
             this.start = 0L
             this.end = pageView.maxTupleId
         }
-
-        /* Release header page. */
-        page.release()
     }
 
     /**
@@ -86,11 +86,10 @@ class FixedHareColumnCursor<T : Value>(val file: FixedHareColumnFile<T>, private
         val address = this.file.toAddress(tupleId)
         val pageId = address.toPageId()
         val slotId = address.toSlotId()
-        val entryOffset: Int = slotId * this.file.entrySize
-
-        val page = this.bufferPool.get(pageId, Priority.DEFAULT)
-        val ret = (page.getInt(entryOffset) and FixedHareColumnFile.MASK_DELETED) == 0
-        page.release()
-        return ret
+        if (this.pageId != pageId) {
+            this.bufferPool.prefetch(pageId)
+            this.pageId = pageId
+        }
+        return !SlottedPageView(this.bufferPool.get(this.pageId)).isDeleted(slotId)
     }
 }

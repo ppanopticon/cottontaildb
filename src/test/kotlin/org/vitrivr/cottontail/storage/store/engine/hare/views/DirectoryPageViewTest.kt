@@ -29,7 +29,7 @@ class DirectoryPageViewTest {
         val buffer = ByteBuffer.allocate(pageSize)
         val page = HarePage(buffer)
         Assertions.assertThrows(IllegalArgumentException::class.java) {
-            DirectoryPageView(page).validate()
+            DirectoryPageView(page)
         }
     }
 
@@ -39,7 +39,7 @@ class DirectoryPageViewTest {
         val buffer = ByteBuffer.allocate(pageSize)
         val page = HarePage(buffer)
         DirectoryPageView.initialize(page, -1L, 0L)
-        val view = DirectoryPageView(page).validate()
+        val view = DirectoryPageView(page)
         val list = mutableListOf<Triple<TupleId, Flags, Address>>()
         var last = -1L
         while (!view.full) {

@@ -16,7 +16,6 @@ import org.vitrivr.cottontail.storage.engine.hare.access.column.variable.Variabl
 import org.vitrivr.cottontail.storage.engine.hare.access.column.variable.VariableHareColumnReader
 import org.vitrivr.cottontail.storage.engine.hare.access.column.variable.VariableHareColumnWriter
 import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
-import org.vitrivr.cottontail.storage.engine.hare.buffer.eviction.EvictionPolicy
 import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectHareDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
 import org.vitrivr.cottontail.storage.store.engine.hare.access.AbstractCursorTest
@@ -55,7 +54,7 @@ class HareDoubleArrayCursorTest : AbstractCursorTest() {
         VariableHareColumnFile.create(this.path, columnDef)
         val tid = 1L
         val hareFile: VariableHareColumnFile<DoubleVectorValue> = VariableHareColumnFile(this.path, false)
-        val bufferPool = BufferPool(hareFile.disk, tid, 25, EvictionPolicy.LRU)
+        val bufferPool = BufferPool(hareFile.disk, tid, 25)
 
         this.initWithData(hareFile, bufferPool, dimensions)
         this.compareData(hareFile, bufferPool, dimensions)
@@ -86,7 +85,7 @@ class HareDoubleArrayCursorTest : AbstractCursorTest() {
         /* Close reader and cursor. */
         reader.close()
 
-        val physSize = (bufferPool.diskSize `in` Units.MEGABYTE)
+        val physSize = (bufferPool.disk.size `in` Units.MEGABYTE)
         println("Reading ${TestConstants.collectionSize} doubles vectors (d=$dimensions) to a total of $physSize took $readTime (${physSize.value / readTime.inSeconds} MB/s).")
     }
 
@@ -105,7 +104,7 @@ class HareDoubleArrayCursorTest : AbstractCursorTest() {
                 writer.append(DoubleVectorValue.random(dimensions, random))
             }
         }
-        val physSize = (bufferPool.diskSize `in` Units.MEGABYTE)
+        val physSize = (bufferPool.disk.size `in` Units.MEGABYTE)
 
         /* Close writer. */
         writer.close()

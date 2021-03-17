@@ -73,14 +73,10 @@ class DirectHareDiskManager(path: Path, lockTimeout: Long = 5000, private val pr
     override fun read(tid: TransactionId, pageId: PageId, pages: Array<HarePage>) {
         this.closeLock.read {
             check(this.fileChannel.isOpen) { "FileChannel for this HARE page file was closed and cannot be used to read data (file: ${this.path})." }
-            val locks = Array(pages.size) { pages[it].lock.writeLock() }
             val buffers = Array(pages.size) { pages[it].buffer.clear() }
             this.fileChannel.position(this.pageIdToOffset(pageId))
             this.fileChannel.read(buffers)
-            locks.indices.forEach { i ->
-                buffers[i].clear()
-                pages[i].lock.unlockWrite(locks[i])
-            }
+            buffers.forEach { b -> b.clear() }
         }
     }
 

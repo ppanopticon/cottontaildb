@@ -18,7 +18,6 @@ import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareC
 import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareColumnFile
 import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareColumnWriter
 import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
-import org.vitrivr.cottontail.storage.engine.hare.buffer.eviction.EvictionPolicy
 import org.vitrivr.cottontail.utilities.extensions.write
 import java.nio.file.Path
 import java.util.*
@@ -111,7 +110,7 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val par
         private val globalStamp = this@HareColumn.closeLock.readLock()
 
         /** Shared [BufferPool] for this [Tx]. */
-        private val bufferPool = BufferPool(this@HareColumn.column.disk, context.txId, 5, EvictionPolicy.LRU)
+        private val bufferPool = BufferPool(this@HareColumn.column.disk, context.txId, 5)
 
         /** [FixedHareColumnReader] for this [Tx]. */
         private val reader = FixedHareColumnReader(this@HareColumn.column, this.bufferPool)

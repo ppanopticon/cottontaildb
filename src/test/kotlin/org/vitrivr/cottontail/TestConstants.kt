@@ -23,7 +23,7 @@ object TestConstants {
     val config = Config(root = testDatabasePath, cli = false)
 
     /** General size of collections used for testing. */
-    const val collectionSize: Int = 100_000_0
+    const val collectionSize: Int = 1_000_000
 
     /** Maximum dimension used for vector generation. */
     const val smallVectorMaxDimension: Int = 128

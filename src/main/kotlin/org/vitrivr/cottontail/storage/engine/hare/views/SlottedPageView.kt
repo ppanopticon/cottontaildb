@@ -2,7 +2,6 @@ package org.vitrivr.cottontail.storage.engine.hare.views
 
 import org.vitrivr.cottontail.storage.engine.hare.SlotId
 import org.vitrivr.cottontail.storage.engine.hare.access.column.directory.DirectoryPageView
-import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.HeaderPageView
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
 import org.vitrivr.cottontail.storage.engine.hare.basics.PageConstants
 import org.vitrivr.cottontail.storage.engine.hare.basics.PageRef
@@ -85,9 +84,9 @@ inline class SlottedPageView(override val page: Page) : PageView {
         if (offset == CONST_OFFSET_FREED) return 0
 
         /* Determine size of slot. */
-        return when (slotId.toInt()) {
+        return when (slotId) {
             0 -> (this.page.size - this.offset(slotId))
-            else -> this.offset((slotId - 1).toShort()) - this.offset(slotId)
+            else -> this.offset((slotId - 1)) - this.offset(slotId)
         }
     }
 
@@ -105,7 +104,7 @@ inline class SlottedPageView(override val page: Page) : PageView {
         this.page.putInt(SIZE_HEADER + SIZE_ENTRY * newSlotId, newFree)
         this.page.putInt(HEADER_OFFSET_SLOTS, (newSlotId + 1))
         this.page.putInt(HEADER_OFFSET_FREE, newFree)
-        return newSlotId.toShort()
+        return newSlotId
     }
 
     /**
@@ -118,19 +117,9 @@ inline class SlottedPageView(override val page: Page) : PageView {
         require(slotId < this.slots) { "SlotId $slotId is out of bound for slotted page (p = $this)." }
         this.page.putInt(HEADER_OFFSET_SLOTS, (this.slots - 1))
         this.page.putInt(SIZE_HEADER + SIZE_ENTRY * slotId, CONST_OFFSET_FREED)
-        if (slotId == (this.slots - 1).toShort()) {
+        if (slotId == (this.slots - 1)) {
             this.page.putInt(HEADER_OFFSET_FREE, this.freePointer + this.size(slotId))
         }
-    }
-
-    /**
-     * Validates this [HeaderPageView] and returns it.
-     *
-     * @return this.
-     */
-    override fun validate(): SlottedPageView {
-        require(this.pageTypeIdentifier == PageConstants.PAGE_TYPE_SLOTTED) { IllegalStateException("Page identifier mismatch (expected = ${PageConstants.PAGE_TYPE_SLOTTED}, actual = ${this.pageTypeIdentifier}).") }
-        return this
     }
 }
 

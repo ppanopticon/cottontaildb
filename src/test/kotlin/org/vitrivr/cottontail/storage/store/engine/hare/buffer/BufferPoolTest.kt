@@ -10,8 +10,6 @@ import org.vitrivr.cottontail.TestConstants
 import org.vitrivr.cottontail.storage.basics.Units
 import org.vitrivr.cottontail.storage.engine.hare.basics.PageRef
 import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
-import org.vitrivr.cottontail.storage.engine.hare.buffer.Priority
-import org.vitrivr.cottontail.storage.engine.hare.buffer.eviction.EvictionPolicy
 import org.vitrivr.cottontail.storage.engine.hare.disk.HareDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.direct.DirectHareDiskManager
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
@@ -37,12 +35,11 @@ class BufferPoolTest {
         HareDiskManager.create(this.path, this.pageShift)
         val tid = 1L
         this._manager = DirectHareDiskManager(path = this.path, preAllocatePages = 1)
-        this.pool = BufferPool(this._manager!!, tid, 10, EvictionPolicy.LRU)
+        this.pool = BufferPool(this._manager!!, tid, 10)
     }
 
     @AfterEach
     fun afterEach() {
-        this.pool!!.close()
         Files.delete(this.path)
     }
 
@@ -54,10 +51,10 @@ class BufferPoolTest {
     @ValueSource(ints = [5000, 10000, 20000, 50000, 100000])
     fun testPageRetention(pages: Int) {
         val data = this.initWithData(pages)
-        val page = this.pool!!.get(1L, Priority.HIGH)
+        val page = this.pool!!.get(1L)
         for (i in 1L until data.size) {
             assertTrue(page === this.pool!!.get(1L))
-            this.pool!!.get(i, Priority.DEFAULT).release()
+            this.pool!!.get(i)
         }
     }
 
@@ -96,7 +93,6 @@ class BufferPoolTest {
                 val page = this.pool!!.get(i + 1L)
                 page.putBytes(0, newData[i])
                 Assertions.assertEquals(i + 1L, page.id)
-                page.release()
             }
         }
 
@@ -104,7 +100,7 @@ class BufferPoolTest {
             this.pool!!.flush()
         }
 
-        val diskSize = this.pool!!.diskSize `in` Units.MEGABYTE
+        val diskSize = this.pool!!.disk.size `in` Units.MEGABYTE
         println("Updating $diskSize took $updateTime (${diskSize.value / updateTime.inSeconds} MB/s).")
 
         /* Check if data remains the same. */
@@ -125,9 +121,8 @@ class BufferPoolTest {
 
             Assertions.assertArrayEquals(ref[i], page!!.getBytes(0))
             Assertions.assertEquals(i + 1L, page!!.id)
-            page?.release()
         }
-        val diskSize = this.pool!!.diskSize `in` Units.MEGABYTE
+        val diskSize = this.pool!!.disk.size `in` Units.MEGABYTE
         println("Reading $diskSize took $readTime (${diskSize.value / readTime.inSeconds} MB/s).")
     }
 
@@ -148,7 +143,6 @@ class BufferPoolTest {
             for (i in data.indices) {
                 val page = this.pool!!.get(this.pool!!.append())
                 page.putBytes(0, data[i])
-                page.release()
             }
         }
 
@@ -157,7 +151,7 @@ class BufferPoolTest {
             this.pool!!.flush()
         }
 
-        val diskSize = this.pool!!.diskSize `in` Units.MEGABYTE
+        val diskSize = this.pool!!.disk.size `in` Units.MEGABYTE
         println("Appending $diskSize took $writeTime (${diskSize.value / writeTime.inSeconds} MB/s).")
 
         return data

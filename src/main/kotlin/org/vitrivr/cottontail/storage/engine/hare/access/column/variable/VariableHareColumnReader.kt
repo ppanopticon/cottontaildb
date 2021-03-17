@@ -10,7 +10,6 @@ import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareC
 import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareColumnFile
 import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareColumnReader
 import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
-import org.vitrivr.cottontail.storage.engine.hare.buffer.Priority
 import org.vitrivr.cottontail.storage.engine.hare.serializer.Serializer
 import org.vitrivr.cottontail.storage.engine.hare.toPageId
 import org.vitrivr.cottontail.storage.engine.hare.toSlotId
@@ -73,15 +72,14 @@ class VariableHareColumnReader<T : Value>(val file: VariableHareColumnFile<T>, p
         }
 
         /* Obtain address for entry. */
-        val slotPage = this.bufferPool.get(flagsAndAddress.second.toPageId(), Priority.LOW)
+        val slotPage = this.bufferPool.get(flagsAndAddress.second.toPageId())
 
         /* Obtain slotted page and read it. */
-        val slottedView = SlottedPageView(slotPage).validate()
+        val slottedView = SlottedPageView(slotPage)
         val offset = slottedView.offset(flagsAndAddress.second.toSlotId())
         val value = this.serializer.deserialize(slotPage, offset)
 
         /* Release page and return value. */
-        slotPage.release()
         return value
     }
 
@@ -91,10 +89,8 @@ class VariableHareColumnReader<T : Value>(val file: VariableHareColumnFile<T>, p
      * @return Number of entries in this [HareColumnFile].
      */
     override fun count(): Long = this.localLock.shared {
-        val page = this.bufferPool.get(VariableHareColumnFile.ROOT_PAGE_ID, Priority.HIGH)
-        val ret = HeaderPageView(page).validate().count
-        page.release()
-        return ret
+        val page = this.bufferPool.get(VariableHareColumnFile.ROOT_PAGE_ID)
+        return HeaderPageView(page).count
     }
 
     /**
@@ -103,10 +99,8 @@ class VariableHareColumnReader<T : Value>(val file: VariableHareColumnFile<T>, p
      * @return The maximum [TupleId].
      */
     override fun maxTupleId(): TupleId = this.localLock.shared {
-        val page = this.bufferPool.get(VariableHareColumnFile.ROOT_PAGE_ID, Priority.HIGH)
-        val ret = HeaderPageView(page).validate().maxTupleId
-        page.release()
-        return ret
+        val page = this.bufferPool.get(VariableHareColumnFile.ROOT_PAGE_ID)
+        return HeaderPageView(page).maxTupleId
     }
 
     /**

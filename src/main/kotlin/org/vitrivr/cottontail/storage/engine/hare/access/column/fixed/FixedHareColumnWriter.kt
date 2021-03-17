@@ -3,26 +3,25 @@ package org.vitrivr.cottontail.storage.engine.hare.access.column.fixed
 import org.vitrivr.cottontail.model.basics.TransactionId
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.types.Value
+import org.vitrivr.cottontail.storage.engine.hare.SlotId
 import org.vitrivr.cottontail.storage.engine.hare.access.EntryDeletedException
 import org.vitrivr.cottontail.storage.engine.hare.access.NullValueNotAllowedException
 import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareColumnWriter
 import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
-import org.vitrivr.cottontail.storage.engine.hare.buffer.Priority
 import org.vitrivr.cottontail.storage.engine.hare.serializer.Serializer
 import org.vitrivr.cottontail.storage.engine.hare.toPageId
 import org.vitrivr.cottontail.storage.engine.hare.toSlotId
 import org.vitrivr.cottontail.storage.serializers.hare.HareSerializer
 import org.vitrivr.cottontail.utilities.extensions.exclusive
-import org.vitrivr.cottontail.utilities.extensions.shared
+import org.vitrivr.cottontail.utilities.extensions.read
 
-import java.lang.Long.max
 import java.util.concurrent.locks.StampedLock
 
 /**
  * A [HareColumnWriter] implementation for [FixedHareColumnFile]s.
  *
  * @author Ralph Gasser
- * @version 1.0.3
+ * @version 1.1.0
  */
 class FixedHareColumnWriter<T : Value>(val file: FixedHareColumnFile<T>, private val bufferPool: BufferPool) : HareColumnWriter<T> {
 
@@ -55,7 +54,7 @@ class FixedHareColumnWriter<T : Value>(val file: FixedHareColumnFile<T>, private
      * @param tupleId The [TupleId] to update the entry for.
      * @param value The new value [T] the updated entry should contain or null.
      */
-    override fun update(tupleId: TupleId, value: T?) = this.localLock.shared {
+    override fun update(tupleId: TupleId, value: T?) = this.localLock.read {
         /* Check nullability constraint. */
         if (value == null && !this.file.nullable) {
             throw NullValueNotAllowedException("The provided value is null but this HARE column does not support null values.")
@@ -65,23 +64,13 @@ class FixedHareColumnWriter<T : Value>(val file: FixedHareColumnFile<T>, private
         val address = file.toAddress(tupleId)
         val pageId = address.toPageId()
         val slotId = address.toSlotId()
-        val entryOffset: Int = slotId * this.file.entrySize
 
-        val page = this.bufferPool.get(pageId, Priority.DEFAULT)
-        try {
-            val flags = page.getInt(entryOffset)
-            if ((flags and FixedHareColumnFile.MASK_DELETED) > 0) throw EntryDeletedException("Entry with tuple ID $tupleId has been deleted and cannot be updated.")
-            if (value != null) {
-                page.putInt(entryOffset, (flags and FixedHareColumnFile.MASK_NULL.inv()))
-                this.serializer.serialize(page, entryOffset + FixedHareColumnFile.ENTRY_HEADER_SIZE, value)
-            } else {
-                page.putInt(entryOffset, (flags or FixedHareColumnFile.MASK_NULL))
-                for (i in 0 until this.file.entrySize) {
-                    page.putByte(entryOffset + FixedHareColumnFile.ENTRY_HEADER_SIZE + i, 0)
-                }
-            }
-        } finally {
-            page.release()
+        /* Write value. */
+        this.bufferPool.get(pageId).withWriteLock { p ->
+            val page = SlottedPageView(p)
+            if (page.isDeleted(slotId)) throw throw EntryDeletedException("Entry with tuple ID $tupleId has been deleted and cannot be updated.")
+            this.writeValue(page, slotId, value)
+
         }
     }
 
@@ -94,8 +83,7 @@ class FixedHareColumnWriter<T : Value>(val file: FixedHareColumnFile<T>, private
      * @param newValue The new value [T] the updated entry should contain or null.
      * @return true if update was successful.
      */
-    @Synchronized
-    override fun compareAndUpdate(tupleId: TupleId, expectedValue: T?, newValue: T?): Boolean = this.localLock.shared {
+    override fun compareAndUpdate(tupleId: TupleId, expectedValue: T?, newValue: T?): Boolean = this.localLock.read {
         /* Check nullability constraint. */
         if (newValue == null && !this.file.nullable) {
             throw NullValueNotAllowedException("The provided value is null but this HARE column does not support null values.")
@@ -105,33 +93,21 @@ class FixedHareColumnWriter<T : Value>(val file: FixedHareColumnFile<T>, private
         val address = file.toAddress(tupleId)
         val pageId = address.toPageId()
         val slotId = address.toSlotId()
-        val entryOffset: Int = slotId * this.file.entrySize
+        val offset = this.file.pageHeaderSize + slotId * this.file.entrySize
 
-        val page = this.bufferPool.get(pageId, Priority.DEFAULT)
-        try {
-            val flags = page.getInt(entryOffset)
-            if ((flags and FixedHareColumnFile.MASK_DELETED) > 0) throw throw EntryDeletedException("Entry with tuple ID $tupleId has been deleted and cannot be updated.")
-            val value = if ((flags and FixedHareColumnFile.MASK_NULL) > 0) {
-                null
-            } else {
-                this.serializer.deserialize(page, entryOffset)
+        /* Retrieve current value. */
+        this.bufferPool.get(pageId).withWriteLock { p ->
+            val page = SlottedPageView(p)
+            if (page.isDeleted(slotId)) throw throw EntryDeletedException("Entry with tuple ID $tupleId has been deleted and cannot be updated.")
+            var current: T? = null
+            if (!page.isNull(slotId)) {
+                current = this.serializer.deserialize(page.page, offset)
             }
-            if (value != expectedValue) {
-                return false
-            } else {
-                if (newValue != null) {
-                    page.putInt(entryOffset, (flags and FixedHareColumnFile.MASK_NULL.inv()))
-                    this.serializer.serialize(page, entryOffset + FixedHareColumnFile.ENTRY_HEADER_SIZE, newValue)
-                } else {
-                    page.putInt(entryOffset, flags or FixedHareColumnFile.MASK_NULL)
-                    for (i in 0 until this.file.entrySize) {
-                        page.putByte(entryOffset + FixedHareColumnFile.ENTRY_HEADER_SIZE + i, 0)
-                    }
-                }
-                return true
-            }
-        } finally {
-            page.release()
+
+            /* Compare current value to expected value; if they match, write value. */
+            if (current != expectedValue) return false
+            this.writeValue(page, slotId, newValue)
+            true
         }
     }
 
@@ -143,43 +119,35 @@ class FixedHareColumnWriter<T : Value>(val file: FixedHareColumnFile<T>, private
      *
      * @throws EntryDeletedException If entry identified by [TupleId] has been deleted.
      */
-    override fun delete(tupleId: TupleId): T? = this.localLock.shared {
-        /* Load page header. */
-        val headerPage = this.bufferPool.get(FixedHareColumnFile.ROOT_PAGE_ID, Priority.HIGH)
-        val header = HeaderPageView(headerPage)
-
+    override fun delete(tupleId: TupleId): T? = this.localLock.read {
         /* Calculate necessary offsets. */
         val address = this.file.toAddress(tupleId)
         val pageId = address.toPageId()
         val slotId = address.toSlotId()
-        val entryOffset = slotId * this.file.entrySize
+        val offset = this.file.pageHeaderSize + slotId * this.file.entrySize
 
-        val page = this.bufferPool.get(pageId, Priority.DEFAULT)
-        try {
-            val flags = page.getInt(entryOffset)
-            if ((flags and FixedHareColumnFile.MASK_DELETED) > 0L) throw throw EntryDeletedException("Entry with tuple ID $tupleId has been deleted and cannot be deleted.")
+        this.bufferPool.get(FixedHareColumnFile.ROOT_PAGE_ID).withWriteLock {
+            /* Update page header. */
+            val header = HeaderPageView(it)
+            header.updateCount(header.count - 1)
 
             /* Retrieve current value. */
-            val ret = if ((flags and FixedHareColumnFile.MASK_NULL) > 0L) {
-                null
-            } else {
-                this.serializer.deserialize(page, entryOffset + FixedHareColumnFile.ENTRY_HEADER_SIZE)
+            this.bufferPool.get(pageId).withWriteLock { p ->
+                val page = SlottedPageView(p)
+                if (page.isDeleted(slotId)) throw throw EntryDeletedException("Entry with tuple ID $tupleId has been deleted and cannot be deleted.")
+                var old: T? = null
+                if (!page.isNull(slotId)) {
+                    old = this.serializer.deserialize(page.page, offset)
+                }
+
+                /* Override entry with zeros. */
+                page.unsetNull(slotId)
+                page.setDeleted(slotId)
+                for (i in offset until offset + this.file.entrySize) {
+                    page.page.putByte(i, 0)
+                }
+                old
             }
-
-            /* Delete entry. */
-            page.putInt(entryOffset, (flags or FixedHareColumnFile.MASK_DELETED))
-            for (i in 0 until this.file.entrySize) {
-                page.putByte(i + FixedHareColumnFile.ENTRY_HEADER_SIZE + entryOffset, 0)
-            }
-
-            /* Update header. */
-            header.count -= 1
-            headerPage.release()
-
-            /* Return deleted value. */
-            return ret
-        } finally {
-            page.release()
         }
     }
 
@@ -191,68 +159,45 @@ class FixedHareColumnWriter<T : Value>(val file: FixedHareColumnFile<T>, private
      *
      * @throws NullValueNotAllowedException If [value] is null but the underlying data structure does not support null values.
      */
-    override fun append(value: T?): TupleId = this.localLock.shared {
+    override fun append(value: T?): TupleId = this.localLock.read {
         /* Check nullability constraint. */
-        if (value == null && !this.file.nullable) {
+        if (!this.file.nullable && value == null) {
             throw NullValueNotAllowedException("The provided value is null but this HARE column does not support null values.")
         }
+        this.bufferPool.get(FixedHareColumnFile.ROOT_PAGE_ID).withWriteLock { h ->
+            val header = HeaderPageView(h)
 
-        /* Fetch & wrap header */
-        val headerPage = this.bufferPool.get(FixedHareColumnFile.ROOT_PAGE_ID, Priority.HIGH)
-        val headerView = HeaderPageView(headerPage).validate()
+            /* Calculate necessary offsets. */
+            val tupleId = header.maxTupleId + 1
+            val address = this.file.toAddress(tupleId)
+            val pageId = address.toPageId()
+            val slotId = address.toSlotId()
 
-        /* Calculate necessary offsets. */
-        val tupleId = headerView.maxTupleId + 1
-        val address = this.file.toAddress(tupleId)
-        val pageId = address.toPageId()
-        val slotId = address.toSlotId()
-        val offset = slotId * this.file.entrySize
-
-        if (pageId > this.bufferPool.totalPages) {
-            /* Case 1: Data goes on new pages. */
-            this.bufferPool.append()
-            val page = this.bufferPool.get(pageId)
-            try {
-                if (value != null) {
-                    page.putLong(offset, 0L)
-                    this.serializer.serialize(page, offset + FixedHareColumnFile.ENTRY_HEADER_SIZE, value)
-                }
-            } finally {
-                page.release()
+            /* If page does not exists yet, append one. */
+            if (pageId > this.file.disk.pages) {
+                this.bufferPool.append()
             }
-        } else {
-            /* Case 2: Data goes on an existing page.*/
-            val page = this.bufferPool.get(pageId, Priority.DEFAULT)
-            try {
-                if (value != null) {
-                    page.putLong(offset, 0L)
-                    this.serializer.serialize(page, offset + FixedHareColumnFile.ENTRY_HEADER_SIZE, value)
-                } else {
-                    page.putInt(offset, FixedHareColumnFile.MASK_NULL)
-                    for (i in 0 until this.file.entrySize) {
-                        page.putByte(offset + FixedHareColumnFile.ENTRY_HEADER_SIZE + i, 0)
-                    }
-                }
-            } finally {
-                page.release()
+
+            /* Fetch page and write value. */
+            this.bufferPool.get(pageId).withReadLock { s ->
+                val page = SlottedPageView(s)
+                page.setNoFlag(slotId)
+                this.writeValue(page, slotId, value)
+
+                /* Update header. */
+                header.updateMaxTupleId(tupleId)
+                header.updateCount(header.count + 1)
+
+                /* Return TupleId. */
+                tupleId
             }
         }
-
-        /* Update header. */
-        headerView.maxTupleId = max(tupleId, headerView.maxTupleId)
-        headerView.count += 1
-
-        /* Release header page. */
-        headerPage.release()
-
-        /* Return TupleId. */
-        return tupleId
     }
 
     /**
      * Commits all changes made through this [HareColumnWriter].
      */
-    override fun commit() = this.localLock.exclusive {
+    override fun commit() = this.localLock.read {
         this.bufferPool.flush()
         this.file.disk.commit(this.tid)
     }
@@ -260,7 +205,7 @@ class FixedHareColumnWriter<T : Value>(val file: FixedHareColumnFile<T>, private
     /**
      * Performs a rollback on all changes made through this [HareColumnWriter].
      */
-    override fun rollback() = this.localLock.exclusive {
+    override fun rollback() = this.localLock.read {
         this.bufferPool.synchronize()
         this.file.disk.rollback(this.tid)
     }
@@ -272,6 +217,26 @@ class FixedHareColumnWriter<T : Value>(val file: FixedHareColumnFile<T>, private
         if (this.isOpen) {
             this.isOpen = false
             this.file.releaseLock(this.lockHandle)
+        }
+    }
+
+    /**
+     * Writes the given [value] [T] to the slot with the [SlotId] in the [SlottedPageView].
+     *
+     * @param page [SlottedPageView] to write to
+     * @param slotId The [SlotId] to write to.
+     * @param value The value [T] to write. Can be null.
+     */
+    private fun writeValue(page: SlottedPageView, slotId: SlotId, value: T?) {
+        val offset = this.file.pageHeaderSize + slotId * this.file.entrySize
+        if (value != null) {
+            page.unsetNull(slotId)
+            this.serializer.serialize(page.page, offset, value)
+        } else {
+            page.setNull(slotId)
+            for (i in offset until offset + this.file.entrySize) {
+                page.page.putByte(i, 0)
+            }
         }
     }
 }

@@ -1,9 +1,7 @@
 package org.vitrivr.cottontail.storage.serializers.hare
 
-import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.DoubleValue
-import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
-import org.vitrivr.cottontail.utilities.extensions.read
+import org.vitrivr.cottontail.storage.engine.hare.basics.Page
 
 /**
  * A [HareSerializer] for HARE based [DoubleValue] serialization and deserialization.
@@ -13,12 +11,13 @@ import org.vitrivr.cottontail.utilities.extensions.read
  */
 object DoubleValueHareSerializer: HareSerializer<DoubleValue> {
     override val fixed: Boolean = true
-    override fun serialize(page: HarePage, offset: Int, value: DoubleValue) {
+    override fun serialize(page: Page, offset: Int, value: DoubleValue) {
         page.putDouble(offset, value.value)
     }
-    override fun deserialize(page: HarePage, offset: Int): DoubleValue = DoubleValue(page.getDouble(offset))
-    override fun deserialize(page: HarePage, offset: Int, size: Int): Array<DoubleValue> = page.lock.read {
+
+    override fun deserialize(page: Page, offset: Int): DoubleValue = DoubleValue(page.getDouble(offset))
+    override fun deserialize(page: Page, offset: Int, size: Int): Array<DoubleValue> {
         val buffer = page.buffer.duplicate().position(offset)
-        Array(size) { DoubleValue(buffer.double) }
+        return Array(size) { DoubleValue(buffer.double) }
     }
 }

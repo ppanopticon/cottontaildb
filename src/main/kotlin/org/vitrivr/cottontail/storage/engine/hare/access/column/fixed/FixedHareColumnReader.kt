@@ -7,7 +7,6 @@ import org.vitrivr.cottontail.storage.engine.hare.access.EntryDeletedException
 import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareColumnFile
 import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareColumnReader
 import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
-import org.vitrivr.cottontail.storage.engine.hare.buffer.Priority
 import org.vitrivr.cottontail.storage.engine.hare.serializer.Serializer
 import org.vitrivr.cottontail.storage.engine.hare.toPageId
 import org.vitrivr.cottontail.storage.engine.hare.toSlotId
@@ -20,7 +19,7 @@ import java.util.concurrent.locks.StampedLock
  * A [HareColumnReader] implementation for [FixedHareColumnFile]s.
  *
  * @author Ralph Gasser
- * @version 1.0.3
+ * @version 1.1.0
  */
 class FixedHareColumnReader<T : Value>(val file: FixedHareColumnFile<T>, private val bufferPool: BufferPool) : HareColumnReader<T> {
 
@@ -37,7 +36,7 @@ class FixedHareColumnReader<T : Value>(val file: FixedHareColumnFile<T>, private
     private val serializer: HareSerializer<T> = this.file.type.serializerFactory().hare(this.file.type.logicalSize)
 
     /** A [StampedLock] that mediates access to methods of this [FixedHareColumnReader]. */
-    private val localLock = StampedLock()
+    private val closeLock = StampedLock()
 
     /** Obtains a lock on the [FixedHareColumnFile]. */
     private val lockHandle = this.file.obtainLock()
@@ -53,25 +52,21 @@ class FixedHareColumnReader<T : Value>(val file: FixedHareColumnFile<T>, private
      * @param tupleId The [TupleId] to retrieve the entry for.
      * @return Entry [T] for the given [TupleId].
      */
-    override fun get(tupleId: TupleId): T? = this.localLock.shared {
+    override fun get(tupleId: TupleId): T? = this.closeLock.shared {
         /* Calculate necessary offsets. */
         val address = file.toAddress(tupleId)
         val pageId = address.toPageId()
         val slotId = address.toSlotId()
-        val entryOffset: Int = slotId * this.file.entrySize
+        val offset = this.file.pageHeaderSize + slotId * this.file.entrySize
 
-        val page = this.bufferPool.get(pageId, Priority.DEFAULT)
-        page
-        try {
-            val flags = page.getInt(entryOffset)
-            if ((flags and FixedHareColumnFile.MASK_DELETED) > 0L) throw EntryDeletedException("Entry with tuple ID $tupleId has been deleted and cannot be accessed.")
-            return if ((flags and FixedHareColumnFile.MASK_NULL) > 0L) {
+        this.bufferPool.get(pageId).withReadLock { p ->
+            val page = SlottedPageView(p)
+            if (page.isDeleted(slotId)) throw EntryDeletedException("Entry with tuple ID $tupleId has been deleted and cannot be accessed.")
+            if (page.isNull(slotId)) {
                 null
             } else {
-                this.serializer.deserialize(page, entryOffset + FixedHareColumnFile.ENTRY_HEADER_SIZE)
+                this.serializer.deserialize(page.page, offset)
             }
-        } finally {
-            page.release()
         }
     }
 
@@ -80,11 +75,10 @@ class FixedHareColumnReader<T : Value>(val file: FixedHareColumnFile<T>, private
      *
      * @return Number of entries in this [HareColumnFile].
      */
-    override fun count(): Long = this.localLock.shared {
-        val headerPage = this.bufferPool.get(FixedHareColumnFile.ROOT_PAGE_ID, Priority.HIGH)
-        val ret = HeaderPageView(headerPage).validate().count
-        headerPage.release()
-        return ret
+    override fun count(): Long = this.closeLock.shared {
+        this.bufferPool.get(FixedHareColumnFile.ROOT_PAGE_ID).withReadLock { h ->
+            HeaderPageView(h).count
+        }
     }
 
     /**
@@ -92,11 +86,10 @@ class FixedHareColumnReader<T : Value>(val file: FixedHareColumnFile<T>, private
      *
      * @return The maximum [TupleId].
      */
-    override fun maxTupleId(): TupleId = this.localLock.shared {
-        val page = this.bufferPool.get(FixedHareColumnFile.ROOT_PAGE_ID, Priority.HIGH)
-        val ret = HeaderPageView(page).validate().maxTupleId
-        page.release()
-        return ret
+    override fun maxTupleId(): TupleId = this.closeLock.shared {
+        this.bufferPool.get(FixedHareColumnFile.ROOT_PAGE_ID).withReadLock { h ->
+            HeaderPageView(h).maxTupleId
+        }
     }
 
     /**
@@ -105,18 +98,13 @@ class FixedHareColumnReader<T : Value>(val file: FixedHareColumnFile<T>, private
      * @param tupleId The [TupleId] to check.
      * @return true if the entry for the given [TupleId] is null and false otherwise.
      */
-    override fun isNull(tupleId: TupleId): Boolean = this.localLock.shared {
+    override fun isNull(tupleId: TupleId): Boolean = this.closeLock.shared {
         /* Calculate necessary offsets. */
         val address = this.file.toAddress(tupleId)
         val pageId = address.toPageId()
         val slotId = address.toSlotId()
-        val entryOffset: Int = slotId * this.file.entrySize
-
-        val page = this.bufferPool.get(pageId, Priority.DEFAULT)
-        try {
-            return (page.getInt(entryOffset) and FixedHareColumnFile.MASK_NULL) > 0L
-        } finally {
-            page.release()
+        return this.bufferPool.get(pageId).withReadLock { p ->
+            SlottedPageView(p).isNull(slotId)
         }
     }
 
@@ -125,18 +113,13 @@ class FixedHareColumnReader<T : Value>(val file: FixedHareColumnFile<T>, private
      *
      * @return true if the entry for the given [TupleId] has been deleted and false otherwise.
      */
-    override fun isDeleted(tupleId: TupleId): Boolean = this.localLock.shared {
+    override fun isDeleted(tupleId: TupleId): Boolean = this.closeLock.shared {
         /* Calculate necessary offsets. */
         val address = this.file.toAddress(tupleId)
         val pageId = address.toPageId()
         val slotId = address.toSlotId()
-        val entryOffset: Int = slotId * this.file.entrySize
-
-        val page = this.bufferPool.get(pageId, Priority.DEFAULT)
-        try {
-            return (page.getInt(entryOffset) and FixedHareColumnFile.MASK_DELETED) > 0L
-        } finally {
-            page.release()
+        return this.bufferPool.get(pageId).withReadLock { p ->
+            SlottedPageView(p).isDeleted(slotId)
         }
     }
 
@@ -144,7 +127,7 @@ class FixedHareColumnReader<T : Value>(val file: FixedHareColumnFile<T>, private
      * Closes this [FixedHareColumnReader].
      */
     @Synchronized
-    override fun close() = this.localLock.exclusive {
+    override fun close() = this.closeLock.exclusive {
         if (this.isOpen) {
             this.isOpen = false
             this.file.releaseLock(this.lockHandle)

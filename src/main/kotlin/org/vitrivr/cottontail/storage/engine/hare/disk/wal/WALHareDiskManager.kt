@@ -1,5 +1,7 @@
 package org.vitrivr.cottontail.storage.engine.hare.disk.wal
 
+import it.unimi.dsi.fastutil.longs.Long2ObjectFunction
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap
 import org.slf4j.LoggerFactory
 import org.vitrivr.cottontail.model.basics.TransactionId
 import org.vitrivr.cottontail.storage.engine.hare.DataCorruptionException
@@ -19,7 +21,6 @@ import java.nio.file.FileSystems
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.*
-import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.CRC32C
 import kotlin.math.max
 
@@ -45,8 +46,12 @@ class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAl
         private const val HARE_UNDO_LOG_SUFFIX = "uwal"
     }
 
-    /** Reference to the [UndoLog]. The [UndoLog] is created whenever a write starts and removed on commit or rollback. */
-    private val undoLogs = ConcurrentHashMap<TransactionId, UndoLog>()
+    /**
+     * Reference to all ongoing [UndoLog]s.
+     *
+     * [UndoLog]s are created whenever a write starts and removed on either COMMIT or ROLLBACK.
+     */
+    private val undoLogs = Long2ObjectOpenHashMap<UndoLog>()
 
     init {
         if (!this.header.properlyClosed || this.header.isDirty) {
@@ -67,7 +72,7 @@ class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAl
                 LOGGER.warn("HARE page file was found with unfinished transactions; starting recovery...")
                 this.recover()
             } else if (!this.validate()) {
-                //throw DataCorruptionException("CRC32C checksum mismatch (file: ${this.path}, expected:${this.calculateChecksum()}, found: ${this.header.checksum}}).")
+                throw DataCorruptionException("CRC32C checksum mismatch (file: ${this.path}, expected:${this.calculateChecksum()}, found: ${this.header.checksum}}).")
             }
         }
 
@@ -102,14 +107,10 @@ class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAl
     override fun read(tid: TransactionId, pageId: PageId, pages: Array<HarePage>) {
         this.closeLock.read {
             check(this.fileChannel.isOpen) { "HARE page file read failed: Channel closed and cannot be used to read data (file: ${this.path})." }
-            val locks = Array(pages.size) { pages[it].lock.writeLock() }
             val buffers = Array(pages.size) { pages[it].buffer.clear() }
             this.fileChannel.position(this.pageIdToOffset(pageId))
             this.fileChannel.read(buffers)
-            locks.indices.forEach { i ->
-                buffers[i].clear()
-                pages[i].lock.unlockWrite(locks[i])
-            }
+            buffers.forEach { b -> b.clear() }
         }
     }
 
@@ -295,15 +296,15 @@ class WALHareDiskManager(path: Path, lockTimeout: Long = 5000, private val preAl
 
 
     /**
-     * Obtains or start an [UndoLog] for the given [TransactionId].
+     * Obtains or starts an [UndoLog] for the given [TransactionId].
      *
      * @param tid [TransactionId] to obtain or start the [UndoLog] for.
      * @return [UndoLog] for [TransactionId]
      */
-    private fun getOrStartUndoLog(tid: TransactionId): UndoLog = this.undoLogs.computeIfAbsent(tid) {
-        val name = this.path.fileName.toString().split(".").first()
-        UndoLog(tid, this.path.parent.resolve("$name.$tid.$HARE_UNDO_LOG_SUFFIX"), this.lockTimeout)
-    }
+    private fun getOrStartUndoLog(tid: TransactionId): UndoLog = this.undoLogs.computeIfAbsent(tid, Long2ObjectFunction {
+        val name = this@WALHareDiskManager.path.fileName.toString().split(".").first()
+        UndoLog(tid, this@WALHareDiskManager.path.parent.resolve("$name.$tid.$HARE_UNDO_LOG_SUFFIX"), this@WALHareDiskManager.lockTimeout)
+    })
 
     /**
      * Performs recovery based on [UndoLog].

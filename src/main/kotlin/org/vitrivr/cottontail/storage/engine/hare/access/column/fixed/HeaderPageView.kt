@@ -35,11 +35,8 @@ inline class HeaderPageView(override val page: Page) : PageView {
         /** The offset into the [HeaderPageView]'s header to obtain the number of entries. */
         const val HEADER_OFFSET_COUNT = 24
 
-        /** The offset into the [HeaderPageView]'s header to obtain the number of deleted entries. */
-        const val HEADER_OFFSET_DELETED = 32
-
         /** The offset into the [HeaderPageView]'s header to obtain the maximum [TupleId]. */
-        const val HEADER_OFFSET_MAXTID = 40
+        const val HEADER_OFFSET_MAXTID = 32
 
         /** Bit Masks (for flags) */
 
@@ -56,18 +53,25 @@ inline class HeaderPageView(override val page: Page) : PageView {
             val type = page.getInt(0)
             require(type == PageConstants.PAGE_TYPE_UNINITIALIZED) { "Cannot initialize page of type $type as ${DirectoryPageView::class.java.simpleName} (type = ${PageConstants.PAGE_TYPE_DIRECTORY})." }
             page.putInt(0, PageConstants.PAGE_TYPE_HEADER_FIXED_COLUMN)
-            page.putInt(HEADER_OFFSET_TYPE, columnDef.type.ordinal)                                            /* 4: Type of column. See ColumnDef.forOrdinal() */
-            page.putInt(HEADER_OFFSET_LSIZE, columnDef.type.logicalSize)                                            /* 8: Logical size of column (for structured data types). */
-            page.putInt(HEADER_OFFSET_PSIZE,  columnDef.type.physicalSize + FixedHareColumnFile.ENTRY_HEADER_SIZE)                                                   /* 12: Physical size of a column entry in bytes. */
-            page.putLong(18, if (columnDef.nullable) {                                                   /* 16: Column flags; 64 bits, one bit reserved. */
-                (0L or HEADER_MASK_NULLABLE)
-            } else {
-                0L
-            })
-            page.putLong(HEADER_OFFSET_COUNT, 0L)                                                        /* 24: Number of entries (count) in column. */
-            page.putLong(HEADER_OFFSET_DELETED, 0L)                                                      /* 32: Number of deleted entries (count) in column. */
-            page.putLong(HEADER_OFFSET_MAXTID, -1L)                                                       /* 40: Number of deleted entries (count) in column. */
+            page.putInt(HEADER_OFFSET_TYPE, columnDef.type.ordinal)                                                         /* 4: Type of column. See ColumnDef.forOrdinal() */
+            page.putInt(HEADER_OFFSET_LSIZE, columnDef.type.logicalSize)                                                    /* 8: Logical size of column (for structured data types). */
+            page.putInt(HEADER_OFFSET_PSIZE, columnDef.type.physicalSize + FixedHareColumnFile.ENTRY_HEADER_SIZE)    /* 12: Physical size of a column entry in bytes. */
+            page.putLong(
+                18, if (columnDef.nullable) {                                                                /* 16: Column flags; 64 bits, one bit reserved. */
+                    (0L or HEADER_MASK_NULLABLE)
+                } else {
+                    0L
+                }
+            )
+            page.putLong(HEADER_OFFSET_COUNT, 0L)                                                                     /* 24: Number of entries (count) in column. */
+            page.putLong(HEADER_OFFSET_MAXTID, -1L)                                                                   /* 40: Number of deleted entries (count) in column. */
         }
+    }
+
+    init {
+        require(this.page.getInt(0) == PageConstants.PAGE_TYPE_HEADER_FIXED_COLUMN) { IllegalStateException("Page identifier mismatch (expected = ${PageConstants.PAGE_TYPE_HEADER_FIXED_COLUMN}, actual = ${this.page.getInt(0)}).") }
+        require(this.maxTupleId >= -1L) { DataCorruptionException("Invalid maximum tupleId in HARE fixed length column file.") }
+        require(this.count >= 0) { DataCorruptionException("Negative number of entries in HARE fixed length column file.") }
     }
 
     /** The logical size of the [ColumnDef] held by this [FixedHareColumnFile]. */
@@ -91,35 +95,30 @@ inline class HeaderPageView(override val page: Page) : PageView {
         get() = ((this.flags and HEADER_MASK_NULLABLE) > 0L)
 
     /** The total number of entries in this [FixedHareColumnFile]. */
-    var count: Long
+    val count: Long
         get() = this.page.getLong(HEADER_OFFSET_COUNT)
-        set(v) {
-            this.page.putLong(HEADER_OFFSET_COUNT, v)
-        }
-
-    /** The number of deleted entries in this [FixedHareColumnFile]. */
-    var deleted: Long
-        get() = this.page.getLong(HEADER_OFFSET_DELETED)
-        set(v) {
-            this.page.putLong(HEADER_OFFSET_DELETED, v)
-        }
 
     /** The maximum [TupleId] for this [FixedHareColumnFile]. */
-    var maxTupleId: TupleId
+    val maxTupleId: TupleId
         get() = this.page.getLong(HEADER_OFFSET_MAXTID)
-        set(v) {
-            this.page.putLong(HEADER_OFFSET_MAXTID, v)
-        }
 
     /**
-     * Validates this [HeaderPageView] and returns it.
+     * Updates the [count] value for this [HeaderPageView].
      *
-     * @return this.
+     * @param value The new [count] value.
      */
-    override fun validate(): HeaderPageView {
-        require(this.page.getInt(0) == PageConstants.PAGE_TYPE_HEADER_FIXED_COLUMN) { IllegalStateException("Page identifier mismatch (expected = ${PageConstants.PAGE_TYPE_HEADER_FIXED_COLUMN}, actual = ${this.page.getInt(0)}).") }
-        require(this.count >= 0) { DataCorruptionException("Negative number of entries in HARE variable length column file.") }
-        require(this.deleted >= 0) { DataCorruptionException("Negative number of deleted entries in HARE variable length column file.") }
-        return this
+    fun updateCount(value: Long) {
+        assert(value > 0) { "Negative number of entries in HARE fixed length column file." }
+        this.page.putLong(HEADER_OFFSET_COUNT, value)
+    }
+
+    /**
+     * Updates the [maxTupleId] value for this [HeaderPageView].
+     *
+     * @param value The new [maxTupleId] value.
+     */
+    fun updateMaxTupleId(value: TupleId) {
+        assert(value >= 0) { "Invalid maximum tupleId value $value for HARE fixed length column file." }
+        this.page.putLong(HEADER_OFFSET_MAXTID, value)
     }
 }

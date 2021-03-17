@@ -4,10 +4,8 @@ import org.vitrivr.cottontail.model.basics.TransactionId
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.types.Value
 import org.vitrivr.cottontail.storage.engine.hare.access.column.directory.Directory
-import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareColumnFile
 import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareCursor
 import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
-import org.vitrivr.cottontail.storage.engine.hare.buffer.Priority
 import org.vitrivr.cottontail.storage.engine.hare.views.isDeleted
 
 /**
@@ -38,8 +36,8 @@ class VariableHareColumnCursor<T : Value>(val file: VariableHareColumnFile<T>, p
         require(this.file.isOpen) { "VariableHareColumnFile has been closed (file = ${this.file.path})." }
         require(this.file.disk == this.bufferPool.disk) { "VariableHareColumnFile and provided BufferPool do not share the same HareDiskManager." }
 
-        val headerPage = this.bufferPool.get(VariableHareColumnFile.ROOT_PAGE_ID, Priority.HIGH)
-        val headerView = HeaderPageView(headerPage).validate()
+        val headerPage = this.bufferPool.get(VariableHareColumnFile.ROOT_PAGE_ID)
+        val headerView = HeaderPageView(headerPage)
         if (range != null) {
             require(range.first >= 0L) { "Start tupleId must be greater or equal than zero." }
             require(range.last <= headerView.maxTupleId) { "End tupleId must be smaller or equal to to maximum tupleId for HARE file." }
@@ -49,7 +47,6 @@ class VariableHareColumnCursor<T : Value>(val file: VariableHareColumnFile<T>, p
             this.start = 0L
             this.end = headerView.maxTupleId
         }
-        headerPage.release()
     }
 
     override fun hasNext(): Boolean {

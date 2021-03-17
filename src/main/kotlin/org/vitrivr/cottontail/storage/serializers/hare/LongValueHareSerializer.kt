@@ -1,9 +1,7 @@
 package org.vitrivr.cottontail.storage.serializers.hare
 
-import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.LongValue
-import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
-import org.vitrivr.cottontail.utilities.extensions.read
+import org.vitrivr.cottontail.storage.engine.hare.basics.Page
 
 /**
  * A [HareSerializer] for HARE based [LongValue] serialization and deserialization.
@@ -13,12 +11,13 @@ import org.vitrivr.cottontail.utilities.extensions.read
  */
 object LongValueHareSerializer: HareSerializer<LongValue> {
     override val fixed: Boolean = true
-    override fun serialize(page: HarePage, offset: Int, value: LongValue) {
+    override fun serialize(page: Page, offset: Int, value: LongValue) {
         page.putLong(offset, value.value)
     }
-    override fun deserialize(page: HarePage, offset: Int): LongValue = LongValue(page.getLong(offset))
-    override fun deserialize(page: HarePage, offset: Int, size: Int): Array<LongValue> = page.lock.read {
+
+    override fun deserialize(page: Page, offset: Int): LongValue = LongValue(page.getLong(offset))
+    override fun deserialize(page: Page, offset: Int, size: Int): Array<LongValue> {
         val buffer = page.buffer.duplicate().position(offset)
-        Array(size) { LongValue(buffer.long) }
+        return Array(size) { LongValue(buffer.long) }
     }
 }

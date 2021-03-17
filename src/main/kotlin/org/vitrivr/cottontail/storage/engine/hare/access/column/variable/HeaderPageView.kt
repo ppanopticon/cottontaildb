@@ -3,7 +3,6 @@ package org.vitrivr.cottontail.storage.engine.hare.access.column.variable
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.basics.Type
-import org.vitrivr.cottontail.storage.engine.hare.DataCorruptionException
 import org.vitrivr.cottontail.storage.engine.hare.PageId
 import org.vitrivr.cottontail.storage.engine.hare.access.column.directory.DirectoryPageView
 import org.vitrivr.cottontail.storage.engine.hare.access.column.variable.VariableHareColumnFile.Companion.ROOT_ALLOCATION_PAGE_ID
@@ -127,18 +126,4 @@ inline class HeaderPageView(override val page: Page) : PageView {
         set(v) {
             this.page.putLong(HEADER_OFFSET_ALLOCPTR, v)
         }
-
-    /**
-     * Validates this [HeaderPageView] and returns it.
-     *
-     * @return this.
-     */
-    override fun validate(): HeaderPageView {
-        require(this.page.getInt(0) == PageConstants.PAGE_TYPE_HEADER_VARIABLE_COLUMN) { IllegalStateException("Page identifier mismatch (expected = ${PageConstants.PAGE_TYPE_HEADER_VARIABLE_COLUMN}, actual = ${this.page.getInt(0)}).") }
-        require(this.count >= 0) { DataCorruptionException("Negative number of entries in HARE variable length column file.") }
-        require(this.deleted >= 0) { DataCorruptionException("Negative number of deleted entries in HARE variable length column file.") }
-        require(this.lastDirectoryPageId >= ROOT_DIRECTORY_PAGE_ID) { DataCorruptionException("Illegal page ID for last directory page.") }
-        require(this.allocationPageId >= ROOT_ALLOCATION_PAGE_ID) { DataCorruptionException("Illegal page ID for last directory page.") }
-        return this
-    }
 }

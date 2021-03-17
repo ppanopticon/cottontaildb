@@ -1,9 +1,7 @@
 package org.vitrivr.cottontail.storage.serializers.hare
 
-import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.BooleanValue
-import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
-import org.vitrivr.cottontail.utilities.extensions.read
+import org.vitrivr.cottontail.storage.engine.hare.basics.Page
 
 /**
  * A [HareSerializer] for HARE based [BooleanValue] serialization and deserialization.
@@ -15,12 +13,19 @@ object BooleanValueHareSerializer: HareSerializer<BooleanValue> {
     private const val TRUE = 1.toByte()
     private const val FALSE = 0.toByte()
     override val fixed: Boolean = true
-    override fun serialize(page: HarePage, offset: Int, value: BooleanValue) {
-        page.putByte(offset, if (value.value) { TRUE } else { FALSE })
+    override fun serialize(page: Page, offset: Int, value: BooleanValue) {
+        page.putByte(
+            offset, if (value.value) {
+                TRUE
+            } else {
+                FALSE
+            }
+        )
     }
-    override fun deserialize(page: HarePage, offset: Int): BooleanValue = BooleanValue(page.getByte(offset) == TRUE)
-    override fun deserialize(page: HarePage, offset: Int, size: Int): Array<BooleanValue> = page.lock.read {
+
+    override fun deserialize(page: Page, offset: Int): BooleanValue = BooleanValue(page.getByte(offset) == TRUE)
+    override fun deserialize(page: Page, offset: Int, size: Int): Array<BooleanValue> {
         val buffer = page.buffer.duplicate().position(offset)
-        Array(size) { BooleanValue(buffer.get() == TRUE) }
+        return Array(size) { BooleanValue(buffer.get() == TRUE) }
     }
 }

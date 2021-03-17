@@ -7,7 +7,7 @@ typealias Address = Long
 typealias PageId = Long
 
 /** The zero-based ID of a slot within a [org.vitrivr.cottontail.storage.engine.hare.basics.Page]. */
-typealias SlotId = Short
+typealias SlotId = Int
 
 /** Converts a [PageId] and [SlotId] combination into an [Address]. */
 fun addressFor(pageId: PageId, slotId: SlotId) = ((pageId shl 16) or (slotId.toLong() and Short.MAX_VALUE.toLong()))
@@ -16,4 +16,4 @@ fun addressFor(pageId: PageId, slotId: SlotId) = ((pageId shl 16) or (slotId.toL
 fun Address.toPageId(): PageId = (this shr 16)
 
 /** Returns the [SlotId] component of the [Address]. */
-fun Address.toSlotId(): SlotId = this.toShort()
+fun Address.toSlotId(): SlotId = this.toShort().toInt()

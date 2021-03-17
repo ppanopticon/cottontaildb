@@ -1,8 +1,7 @@
 package org.vitrivr.cottontail.storage.serializers.hare
 
-import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.types.Value
-import org.vitrivr.cottontail.storage.engine.hare.SlotId
+import org.vitrivr.cottontail.storage.engine.hare.basics.Page
 import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
 
 /**
@@ -23,7 +22,7 @@ interface HareSerializer<T: Value> {
      * @param offset Offset in bytes from the start of the [HarePage]
      * @param value The value [T] to serialize
      */
-    fun serialize(page: HarePage, offset: Int, value: T)
+    fun serialize(page: Page, offset: Int, value: T)
 
     /**
      * Deserializes a single value from the given [HarePage] at the given [index] and returns it.
@@ -32,7 +31,7 @@ interface HareSerializer<T: Value> {
      * @param offset Offset in bytes from the start of the [HarePage]
      * @return [T] or null
      */
-    fun deserialize(page: HarePage, offset: Int): T
+    fun deserialize(page: Page, offset: Int): T
 
     /**
      * Deserializes all values from the given [HarePage] and returns them.
@@ -42,5 +41,5 @@ interface HareSerializer<T: Value> {
      * @param size The number of values to deserialize.
      * @return Array of values [T].
      */
-    fun deserialize(page: HarePage, offset: Int, size: Int): Array<T>
+    fun deserialize(page: Page, offset: Int, size: Int): Array<T>
 }

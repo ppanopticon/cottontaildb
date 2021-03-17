@@ -14,12 +14,4 @@ interface PageView {
     /** Returns the [Page] identifier for the [Page] wrapped by this [PageView]. */
     val pageTypeIdentifier
         get() = this.page.getInt(0)
-
-    /**
-     * Validates the content of this [Page], i.e., checks whether the wrapped [Page]
-     * fits this [PageView] implementation.
-     *
-     * @return [PageView]
-     */
-    fun validate(): PageView
 }

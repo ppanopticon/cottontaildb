@@ -25,7 +25,7 @@ class SlottedPageViewTest {
         val buffer = ByteBuffer.allocate(pageSize)
         val page = HarePage(buffer)
         Assertions.assertThrows(IllegalArgumentException::class.java) {
-            SlottedPageView(page).validate()
+            SlottedPageView(page)
         }
     }
 
@@ -35,7 +35,7 @@ class SlottedPageViewTest {
         val buffer = ByteBuffer.allocate(pageSize)
         val page = HarePage(buffer)
         SlottedPageView.initialize(page)
-        val slotted = SlottedPageView(page).validate()
+        val slotted = SlottedPageView(page)
 
         /** Check vanilla page. */
         Assertions.assertEquals(0, slotted.slots)
@@ -48,7 +48,7 @@ class SlottedPageViewTest {
         Assertions.assertNotNull(slotId)
         Assertions.assertEquals(1, slotted.slots)
         Assertions.assertEquals(0, slotted.freeSpace)
-        Assertions.assertEquals(allocationSize, slotted.size(slotId!!.toShort()))
+        Assertions.assertEquals(allocationSize, slotted.size(slotId!!))
     }
 
     @ParameterizedTest
@@ -57,7 +57,7 @@ class SlottedPageViewTest {
         val buffer = ByteBuffer.allocate(pageSize)
         val page = HarePage(buffer)
         SlottedPageView.initialize(page)
-        val slotted = SlottedPageView(page).validate()
+        val slotted = SlottedPageView(page)
         val allocationSize = slotted.freeSpace - SlottedPageView.SIZE_ENTRY + 1
 
         /** Check vanilla page. */
@@ -79,7 +79,7 @@ class SlottedPageViewTest {
         val buffer = ByteBuffer.allocate(pageSize)
         val page = HarePage(buffer)
         SlottedPageView.initialize(page)
-        val slotted = SlottedPageView(page).validate()
+        val slotted = SlottedPageView(page)
 
         /** Check vanilla page. */
         Assertions.assertEquals(0, slotted.slots)

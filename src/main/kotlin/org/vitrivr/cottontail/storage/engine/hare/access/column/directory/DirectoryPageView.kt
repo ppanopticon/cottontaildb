@@ -3,7 +3,6 @@ package org.vitrivr.cottontail.storage.engine.hare.access.column.directory
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.storage.engine.hare.Address
 import org.vitrivr.cottontail.storage.engine.hare.PageId
-import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.HeaderPageView
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
 import org.vitrivr.cottontail.storage.engine.hare.basics.PageConstants
 import org.vitrivr.cottontail.storage.engine.hare.views.Flags
@@ -184,15 +183,5 @@ inline class DirectoryPageView(override val page: Page) : PageView {
         this.page.putLong(address_offset, address)
 
         return tupleId
-    }
-
-    /**
-     * Validates this [HeaderPageView] and returns it.
-     *
-     * @return this.
-     */
-    override fun validate(): DirectoryPageView {
-        require(this.pageTypeIdentifier == PageConstants.PAGE_TYPE_DIRECTORY) { IllegalStateException("Page identifier mismatch (expected = ${PageConstants.PAGE_TYPE_DIRECTORY}, actual = ${this.pageTypeIdentifier}).") }
-        return this
     }
 }

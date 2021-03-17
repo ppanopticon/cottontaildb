@@ -8,7 +8,6 @@ import org.vitrivr.cottontail.storage.engine.hare.access.column.fixed.FixedHareC
 import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareColumnWriter
 import org.vitrivr.cottontail.storage.engine.hare.addressFor
 import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
-import org.vitrivr.cottontail.storage.engine.hare.buffer.Priority
 import org.vitrivr.cottontail.storage.engine.hare.serializer.Serializer
 import org.vitrivr.cottontail.storage.engine.hare.views.SlottedPageView
 import org.vitrivr.cottontail.storage.engine.hare.views.VARIABLE_FLAGS_MASK_NULL
@@ -79,22 +78,21 @@ class VariableHareColumnWriter<T : Value>(val file: VariableHareColumnFile<T>, p
 
         /** Get header page. */
         val headerPage = this.bufferPool.get(VariableHareColumnFile.ROOT_PAGE_ID)
-        val headerView = HeaderPageView(headerPage).validate()
+        val headerView = HeaderPageView(headerPage)
 
         /* Get allocation page. */
-        var allocationPage = this.bufferPool.get(headerView.allocationPageId, Priority.LOW)
-        var allocationPageView = SlottedPageView(allocationPage).validate()
+        var allocationPage = this.bufferPool.get(headerView.allocationPageId)
+        var allocationPageView = SlottedPageView(allocationPage)
         var slotId = allocationPageView.allocate(allocationSize) // TODO: Make dynamic
 
         /** If allocation page is full, create new one and store data there */
         if (slotId == null) {
-            allocationPage.release()
             headerView.allocationPageId = this.bufferPool.append()
             allocationPage = this.bufferPool.get(headerView.allocationPageId)
             SlottedPageView.initialize(allocationPage)
-            allocationPageView = SlottedPageView(allocationPage).validate()
+            allocationPageView = SlottedPageView(allocationPage)
             slotId = allocationPageView.allocate(allocationSize)
-                    ?: TODO("Data that does not fit a single page.")
+                ?: TODO("Data that does not fit a single page.")
         }
 
         /** Generate address and tupleId. */
@@ -114,10 +112,6 @@ class VariableHareColumnWriter<T : Value>(val file: VariableHareColumnFile<T>, p
         if (value != null) {
             this.serializer.serialize(allocationPage, allocationPageView.offset(slotId), value)
         }
-
-        /* Release all pages. */
-        allocationPage.release()
-        headerPage.release()
 
         return newTupleId
     }

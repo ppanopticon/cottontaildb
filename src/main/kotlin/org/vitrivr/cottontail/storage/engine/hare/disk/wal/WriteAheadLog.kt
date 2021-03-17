@@ -98,7 +98,6 @@ internal abstract class WriteAheadLog(protected val path: Path, protected val lo
     /**
      * Checks if this [WriteAheadLog] is valid.
      */
-    @Synchronized
     fun valid(): Boolean = this.closeLock.shared {
         check(this.fileChannel.isOpen) { "HARE Write Ahead Log (WAL) file validation failed: Channel has been closed and cannot be used (name = ${this.path.fileName})." }
 
@@ -113,7 +112,6 @@ internal abstract class WriteAheadLog(protected val path: Path, protected val lo
     /**
      * Closes this [UndoLog].
      */
-    @Synchronized
     override fun close() = this.closeLock.exclusive {
         if (this.fileChannel.isOpen) {
             this.fileLock.release()
@@ -124,7 +122,6 @@ internal abstract class WriteAheadLog(protected val path: Path, protected val lo
     /**
      * Deletes this [UndoLog] file. Calling this method also closes the associated [FileChannel].
      */
-    @Synchronized
     fun delete() = this.closeLock.exclusive {
         if (this.fileChannel.isOpen) {
             this.fileLock.release()
@@ -139,7 +136,9 @@ internal abstract class WriteAheadLog(protected val path: Path, protected val lo
     protected abstract fun prepareOpen()
 
     /**
-     * Re-calculates the [CRC32C] checksum for this [WriteAheadLog] and updates its [crc32] field.
+     * Re-calculates the [CRC32C] checksum for this [WriteAheadLog] and returns the value.
+     *
+     * @return [Long] value for [CRC32C].
      */
     protected abstract fun calculateChecksum(): Long
 }

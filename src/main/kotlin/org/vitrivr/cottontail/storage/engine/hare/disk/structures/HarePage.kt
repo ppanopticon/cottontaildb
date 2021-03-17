@@ -2,36 +2,33 @@ package org.vitrivr.cottontail.storage.engine.hare.disk.structures
 
 import org.vitrivr.cottontail.storage.engine.hare.basics.Page
 import org.vitrivr.cottontail.storage.engine.hare.basics.View
-import org.vitrivr.cottontail.utilities.extensions.exclusive
-import org.vitrivr.cottontail.utilities.extensions.shared
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.util.concurrent.locks.StampedLock
 
 /**
- * This is a wrapper for an individual data [HarePage] managed by the HARE storage engine. At their
+ * This is a wrapper for an individual data [Page] managed by the HARE storage engine. At their
  * core, [HarePage]s are chunks of data in a [ByteBuffer] with a fixed size= 2^n.
  *
- * @see org.vitrivr.cottontail.storage.engine.hare.disk.HareDiskManager
+ * To protect [HarePage]'s from concurrent access, they expose a [StampedLock] that can be used
+ * to acquire and release locks on the entire [Page]. This should be done before
  *
  * @version 1.3.1
  * @author Ralph Gasser
  */
-open class HarePage(override  val buffer: ByteBuffer) : Page {
-    /** A [StampedLock] that mediates access to this [HarePage]'s [ByteBuffer].  */
-    val lock: StampedLock = StampedLock()
+inline class HarePage(override val buffer: ByteBuffer) : Page {
 
     /** The size of this [HarePage] in bytes. */
     override val size: Int
         get() = this.buffer.capacity()
 
-    override fun getBytes(index: Int, byteBuffer: ByteBuffer): ByteBuffer = this.lock.shared {
+    override fun getBytes(index: Int, byteBuffer: ByteBuffer): ByteBuffer {
         val buffer = this.buffer.duplicate().position(index).limit(index + byteBuffer.remaining())
         byteBuffer.put(buffer)
         return byteBuffer
     }
 
-    override fun getBytes(index: Int, bytes: ByteArray) : ByteArray = this.lock.shared {
+    override fun getBytes(index: Int, bytes: ByteArray): ByteArray {
         val buffer = this.buffer.duplicate().position(index)
         buffer.get(bytes)
         return bytes
@@ -47,7 +44,7 @@ open class HarePage(override  val buffer: ByteBuffer) : Page {
         return array
     }
 
-    override fun getChars(index: Int, array: CharArray): CharArray = this.lock.shared {
+    override fun getChars(index: Int, array: CharArray): CharArray {
         val buffer = this.buffer.duplicate().position(index)
         for (i in array.indices) {
             array[i] = buffer.char
@@ -55,7 +52,7 @@ open class HarePage(override  val buffer: ByteBuffer) : Page {
         return array
     }
 
-    override fun getInts(index: Int, array: IntArray): IntArray = this.lock.shared {
+    override fun getInts(index: Int, array: IntArray): IntArray {
         val buffer = this.buffer.duplicate().position(index)
         for (i in array.indices) {
             array[i] = buffer.int
@@ -63,7 +60,7 @@ open class HarePage(override  val buffer: ByteBuffer) : Page {
         return array
     }
 
-    override fun getLongs(index: Int, array: LongArray): LongArray = this.lock.shared {
+    override fun getLongs(index: Int, array: LongArray): LongArray {
         val buffer = this.buffer.duplicate().position(index)
         for (i in array.indices) {
             array[i] = buffer.long
@@ -71,27 +68,27 @@ open class HarePage(override  val buffer: ByteBuffer) : Page {
         return array
     }
 
-    override fun getDoubles(index: Int, array: DoubleArray): DoubleArray = this.lock.shared {
+    override fun getDoubles(index: Int, array: DoubleArray): DoubleArray {
         for (i in array.indices) {
             array[i] = this.buffer.getDouble(index + (i shl 3))
         }
         return array
     }
 
-    override fun getFloats(index: Int, array: FloatArray): FloatArray = this.lock.shared {
+    override fun getFloats(index: Int, array: FloatArray): FloatArray {
         for (i in array.indices) {
             array[i] = this.buffer.getFloat(index + (i shl 2))
         }
         return array
     }
 
-    override fun getByte(index: Int): Byte = this.lock.shared { this.buffer.get(index) }
-    override fun getShort(index: Int): Short = this.lock.shared { this.buffer.getShort(index) }
-    override fun getChar(index: Int): Char = this.lock.shared { this.buffer.getChar(index) }
-    override fun getInt(index: Int): Int = this.lock.shared { this.buffer.getInt(index) }
-    override fun getLong(index: Int): Long = this.lock.shared { this.buffer.getLong(index) }
-    override fun getFloat(index: Int): Float = this.lock.shared { this.buffer.getFloat(index) }
-    override fun getDouble(index: Int): Double = this.lock.shared { this.buffer.getDouble(index) }
+    override fun getByte(index: Int): Byte = this.buffer.get(index)
+    override fun getShort(index: Int): Short = this.buffer.getShort(index)
+    override fun getChar(index: Int): Char = this.buffer.getChar(index)
+    override fun getInt(index: Int): Int = this.buffer.getInt(index)
+    override fun getLong(index: Int): Long = this.buffer.getLong(index)
+    override fun getFloat(index: Int): Float = this.buffer.getFloat(index)
+    override fun getDouble(index: Int): Double = this.buffer.getDouble(index)
 
     /**
      * Writes a [ByteBuffer] to the given position.
@@ -100,7 +97,7 @@ open class HarePage(override  val buffer: ByteBuffer) : Page {
      * @param value New [ByteArray] value to write.
      * @return This [HarePage]
      */
-    override fun putBytes(index: Int, value: ByteBuffer): HarePage = this.lock.exclusive {
+    override fun putBytes(index: Int, value: ByteBuffer): HarePage {
         this.buffer.position(index).put(value).rewind()
         return this
     }
@@ -112,7 +109,7 @@ open class HarePage(override  val buffer: ByteBuffer) : Page {
      * @param value [ByteArray] value to write.
      * @return This [HarePage]
      */
-    override fun putBytes(index: Int, value: ByteArray): HarePage = this.lock.exclusive {
+    override fun putBytes(index: Int, value: ByteArray): HarePage {
         this.buffer.position(index).put(value).rewind()
         return this
     }
@@ -124,13 +121,13 @@ open class HarePage(override  val buffer: ByteBuffer) : Page {
      * @param value [ShortArray] value to write.
      * @return This [HarePage]
      */
-    override fun putShorts(index: Int, value: ShortArray): Page = this.lock.exclusive {
+    override fun putShorts(index: Int, value: ShortArray): Page {
         this.buffer.position(index)
         for (i in value.indices) {
             this.buffer.putShort(value[i])
         }
         this.buffer.rewind()
-        this
+        return this
     }
 
     /**
@@ -140,13 +137,13 @@ open class HarePage(override  val buffer: ByteBuffer) : Page {
      * @param value [CharArray] value to write.
      * @return This [HarePage]
      */
-    override fun putChars(index: Int, value: CharArray): Page = this.lock.exclusive {
+    override fun putChars(index: Int, value: CharArray): Page {
         this.buffer.position(index)
         for (i in value.indices) {
             this.buffer.putChar(value[i])
         }
         this.buffer.rewind()
-        this
+        return this
     }
 
     /**
@@ -156,13 +153,13 @@ open class HarePage(override  val buffer: ByteBuffer) : Page {
      * @param value [IntArray] value to write.
      * @return This [HarePage]
      */
-    override fun putInts(index: Int, value: IntArray): Page = this.lock.exclusive {
+    override fun putInts(index: Int, value: IntArray): Page {
         this.buffer.position(index)
         for (i in value.indices) {
             this.buffer.putInt(value[i])
         }
         this.buffer.rewind()
-        this
+        return this
     }
 
     /**
@@ -172,13 +169,13 @@ open class HarePage(override  val buffer: ByteBuffer) : Page {
      * @param value [LongArray] value to write.
      * @return This [HarePage]
      */
-    override fun putLongs(index: Int, value: LongArray): Page = this.lock.exclusive {
+    override fun putLongs(index: Int, value: LongArray): Page {
         this.buffer.position(index)
         for (i in value.indices) {
             this.buffer.putLong(value[i])
         }
         this.buffer.rewind()
-        this
+        return this
     }
 
     /**
@@ -188,11 +185,11 @@ open class HarePage(override  val buffer: ByteBuffer) : Page {
      * @param value [FloatArray] value to write.
      * @return This [HarePage]
      */
-    override fun putFloats(index: Int, value: FloatArray): Page = this.lock.exclusive {
+    override fun putFloats(index: Int, value: FloatArray): Page {
         for (i in value.indices) {
             this.buffer.putFloat(index + (i shl 2), value[i])
         }
-        this
+        return this
     }
 
     /**
@@ -202,11 +199,11 @@ open class HarePage(override  val buffer: ByteBuffer) : Page {
      * @param value [DoubleArray] value to write.
      * @return This [HarePage]
      */
-    override fun putDoubles(index: Int, value: DoubleArray): Page = this.lock.exclusive {
+    override fun putDoubles(index: Int, value: DoubleArray): Page {
         for (i in value.indices) {
             this.buffer.putDouble(index + (i shl 3), value[i])
         }
-        this
+        return this
     }
 
     /**
@@ -216,7 +213,7 @@ open class HarePage(override  val buffer: ByteBuffer) : Page {
      * @param value New [Byte] value to write.
      * @return This [HarePage]
      */
-    override fun putByte(index: Int, value: Byte): HarePage = this.lock.exclusive {
+    override fun putByte(index: Int, value: Byte): HarePage {
         this.buffer.put(index, value)
         return this
     }
@@ -228,7 +225,7 @@ open class HarePage(override  val buffer: ByteBuffer) : Page {
      * @param value New [Short] value to write.
      * @return This [HarePage]
      */
-    override fun putShort(index: Int, value: Short): HarePage = this.lock.exclusive {
+    override fun putShort(index: Int, value: Short): HarePage {
         this.buffer.putShort(index, value)
         return this
     }
@@ -240,7 +237,7 @@ open class HarePage(override  val buffer: ByteBuffer) : Page {
      * @param value New [Char] value to write.
      * @return This [HarePage]
      */
-    override fun putChar(index: Int, value: Char): HarePage = this.lock.exclusive {
+    override fun putChar(index: Int, value: Char): HarePage {
         this.buffer.putChar(index, value)
         return this
     }
@@ -252,7 +249,7 @@ open class HarePage(override  val buffer: ByteBuffer) : Page {
      * @param value New [Int] value to write.
      * @return This [HarePage]
      */
-    override fun putInt(index: Int, value: Int): HarePage = this.lock.exclusive {
+    override fun putInt(index: Int, value: Int): HarePage {
         this.buffer.putInt(index, value)
         return this
     }
@@ -264,7 +261,7 @@ open class HarePage(override  val buffer: ByteBuffer) : Page {
      * @param value New [Long] value to write.
      * @return This [HarePage]
      */
-    override fun putLong(index: Int, value: Long): HarePage = this.lock.exclusive {
+    override fun putLong(index: Int, value: Long): HarePage {
         this.buffer.putLong(index, value)
         return this
     }
@@ -276,7 +273,7 @@ open class HarePage(override  val buffer: ByteBuffer) : Page {
      * @param value New [Float] value to write.
      * @return This [HarePage]
      */
-    override fun putFloat(index: Int, value: Float): HarePage = this.lock.exclusive {
+    override fun putFloat(index: Int, value: Float): HarePage {
         this.buffer.putFloat(index, value)
         return this
     }
@@ -288,7 +285,7 @@ open class HarePage(override  val buffer: ByteBuffer) : Page {
      * @param value New [Double] value to write.
      * @return This [HarePage]
      */
-    override fun putDouble(index: Int, value: Double): HarePage = this.lock.exclusive {
+    override fun putDouble(index: Int, value: Double): HarePage {
         this.buffer.putDouble(index, value)
         return this
     }
@@ -296,7 +293,7 @@ open class HarePage(override  val buffer: ByteBuffer) : Page {
     /**
      * Clears the data in this [HarePage] effectively setting it to zero.
      */
-    override fun clear(): HarePage = this.lock.exclusive {
+    override fun clear(): HarePage {
         for (i in 0 until this.buffer.capacity()) {
             this.buffer.put(i, 0)
         }
@@ -309,7 +306,7 @@ open class HarePage(override  val buffer: ByteBuffer) : Page {
      * @param channel The [FileChannel] to read from.
      * @param position The position in the [FileChannel] to write to.
      */
-    override fun read(channel: FileChannel, position: Long): HarePage = this.lock.exclusive {
+    override fun read(channel: FileChannel, position: Long): HarePage {
         channel.read(this.buffer.clear(), position)
         return this
     }
@@ -320,7 +317,7 @@ open class HarePage(override  val buffer: ByteBuffer) : Page {
      * @param channel The [FileChannel] to read from.
      * @param position The position in the [FileChannel] to write to.
      */
-    override fun read(channel: FileChannel): HarePage = this.lock.exclusive {
+    override fun read(channel: FileChannel): HarePage {
         channel.read(this.buffer.clear())
         return this
     }
@@ -331,7 +328,7 @@ open class HarePage(override  val buffer: ByteBuffer) : Page {
      * @param channel The [FileChannel] to write to.
      * @param position The position in the [FileChannel] to write to.
      */
-    override fun write(channel: FileChannel, position: Long): HarePage = this.lock.shared {
+    override fun write(channel: FileChannel, position: Long): HarePage {
         channel.write(this.buffer.clear(), position)
         return this
     }

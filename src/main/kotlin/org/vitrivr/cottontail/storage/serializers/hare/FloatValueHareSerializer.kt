@@ -1,9 +1,7 @@
 package org.vitrivr.cottontail.storage.serializers.hare
 
-import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.FloatValue
-import org.vitrivr.cottontail.storage.engine.hare.disk.structures.HarePage
-import org.vitrivr.cottontail.utilities.extensions.read
+import org.vitrivr.cottontail.storage.engine.hare.basics.Page
 
 /**
  * A [HareSerializer] for HARE based [FloatValue] serialization and deserialization.
@@ -13,12 +11,13 @@ import org.vitrivr.cottontail.utilities.extensions.read
  */
 object FloatValueHareSerializer: HareSerializer<FloatValue> {
     override val fixed: Boolean = true
-    override fun serialize(page: HarePage, offset: Int, value: FloatValue) {
+    override fun serialize(page: Page, offset: Int, value: FloatValue) {
         page.putFloat(offset, value.value)
     }
-    override fun deserialize(page: HarePage, offset: Int): FloatValue = FloatValue(page.getFloat(offset))
-    override fun deserialize(page: HarePage, offset: Int, size: Int): Array<FloatValue> = page.lock.read {
+
+    override fun deserialize(page: Page, offset: Int): FloatValue = FloatValue(page.getFloat(offset))
+    override fun deserialize(page: Page, offset: Int, size: Int): Array<FloatValue> {
         val buffer = page.buffer.duplicate().position(offset)
-        Array(size) { FloatValue(buffer.float) }
+        return Array(size) { FloatValue(buffer.float) }
     }
 }

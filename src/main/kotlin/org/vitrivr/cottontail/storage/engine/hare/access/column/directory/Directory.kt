@@ -8,7 +8,6 @@ import org.vitrivr.cottontail.storage.engine.hare.access.column.variable.HeaderP
 import org.vitrivr.cottontail.storage.engine.hare.access.column.variable.VariableHareColumnFile
 import org.vitrivr.cottontail.storage.engine.hare.basics.PageRef
 import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
-import org.vitrivr.cottontail.storage.engine.hare.buffer.Priority
 import org.vitrivr.cottontail.storage.engine.hare.views.Flags
 
 /**
@@ -39,11 +38,7 @@ class Directory(internal val file: VariableHareColumnFile<*>, internal val buffe
     fun flags(tupleId: TupleId): Flags {
         /* Seek to tupleId. */
         val directoryView = this.seek(tupleId)
-        val ret = directoryView.getFlags(tupleId)
-        (directoryView.page as PageRef).release() /* This is safe! */
-
-        /* Return flags. */
-        return ret
+        return directoryView.getFlags(tupleId)
     }
 
     /**
@@ -57,11 +52,7 @@ class Directory(internal val file: VariableHareColumnFile<*>, internal val buffe
     fun address(tupleId: TupleId): Address {
         /* Seek to tupleId. */
         val directoryView = this.seek(tupleId)
-        val ret = directoryView.getAddress(tupleId)
-        (directoryView.page as PageRef).release() /* This is safe! */
-
-        /* Return addresss. */
-        return ret
+        return directoryView.getAddress(tupleId)
     }
 
     /**
@@ -75,11 +66,7 @@ class Directory(internal val file: VariableHareColumnFile<*>, internal val buffe
     fun flagsAndAddress(tupleId: TupleId): Pair<Flags, Address> {
         /* Seek to tupleId. */
         val directoryView = this.seek(tupleId)
-        val ret = Pair(directoryView.getFlags(tupleId), directoryView.getAddress(tupleId))
-        (directoryView.page as PageRef).release() /* This is safe! */
-
-        /* Return return both. */
-        return ret
+        return Pair(directoryView.getFlags(tupleId), directoryView.getAddress(tupleId))
     }
 
 
@@ -92,17 +79,17 @@ class Directory(internal val file: VariableHareColumnFile<*>, internal val buffe
      */
     fun append(flags: Flags, address: Address): TupleId {
         /* Fetch header page. */
-        val headerPage = this.bufferPool.get(VariableHareColumnFile.ROOT_PAGE_ID, Priority.HIGH)
-        val headerView = HeaderPageView(headerPage).validate()
+        val headerPage = this.bufferPool.get(VariableHareColumnFile.ROOT_PAGE_ID)
+        val headerView = HeaderPageView(headerPage)
 
         /* Prepare new directory page. */
-        val directoryPage = this.bufferPool.get(headerView.lastDirectoryPageId, Priority.DEFAULT)
-        val directoryView = DirectoryPageView(directoryPage).validate()
+        val directoryPage = this.bufferPool.get(headerView.lastDirectoryPageId)
+        val directoryView = DirectoryPageView(directoryPage)
         val ret = if (directoryView.full) {
             /* Allocate directory page. */
-            val newDirectoryPage = this.bufferPool.get(this.bufferPool.append(), Priority.LOW)
+            val newDirectoryPage = this.bufferPool.get(this.bufferPool.append())
             DirectoryPageView.initialize(newDirectoryPage, this.pageId, directoryView.lastTupleId + 1)
-            val newDirectoryView = DirectoryPageView(newDirectoryPage).validate()
+            val newDirectoryView = DirectoryPageView(newDirectoryPage)
 
             /* Update previous directory page. */
             directoryView.nextPageId = newDirectoryPage.id
@@ -114,17 +101,11 @@ class Directory(internal val file: VariableHareColumnFile<*>, internal val buffe
             directoryView.nextPageId = newDirectoryPage.id
             headerView.lastDirectoryPageId = newDirectoryPage.id
 
-            /* Release new page. */
-            newDirectoryPage.release()
-
             tupleId
         } else {
             directoryView.allocate(flags, address)
         }
 
-        /* Release header and directory page. */
-        directoryPage.release()
-        headerPage.release()
         return ret
     }
 
@@ -141,7 +122,7 @@ class Directory(internal val file: VariableHareColumnFile<*>, internal val buffe
      */
     @Synchronized
     private fun seek(tupleId: TupleId): DirectoryPageView {
-        var directoryPage = this.bufferPool.get(this.pageId, Priority.DEFAULT)
+        var directoryPage = this.bufferPool.get(this.pageId)
         var directoryView = DirectoryPageView(directoryPage)
 
         while (true) {
@@ -161,8 +142,7 @@ class Directory(internal val file: VariableHareColumnFile<*>, internal val buffe
             }
 
             /* Load new directory page. */
-            directoryPage.release()
-            directoryPage = this.bufferPool.get(this.pageId, Priority.DEFAULT)
+            directoryPage = this.bufferPool.get(this.pageId)
             directoryView = DirectoryPageView(directoryPage)
         }
         return directoryView

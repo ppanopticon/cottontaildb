@@ -37,12 +37,6 @@ class FixedHareColumnFile<T : Value>(val path: Path) : HareColumnFile<T> {
         /** Size of an entry's header in bytes. */
         const val ENTRY_HEADER_SIZE = 4
 
-        /** Mask for 'NULL' bit in each [FixedHareColumnFile] entry. */
-        const val MASK_NULL = 1 shl 1
-
-        /** Mask for 'DELETED' bit in each [FixedHareColumnFile] entry. */
-        const val MASK_DELETED = 1 shl 2
-
         /**
          * Creates a new [FixedHareColumnFile] under the given location.
          *
@@ -108,22 +102,26 @@ class FixedHareColumnFile<T : Value>(val path: Path) : HareColumnFile<T> {
     /** The size of an individual entry in bytes. */
     val entrySize: Int
 
+    /** The number of slots per page. */
+    val slotsPerPage: Int
+
+    /** The size of the per-page header in bytes. Since one slot occupies one byte, this value is equal to [slotsPerPage]. */
+    val pageHeaderSize: Int
+
     /** A [StampedLock] used to prevent this [FixedHareColumnFile] from closing, when it is being used by other resources. */
     private val closeLock = StampedLock()
-
-    /** The number of slots per page. */
-    private val slotsPerPage: Int
 
     /* Initialize important fields. */
     init {
         val tid = -1L
         val page = HarePage(ByteBuffer.allocate(this.disk.pageSize))
         this.disk.read(tid, ROOT_PAGE_ID, page)
-        val header = HeaderPageView(page).validate()
+        val header = HeaderPageView(page)
         this.type = header.type as Type<T>
         this.nullable = header.nullable
         this.entrySize = header.entrySize
         this.slotsPerPage = floorDiv(1 shl this@FixedHareColumnFile.disk.pageShift, (header.entrySize + ENTRY_HEADER_SIZE))
+        this.pageHeaderSize = this.slotsPerPage
     }
 
     /**

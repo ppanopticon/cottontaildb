@@ -26,6 +26,12 @@ import java.util.stream.Collectors
 class CatalogueTest {
     private val schemaName = Name.SchemaName("schema-test")
 
+    init {
+        if (!Files.exists(TestConstants.config.root)) {
+            Files.createDirectories(TestConstants.config.root)
+        }
+    }
+
     /** The [DefaultCatalogue] object to run the test with. */
     private val catalogue: DefaultCatalogue = DefaultCatalogue(TestConstants.config)
 

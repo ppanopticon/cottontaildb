@@ -43,6 +43,12 @@ class SchemaTest {
     /** The [TransactionManager] used for this [CatalogueTest] instance. */
     private val manager = TransactionManager(Executors.newFixedThreadPool(1) as ThreadPoolExecutor)
 
+    init {
+        if (!Files.exists(TestConstants.config.root)) {
+            Files.createDirectories(TestConstants.config.root)
+        }
+    }
+
     /** The [DefaultCatalogue] object to run the test with. */
     private val catalogue: DefaultCatalogue = DefaultCatalogue(TestConstants.config)
 

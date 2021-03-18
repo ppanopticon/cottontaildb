@@ -943,16 +943,16 @@ class CottontailStoreWAL(
      * A [LongIterator] that can be used to iterate over all record IDs.
      *
      * @author Ralph Gasser
-     * @version 1.0.1
+     * @version 1.0.2
      */
-    inner class RecordIdIterator(range: LongRange = 2L..this@CottontailStoreWAL.maxRecid) : LongIterator() {
+    inner class RecordIdIterator(range: LongRange) : LongIterator() {
 
         /** Creates a local snapshot of the maximum record ID. */
-        private val maximumRecordId = range.last.coerceAtMost(this@CottontailStoreWAL.maxRecid)
+        private val maximumRecordId = range.last
 
         /** Current record ID. */
         @Volatile
-        private var currentRecordId = range.first.coerceAtLeast(2L)
+        private var currentRecordId = range.first
 
         /**
          * Returns the next record ID currently in use. Due to the way, hasNext() is evaluated, this method may reach the

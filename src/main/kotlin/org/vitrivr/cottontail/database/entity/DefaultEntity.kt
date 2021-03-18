@@ -426,7 +426,7 @@ class DefaultEntity(override val path: Path, override val parent: DefaultSchema)
          *
          * @return [Iterator]
          */
-        override fun scan(columns: Array<ColumnDef<*>>): Iterator<Record> = scan(columns, 1L..this.maxTupleId())
+        override fun scan(columns: Array<ColumnDef<*>>): Iterator<Record> = scan(columns, 0L..this.maxTupleId())
 
         /**
          * Creates and returns a new [Iterator] for this [DefaultEntity.Tx] that returns all [TupleId]s
@@ -451,8 +451,7 @@ class DefaultEntity(override val path: Path, override val parent: DefaultSchema)
                 /* Read values from underlying columns. */
                 val tupleId = this.wrapped.next()
                 val values = columns.map {
-                    val column = this@DefaultEntity.columns[it.name]
-                        ?: throw IllegalArgumentException("Column $it does not exist on entity ${this@DefaultEntity.name}.")
+                    val column = this@DefaultEntity.columns[it.name] ?: throw IllegalArgumentException("Column $it does not exist on entity ${this@DefaultEntity.name}.")
                     (this@Tx.context.getTx(column) as ColumnTx<*>).read(tupleId)
                 }.toTypedArray()
 

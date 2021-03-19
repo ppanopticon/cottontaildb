@@ -1,5 +1,11 @@
 # Change log for Cottontail DB
 
+## Version 0.12.2
+
+### Bugfixes
+
+* Fixed issue that arises if root folder or catalogue doesn't exist.
+
 ## Version 0.12.1
 
 * Added explicit catalogue version check during start-up.

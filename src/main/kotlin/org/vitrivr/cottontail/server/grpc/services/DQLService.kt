@@ -50,7 +50,8 @@ class DQLService(val catalogue: Catalogue, override val manager: TransactionMana
             RightConjunctionRewriteRule,
             LeftConjunctionOnSubselectRewriteRule,
             RightConjunctionOnSubselectRewriteRule,
-            DeferredFetchRewriteRule
+            DeferFetchOnScanRewriteRule,
+            DeferFetchOnFetchRewriteRule
         ),
         physicalRules = listOf(BooleanIndexScanRule, KnnIndexScanRule, CountPushdownRule, LimitingSortMergeRule),
         this.catalogue.config.cache.planCacheSize

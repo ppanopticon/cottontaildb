@@ -26,7 +26,9 @@ import java.util.stream.Collectors
 class CatalogueTest {
     private val schemaName = Name.SchemaName("schema-test")
 
+
     init {
+        /* Assure existence of root directory. */
         if (!Files.exists(TestConstants.config.root)) {
             Files.createDirectories(TestConstants.config.root)
         }

@@ -40,6 +40,13 @@ class SchemaTest {
         this.schemaName.entity("three")
     )
 
+    init {
+        /* Assure existence of root directory. */
+        if (!Files.exists(TestConstants.config.root)) {
+            Files.createDirectories(TestConstants.config.root)
+        }
+    }
+
     /** The [TransactionManager] used for this [CatalogueTest] instance. */
     private val manager = TransactionManager(Executors.newFixedThreadPool(1) as ThreadPoolExecutor)
 

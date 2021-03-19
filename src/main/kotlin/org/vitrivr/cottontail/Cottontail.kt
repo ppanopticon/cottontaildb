@@ -6,6 +6,7 @@ import org.vitrivr.cottontail.config.Config
 import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
 import org.vitrivr.cottontail.database.general.DBOVersion
 import org.vitrivr.cottontail.legacy.VersionProber
+import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.server.grpc.CottontailGrpcServer
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -50,10 +51,6 @@ fun main(args: Array<String>) {
     /* Load config file and start Cottontail DB. */
     Files.newBufferedReader(configPath).use { reader ->
         val config = Json.decodeFromString(Config.serializer(), reader.readText())
-        if (!Files.isDirectory(config.root)) {
-            System.err.println("Specified Cottontail DB data folder file $${config.root} does not exist. Cottontail DB will shut down.")
-            exitProcess(1)
-        }
         try {
             standalone(config)
         } catch (e: Throwable) {
@@ -76,12 +73,14 @@ fun standalone(config: Config) {
         System.getProperties().setProperty("log4j.configurationFile", config.logConfig.toString())
     }
 
+    /* Create root-folder, if it doesn't exist yet. */
+    if (!Files.exists(config.root)) {
+        Files.createDirectories(config.root)
+    }
+
     /* Check catalogue version. */
     val detected = VersionProber(config).probe(config.root)
-    if (detected == DBOVersion.UNDEFINED) {
-        System.err.println("Folder does not seem to be a valid Cottontail DB data folder (detected = $detected, path = ${config.root}.")
-        exitProcess(1)
-    } else if (detected != VersionProber.EXPECTED) {
+    if (detected != VersionProber.EXPECTED && detected != DBOVersion.UNDEFINED) {
         System.err.println("Version mismatch: Trying to open an incompatible Cottontail DB catalogue version. Run system migration to upgrade catalogue (detected = $detected, expected = ${VersionProber.EXPECTED}, path = ${config.root}).")
         exitProcess(1)
     }
@@ -92,7 +91,7 @@ fun standalone(config: Config) {
     /* Start gRPC Server and print message. */
     val server = CottontailGrpcServer(config, catalogue)
     server.start()
-    println("Cottontail DB server is up and running at port ${config.server.port}! Hop along... (catalogue: $detected, pid: ${ProcessHandle.current().pid()})")
+    println("Cottontail DB server is up and running at port ${config.server.port}! Hop along... (catalogue: ${catalogue.version}, pid: ${ProcessHandle.current().pid()})")
 
     /* Start CLI (if configured). */
     if (config.cli) {
@@ -121,6 +120,17 @@ fun standalone(config: Config) {
  */
 @ExperimentalTime
 fun embedded(config: Config): CottontailGrpcServer {
+    /* Create root-folder, if it doesn't exist yet. */
+    if (!Files.exists(config.root)) {
+        Files.createDirectories(config.root)
+    }
+
+    /* Check catalogue version. */
+    val detected = VersionProber(config).probe(config.root)
+    if (detected != VersionProber.EXPECTED && detected != DBOVersion.UNDEFINED) {
+        throw DatabaseException.VersionMismatchException(VersionProber.EXPECTED, detected)
+    }
+
     /* Instantiate Catalogue, execution engine and gRPC server. */
     val catalogue = DefaultCatalogue(config)
     val server = CottontailGrpcServer(config, catalogue)

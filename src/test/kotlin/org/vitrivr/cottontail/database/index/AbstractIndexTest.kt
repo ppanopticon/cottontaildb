@@ -33,6 +33,13 @@ abstract class AbstractIndexTest {
         private val LOGGER = LoggerFactory.getLogger(AbstractIndexTest::class.java)
     }
 
+    init {
+        /* Assure existence of root directory. */
+        if (!Files.exists(TestConstants.config.root)) {
+            Files.createDirectories(TestConstants.config.root)
+        }
+    }
+
     /** [Name.SchemaName] of the test schema. */
     protected val schemaName = Name.SchemaName("test")
 

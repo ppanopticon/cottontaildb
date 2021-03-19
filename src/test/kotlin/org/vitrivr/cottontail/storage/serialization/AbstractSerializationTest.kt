@@ -42,6 +42,7 @@ abstract class AbstractSerializationTest {
     }
 
     init {
+        /* Assure existence of root directory. */
         if (!Files.exists(TestConstants.config.root)) {
             Files.createDirectories(TestConstants.config.root)
         }

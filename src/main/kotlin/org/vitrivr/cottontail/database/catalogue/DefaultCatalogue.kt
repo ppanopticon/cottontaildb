@@ -40,13 +40,6 @@ class DefaultCatalogue(override val config: Config) : Catalogue {
         internal const val FILE_CATALOGUE = "catalogue.db"
     }
 
-    /** For the catalogue, missing folders are being created. */
-    init {
-        if (!Files.exists(this.config.root)) {
-            Files.createDirectories(this.config.root)
-        }
-    }
-
     /** Root to Cottontail DB root folder. */
     override val path: Path = config.root
 

@@ -426,7 +426,7 @@ class DefaultEntity(override val path: Path, override val parent: DefaultSchema)
          *
          * @return [Iterator]
          */
-        override fun scan(columns: Array<ColumnDef<*>>): Iterator<Record> = scan(columns, 0L..this.maxTupleId())
+        override fun scan(columns: Array<ColumnDef<*>>): Iterator<Record> = scan(columns, 1L..this.maxTupleId())
 
         /**
          * Creates and returns a new [Iterator] for this [DefaultEntity.Tx] that returns all [TupleId]s
@@ -437,29 +437,31 @@ class DefaultEntity(override val path: Path, override val parent: DefaultSchema)
          *
          * @return [Iterator]
          */
-        override fun scan(columns: Array<ColumnDef<*>>, range: LongRange) = object : Iterator<Record> {
+        override fun scan(columns: Array<ColumnDef<*>>, range: LongRange) = this@Tx.withReadLock {
+            object : Iterator<Record> {
 
-            /** Prepare the necessary [ColumnTx] for this [Iterator]. */
-            private val txs = columns.map {
-                val column = this@DefaultEntity.columns[it.name] ?: throw IllegalArgumentException("Column $it does not exist on entity ${this@DefaultEntity.name}.")
-                this@Tx.context.getTx(column) as ColumnTx<*>
-            }
+                /** List of [ColumnTx]s used by  this [Iterator]. */
+                private val txs = columns.map {
+                    val column = this@DefaultEntity.columns[it.name] ?: throw IllegalArgumentException("Column $it does not exist on entity ${this@DefaultEntity.name}.")
+                    (this@Tx.context.getTx(column) as ColumnTx<*>)
+                }
 
-            /** The wrapped [Iterator] of the first (primary) column. */
-            private val wrapped = this.txs.first().scan(range)
+                /** The wrapped [Iterator] of the first column. */
+                private val wrapped = this.txs.first().scan()
 
-            /**
-             * Returns `true` if the iteration has more elements.
-             */
-            override fun hasNext(): Boolean = this.wrapped.hasNext()
+                /**
+                 * Returns the next element in the iteration.
+                 */
+                override fun next(): Record {
+                    val tupleId = this.wrapped.next()
+                    val values = this.txs.map { it.read(tupleId) }.toTypedArray()
+                    return StandaloneRecord(tupleId, columns, values)
+                }
 
-            /**
-             * Returns the next element in the iteration.
-             */
-            override fun next(): Record {
-                val tupleId = this.wrapped.next()
-                val values = this.txs.map { it.read(tupleId) }.toTypedArray()
-                return StandaloneRecord(tupleId, columns, values)
+                /**
+                 * Returns `true` if the iteration has more elements.
+                 */
+                override fun hasNext(): Boolean = this.wrapped.hasNext()
             }
         }
 

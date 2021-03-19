@@ -92,12 +92,11 @@ class HareColumn<T : Value>(override val path: Path, override val parent: Entity
      */
     inner class Tx constructor(context: TransactionContext) : AbstractTx(context), ColumnTx<T> {
 
-
         /** Reference to the [HareColumn] this [HareColumn.Tx] belongs to. */
         override val dbo: Column<T>
             get() = this@HareColumn
 
-        /** The [ColumnDef] of the [Column] underlying this [ColumnTransaction]. */
+        /** The [ColumnDef] of the [Column] underlying this [ColumnTx]. */
         override val columnDef: ColumnDef<T>
             get() = this@HareColumn.columnDef
 
@@ -128,7 +127,6 @@ class HareColumn<T : Value>(override val path: Path, override val parent: Entity
             }
         }
 
-
         override fun count(): Long = this.withReadLock {
             this.reader.count()
         }
@@ -155,33 +153,30 @@ class HareColumn<T : Value>(override val path: Path, override val parent: Entity
             this.writer.delete(tupleId)
         }
 
-        override fun scan(): ColumnCursor<T> = this.scan(0L..this@HareColumn.maxTupleId)
+        override fun scan(): ColumnCursor<T> = this.scan(0L..this.reader.maxTupleId())
 
-        override fun scan(range: LongRange) = object : ColumnCursor<T> {
+        override fun scan(range: LongRange) = this@Tx.withReadLock {
+            object : ColumnCursor<T> {
+                /** [FixedHareColumnCursor] instance used for this [ColumnCursor]. */
+                private val cursor = FixedHareColumnCursor(this@HareColumn.column, this@Tx.bufferPool, range)
 
-            init {
-                this@Tx.withReadLock { /* No op. */ }
+                /**
+                 * Returns `true` if the iteration has more elements.
+                 */
+                override fun hasNext(): Boolean = this.cursor.hasNext()
+
+                /**
+                 * Returns the next [TupleId] in the iteration.
+                 */
+                override fun next(): TupleId = this.cursor.next()
+
+                /**
+                 * Reads the value at the current [ColumnCursor] position and returns it.
+                 *
+                 * @return The value [T] at the position of this [ColumnCursor].
+                 */
+                override fun readThrough(): T? = this.cursor.nextValue()
             }
-
-            /** [FixedHareColumnCursor] instance used for this [ColumnCursor]. */
-            private val cursor = FixedHareColumnCursor(this@HareColumn.column, this@Tx.bufferPool, range)
-
-            /**
-             * Returns `true` if the iteration has more elements.
-             */
-            override fun hasNext(): Boolean = this.cursor.hasNext()
-
-            /**
-             * Returns the next [TupleId] in the iteration.
-             */
-            override fun next(): TupleId = this.cursor.next()
-
-            /**
-             * Reads the value at the current [ColumnCursor] position and returns it.
-             *
-             * @return The value [T] at the position of this [ColumnCursor].
-             */
-            override fun readThrough(): T? = this.cursor.nextValue()
         }
 
 

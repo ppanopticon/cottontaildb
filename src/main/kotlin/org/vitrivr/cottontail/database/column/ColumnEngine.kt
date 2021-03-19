@@ -1,6 +1,7 @@
 package org.vitrivr.cottontail.database.column
 
 import org.vitrivr.cottontail.config.Config
+import org.vitrivr.cottontail.database.column.hare.HareColumn
 import org.vitrivr.cottontail.database.column.mapdb.MapDBColumn
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.model.values.types.Value
@@ -25,9 +26,9 @@ enum class ColumnEngine {
      * @param path The [Path] to the [Column] file.
      * @param parent The parent [DefaultEntity].
      */
-    fun open(path: Path, parent: DefaultEntity): MapDBColumn<Value> = when (this) {
+    fun open(path: Path, parent: DefaultEntity): Column<Value> = when (this) {
         MAPDB -> MapDBColumn(path, parent)
-        else -> throw IllegalArgumentException("Column typ $this is currently not supported by Cottontail DB.")
+        HARE -> HareColumn(path, parent)
     }
 
     /**
@@ -39,6 +40,6 @@ enum class ColumnEngine {
      */
     fun create(path: Path, columnDef: ColumnDef<*>, config: Config) = when (this) {
         MAPDB -> MapDBColumn.initialize(path, columnDef, config.mapdb)
-        else -> throw IllegalArgumentException("Column typ $this is currently not supported by Cottontail DB.")
+        HARE -> HareColumn.initialize(path, columnDef, config.hare)
     }
 }

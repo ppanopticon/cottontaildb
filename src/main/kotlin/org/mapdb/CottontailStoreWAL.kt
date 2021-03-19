@@ -948,7 +948,7 @@ class CottontailStoreWAL(
     inner class RecordIdIterator(range: LongRange) : LongIterator() {
 
         /** Creates a local snapshot of the maximum record ID. */
-        private val maximumRecordId = range.last
+        private val maximumRecordId = range.last.coerceAtMost(this@CottontailStoreWAL.maxRecid)
 
         /** Current record ID. */
         @Volatile

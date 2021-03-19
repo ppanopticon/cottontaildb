@@ -17,6 +17,7 @@ import org.vitrivr.cottontail.execution.TransactionManager.Transaction
 import org.vitrivr.cottontail.execution.TransactionStatus
 import org.vitrivr.cottontail.execution.TransactionType
 import org.vitrivr.cottontail.model.basics.TransactionId
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.utilities.io.FileUtilities
 import java.io.BufferedWriter
 import java.nio.file.*
@@ -128,10 +129,7 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
      * @param srcCatalogueTx The [CatalogueTx] pointing to the source catalogue.
      * @param dstCatalogueTx The [CatalogueTx] pointing to the destination catalogue.
      */
-    protected open fun migrateCatalogueAndSchema(
-        srcCatalogueTx: CatalogueTx,
-        dstCatalogueTx: CatalogueTx
-    ) {
+    protected open fun migrateCatalogueAndSchema(srcCatalogueTx: CatalogueTx, dstCatalogueTx: CatalogueTx) {
         val schemas = srcCatalogueTx.listSchemas()
         for ((s, srcSchema) in schemas.withIndex()) {
             this.log("+ Migrating schema ${srcSchema.name} (${s + 1} / ${schemas.size}):\n")
@@ -164,8 +162,13 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
     protected open fun migrateEntity(srcEntity: Entity, destSchemaTx: SchemaTx) {
         val creationContext = MigrationContext()
         var srcEntityTx = creationContext.getTx(srcEntity) as EntityTx
-        val columnDefs =
-            srcEntityTx.listColumns().map { it.columnDef to ColumnEngine.MAPDB }.toTypedArray()
+        val columnDefs = srcEntityTx.listColumns().map {
+            it.columnDef to if (it.columnDef.type == Type.String) {
+                ColumnEngine.MAPDB
+            } else {
+                ColumnEngine.HARE
+            }
+        }.toTypedArray()
         val destEntity = destSchemaTx.createEntity(srcEntity.name, *columnDefs)
         var destEntityTx = creationContext.getTx(destEntity) as EntityTx
 

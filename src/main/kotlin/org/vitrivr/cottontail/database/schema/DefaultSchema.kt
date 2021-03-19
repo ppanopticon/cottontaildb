@@ -5,6 +5,7 @@ import org.mapdb.*
 import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.column.ColumnEngine
+import org.vitrivr.cottontail.database.column.hare.HareColumn
 import org.vitrivr.cottontail.database.column.mapdb.MapDBColumn
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.Entity
@@ -214,10 +215,7 @@ class DefaultSchema(override val path: Path, override val parent: DefaultCatalog
          * @param name The name of the [DefaultEntity] that should be created.
          * @param columns The [ColumnDef] of the columns the new [DefaultEntity] should have
          */
-        override fun createEntity(
-            name: Name.EntityName,
-            vararg columns: Pair<ColumnDef<*>, ColumnEngine>
-        ): Entity =
+        override fun createEntity(name: Name.EntityName, vararg columns: Pair<ColumnDef<*>, ColumnEngine>): Entity =
             this.withWriteLock {
                 /* Perform some sanity checks. */
                 if (this.snapshot.entities.contains(name)) throw DatabaseException.EntityAlreadyExistsException(
@@ -239,25 +237,17 @@ class DefaultSchema(override val path: Path, override val parent: DefaultCatalog
                     }
 
                     /* Generate the entity and initialize the new entities header. */
-                    val store =
-                        this@DefaultSchema.parent.config.mapdb.db(data.resolve(DefaultEntity.CATALOGUE_FILE))
+                    val store = this@DefaultSchema.parent.config.mapdb.db(data.resolve(DefaultEntity.CATALOGUE_FILE))
                     val columnsRefs = columns.map {
                         val path = data.resolve("${it.first.name.simple}.col")
                         when (it.second) {
-                            ColumnEngine.MAPDB -> {
-                                MapDBColumn.initialize(
-                                    path,
-                                    it.first,
-                                    this@DefaultSchema.parent.config.mapdb
-                                )
-                            }
-                            ColumnEngine.HARE -> throw UnsupportedOperationException("The column driver ${it.second} is currently not supported.")
+                            ColumnEngine.MAPDB -> MapDBColumn.initialize(path, it.first, this@DefaultSchema.parent.config.mapdb)
+                            ColumnEngine.HARE -> HareColumn.initialize(path, it.first, this@DefaultSchema.parent.config.hare)
                         }
                         EntityHeader.ColumnRef(it.first.name.simple, it.second)
                     }
                     val entityHeader = EntityHeader(name = name.simple, columns = columnsRefs)
-                    store.atomicVar(DefaultEntity.ENTITY_HEADER_FIELD, EntityHeader.Serializer)
-                        .create().set(entityHeader)
+                    store.atomicVar(DefaultEntity.ENTITY_HEADER_FIELD, EntityHeader.Serializer).create().set(entityHeader)
                     store.commit()
                     store.close()
 

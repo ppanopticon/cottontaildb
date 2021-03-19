@@ -34,7 +34,7 @@ import java.util.concurrent.locks.StampedLock
  * @author Ralph Gasser
  * @version 1.0.0
  */
-class HareColumn<T : Value>(override val name: Name.ColumnName, override val parent: Entity) : Column<T> {
+class HareColumn<T : Value>(override val path: Path, override val parent: Entity) : Column<T> {
 
     companion object {
         /**
@@ -46,22 +46,19 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val par
          *
          * @return The [Path] of the [HareColumn]
          */
-        fun initialize(definition: ColumnDef<*>, location: Path, config: HareConfig): Path {
-            val path = location.resolve("${definition.name.simple}.${HareColumnFile.SUFFIX}")
-            FixedHareColumnFile.createDirect(path, definition)
-            return path
+        fun initialize(location: Path, definition: ColumnDef<*>, config: HareConfig) {
+            FixedHareColumnFile.createDirect(location, definition)
         }
     }
-
-    /** The [Path] to the [HareColumn]'s data file. */
-    override val path: Path = parent.path.resolve("${name.simple}.hare")
 
     /** The [FixedHareColumnFile] that backs this [HareColumn]. */
     private val column = FixedHareColumnFile<T>(this.path)
 
     /** This [HareColumn]'s [ColumnDef]. */
-    override val columnDef: ColumnDef<T> =
-        ColumnDef(this.name, this.column.type, this.column.nullable)
+    override val name: Name.ColumnName = this.parent.name.column(this.column.name)
+
+    /** This [HareColumn]'s [ColumnDef]. */
+    override val columnDef: ColumnDef<T> = ColumnDef(this.name, this.column.type, this.column.nullable)
 
     /** An internal lock that is used to synchronize structural changes to an [MapDBColumn] (e.g. closing or deleting) with running [MapDBColumn.Tx]. */
     private val closeLock = StampedLock()
@@ -95,8 +92,6 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val par
      */
     inner class Tx constructor(context: TransactionContext) : AbstractTx(context), ColumnTx<T> {
 
-        override val snapshot: TxSnapshot
-            get() = TODO("Not yet implemented")
 
         /** Reference to the [HareColumn] this [HareColumn.Tx] belongs to. */
         override val dbo: Column<T>
@@ -110,13 +105,29 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val par
         private val globalStamp = this@HareColumn.closeLock.readLock()
 
         /** Shared [BufferPool] for this [Tx]. */
-        private val bufferPool = BufferPool(this@HareColumn.column.disk, context.txId, 5)
+        private val bufferPool = BufferPool(this@HareColumn.column.disk, context.txId, 10)
 
         /** [FixedHareColumnReader] for this [Tx]. */
         private val reader = FixedHareColumnReader(this@HareColumn.column, this.bufferPool)
 
         /** [FixedHareColumnReader] for this [Tx]. */
         private val writer: HareColumnWriter<T> = FixedHareColumnWriter(this@HareColumn.column, this.bufferPool)
+
+        override val snapshot: TxSnapshot = object : ColumnTxSnapshot {
+            @Volatile
+            override var delta = 0L
+
+            /** Commits the [ColumnTx] and integrates all changes made through it into the [MapDBColumn]. */
+            override fun commit() {
+                this@Tx.writer.commit()
+            }
+
+            /** Commits the [ColumnTx] and integrates all changes made through it into the [MapDBColumn]. */
+            override fun rollback() {
+                this@Tx.writer.rollback()
+            }
+        }
+
 
         override fun count(): Long = this.withReadLock {
             this.reader.count()
@@ -170,7 +181,7 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val par
              *
              * @return The value [T] at the position of this [ColumnCursor].
              */
-            override fun readThrough(): T? = this@Tx.reader.get(this.next())
+            override fun readThrough(): T? = this.cursor.nextValue()
         }
 
 
@@ -178,6 +189,8 @@ class HareColumn<T : Value>(override val name: Name.ColumnName, override val par
          * Releases the [closeLock] on the [MapDBColumn].
          */
         override fun cleanup() {
+            this.reader.close()
+            this.writer.close()
             this@HareColumn.closeLock.unlockRead(this.globalStamp)
         }
     }

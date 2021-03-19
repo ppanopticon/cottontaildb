@@ -447,7 +447,7 @@ class DefaultEntity(override val path: Path, override val parent: DefaultSchema)
                 }
 
                 /** The wrapped [Iterator] of the first column. */
-                private val wrapped = this.txs.first().scan()
+                private val wrapped = this.txs.first().scan(range)
 
                 /**
                  * Returns the next element in the iteration.

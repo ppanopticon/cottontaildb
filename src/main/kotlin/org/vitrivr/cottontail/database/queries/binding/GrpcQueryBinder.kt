@@ -451,28 +451,48 @@ class GrpcQueryBinder constructor(val catalogue: Catalogue) {
         val query: Pair<VectorValue<*>, VectorValue<*>?> = when (column.type) {
             is Type.DoubleVector -> Pair(
                 knn.query.toDoubleVectorValue(), if (knn.hasWeight()) {
-                    knn.weight.toDoubleVectorValue()
+                    /* Filter 1.0 weights. */
+                    if (knn.weight.doubleVector.vectorList.all { it == 1.0 }) {
+                        null
+                    } else {
+                        knn.weight.toDoubleVectorValue()
+                    }
                 } else {
                     null
                 }
             )
             is Type.FloatVector -> Pair(
                 knn.query.toFloatVectorValue(), if (knn.hasWeight()) {
-                    knn.weight.toFloatVectorValue()
+                    /* Filter 1.0f weights. */
+                    if (knn.weight.floatVector.vectorList.all { it == 1.0f }) {
+                        null
+                    } else {
+                        knn.weight.toFloatVectorValue()
+                    }
                 } else {
                     null
                 }
             )
             is Type.LongVector -> Pair(
                 knn.query.toLongVectorValue(), if (knn.hasWeight()) {
-                    knn.weight.toLongVectorValue()
+                    /* Filter 1L weights. */
+                    if (knn.weight.longVector.vectorList.all { it == 1L }) {
+                        null
+                    } else {
+                        knn.weight.toLongVectorValue()
+                    }
                 } else {
                     null
                 }
             )
             is Type.IntVector -> Pair(
                 knn.query.toIntVectorValue(), if (knn.hasWeight()) {
-                    knn.weight.toIntVectorValue()
+                    /* Filter 1 weights. */
+                    if (knn.weight.intVector.vectorList.all { it == 1 }) {
+                        null
+                    } else {
+                        knn.weight.toIntVectorValue()
+                    }
                 } else {
                     null
                 }

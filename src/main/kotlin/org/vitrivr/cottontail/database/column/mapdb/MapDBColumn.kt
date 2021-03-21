@@ -53,13 +53,13 @@ class MapDBColumn<T : Value>(override val path: Path, override val parent: Entit
          * Initializes a new, empty [MapDBColumn]
          *
          * @param path The [Path] to the folder in which the [MapDBColumn] file should be stored.
-         * @param definition The [ColumnDef] that specifies the [MapDBColumn]
+         * @param column The [ColumnDef] that specifies the [MapDBColumn]
          * @param config The [MapDBConfig] used to initialize the [MapDBColumn]
          */
-        fun initialize(path: Path, definition: ColumnDef<*>, config: MapDBConfig) {
-            if (Files.exists(path)) throw DatabaseException.InvalidFileException("Could not initialize index. A file already exists under $path.")
+        fun initialize(path: Path, column: ColumnDef<*>, config: MapDBConfig) {
+            if (Files.exists(path)) throw DatabaseException.InvalidFileException("Could not initialize column ${column.name}. A file already exists under $path.")
             val store = config.store(path)
-            store.put(ColumnHeader(definition), ColumnHeader.Serializer)
+            store.put(ColumnHeader(column), ColumnHeader.Serializer)
             store.commit()
             store.close()
         }

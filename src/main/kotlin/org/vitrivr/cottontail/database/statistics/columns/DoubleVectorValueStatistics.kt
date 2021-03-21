@@ -55,7 +55,7 @@ class DoubleVectorValueStatistics(type: Type<DoubleVectorValue>) : ValueStatisti
             for ((i, d) in deleted.data.withIndex()) {
                 /* We cannot create a sensible estimate if a value is deleted. */
                 if (this.min.data[i] == d || this.max.data[i] == d) {
-                    this.dirty = true
+                    this.fresh = false
                 }
                 this.sum.data[i] -= d
             }
@@ -94,5 +94,23 @@ class DoubleVectorValueStatistics(type: Type<DoubleVectorValue>) : ValueStatisti
             this.max.data[i] = Double.MIN_VALUE
             this.sum.data[i] = 0.0
         }
+    }
+
+    /**
+     * Copies this [DoubleVectorValueStatistics] and returns it.
+     *
+     * @return Copy of this [DoubleVectorValueStatistics].
+     */
+    override fun copy(): DoubleVectorValueStatistics {
+        val copy = DoubleVectorValueStatistics(this.type)
+        copy.fresh = this.fresh
+        copy.numberOfNullEntries = this.numberOfNullEntries
+        copy.numberOfNonNullEntries = this.numberOfNonNullEntries
+        for (i in 0 until this.type.logicalSize) {
+            copy.min.data[i] = this.min.data[i]
+            copy.max.data[i] = this.max.data[i]
+            copy.sum.data[i] = this.sum.data[i]
+        }
+        return copy
     }
 }

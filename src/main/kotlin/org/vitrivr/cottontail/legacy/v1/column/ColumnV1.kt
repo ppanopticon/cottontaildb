@@ -7,15 +7,16 @@ import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.column.ColumnEngine
 import org.vitrivr.cottontail.database.column.ColumnTx
 import org.vitrivr.cottontail.database.entity.Entity
+import org.vitrivr.cottontail.database.general.AbstractTx
 import org.vitrivr.cottontail.database.general.DBOVersion
-import org.vitrivr.cottontail.database.general.TxStatus
+import org.vitrivr.cottontail.database.general.TxSnapshot
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
+import org.vitrivr.cottontail.model.exceptions.TxException
 import org.vitrivr.cottontail.model.values.types.Value
-import org.vitrivr.cottontail.utilities.extensions.read
 import org.vitrivr.cottontail.utilities.extensions.write
 import java.nio.file.Path
 import java.util.*
@@ -115,13 +116,7 @@ class ColumnV1<T : Value>(
     /**
      * A [Transaction] that affects this [ColumnV1].
      */
-    inner class Tx constructor(override val context: TransactionContext) : ColumnTx<T> {
-
-        /** Flag indicating whether or not this [Entity.Tx] was closed */
-        @Volatile
-        override var status: TxStatus = TxStatus.CLEAN
-            private set
-
+    inner class Tx constructor(override val context: TransactionContext) : AbstractTx(context), ColumnTx<T> {
         /**
          * The [ColumnDef] of the [Column] underlying this [ColumnTransaction].
          *
@@ -136,7 +131,7 @@ class ColumnV1<T : Value>(
         /** Tries to acquire a global read-lock on the [ColumnV1]. */
         init {
             if (this@ColumnV1.closed) {
-                throw java.lang.IllegalStateException("")
+                throw TxException.TxDBOClosedException(this.context.txId)
             }
         }
 
@@ -146,43 +141,14 @@ class ColumnV1<T : Value>(
         /** Obtains a global (non-exclusive) read-lock on [ColumnV1]. Prevents enclosing [ColumnV1] from being closed while this [ColumnV1.Tx] is still in use. */
         private val globalStamp = this@ColumnV1.closeLock.readLock()
 
-        /** A [ReentrantReadWriteLock] local to this [Entity.Tx]. It makes sure, that this [Entity] cannot be committed, closed or rolled back while it is being used. */
-        private val localLock = StampedLock()
-
-        /**
-         * Commits all changes made through this [Tx] since the last commit or rollback.
-         */
-        @Synchronized
-        override fun commit() = this.localLock.write {
-            if (this.status == TxStatus.DIRTY) {
-                this@ColumnV1.store.commit()
-                this.status = TxStatus.CLEAN
+        /** The [TxSnapshot] for this [ColumnV1.Tx] */
+        override val snapshot: TxSnapshot = object : TxSnapshot {
+            override fun commit() {
+                throw UnsupportedOperationException("Operation not supported on legacy DBO.")
             }
-        }
 
-        /**
-         * Rolls all changes made through this [Tx] back to the last commit. Can only be executed, if [Tx] is
-         * in status [TxStatus.DIRTY] or [TxStatus.ERROR].
-         */
-        @Synchronized
-        override fun rollback() = this.localLock.write {
-            if (this.status == TxStatus.DIRTY || this.status == TxStatus.ERROR) {
-                this@ColumnV1.store.rollback()
-                this.status = TxStatus.CLEAN
-            }
-        }
-
-        /**
-         * Closes this [Tx] and relinquishes the associated [ReentrantReadWriteLock].
-         */
-        @Synchronized
-        override fun close() = this.localLock.write {
-            if (this.status != TxStatus.CLOSED) {
-                if (this.status == TxStatus.DIRTY || this.status == TxStatus.ERROR) {
-                    this.rollback()
-                }
-                this.status = TxStatus.CLOSED
-                this@ColumnV1.closeLock.unlockRead(this.globalStamp)
+            override fun rollback() {
+                throw UnsupportedOperationException("Operation not supported on legacy DBO.")
             }
         }
 
@@ -194,10 +160,8 @@ class ColumnV1<T : Value>(
          *
          * @throws DatabaseException If the tuple with the desired ID doesn't exist OR is invalid.
          */
-        override fun read(tupleId: Long): T? = this.localLock.read {
-            checkValidForRead()
-            checkValidTupleId(tupleId)
-            return this@ColumnV1.store.get(tupleId, this.serializer)
+        override fun read(tupleId: Long): T? = this.withReadLock {
+            this@ColumnV1.store.get(tupleId, this.serializer)
         }
 
         /**
@@ -205,9 +169,8 @@ class ColumnV1<T : Value>(
          *
          * @return The number of entries in this [ColumnV1].
          */
-        override fun count(): Long = this.localLock.read {
-            checkValidForRead()
-            return this@ColumnV1.header.count
+        override fun count(): Long = this.withReadLock {
+            this@ColumnV1.header.count
         }
 
         /**
@@ -225,63 +188,46 @@ class ColumnV1<T : Value>(
          * @param range The [LongRange] that should be scanned.
          * @return [Iterator]
          */
-        override fun scan(range: LongRange) = object : Iterator<TupleId> {
+        override fun scan(range: LongRange) = this.withReadLock {
+            object : Iterator<TupleId> {
 
-            init {
-                checkValidForRead()
-            }
+                /** Wraps a [RecordIdIterator] from the [ColumnV1]. */
+                private val wrapped = this@ColumnV1.store.RecordIdIterator(range)
 
-            /** Wraps a [RecordIdIterator] from the [ColumnV1]. */
-            private val wrapped = this@ColumnV1.store.RecordIdIterator(range)
+                /**
+                 * Returns the next element in the iteration.
+                 */
+                override fun next(): TupleId {
+                    return this.wrapped.next()
+                }
 
-            /**
-             * Returns the next element in the iteration.
-             */
-            override fun next(): TupleId {
-                return this.wrapped.next()
-            }
-
-            /**
-             * Returns `true` if the iteration has more elements.
-             */
-            override fun hasNext(): Boolean {
-                return this.wrapped.hasNext()
+                /**
+                 * Returns `true` if the iteration has more elements.
+                 */
+                override fun hasNext(): Boolean {
+                    return this.wrapped.hasNext()
+                }
             }
         }
 
-        override fun insert(record: T?): Long = this.localLock.read {
+        override fun insert(record: T?): TupleId {
             throw UnsupportedOperationException("Operation not supported on legacy DBO.")
         }
 
-        override fun update(tupleId: Long, value: T?) = this.localLock.read {
+        override fun update(tupleId: Long, value: T?): T? {
             throw UnsupportedOperationException("Operation not supported on legacy DBO.")
         }
 
-        override fun compareAndUpdate(tupleId: Long, value: T?, expected: T?): Boolean =
-            this.localLock.read {
-                throw UnsupportedOperationException("Operation not supported on legacy DBO.")
-            }
-
-        override fun delete(tupleId: Long) = this.localLock.read {
+        override fun compareAndUpdate(tupleId: Long, value: T?, expected: T?): Boolean {
             throw UnsupportedOperationException("Operation not supported on legacy DBO.")
         }
 
-        /**
-         * Checks if the provided tupleID is valid. Otherwise, an exception will be thrown.
-         */
-        private fun checkValidTupleId(tupleId: Long) {
-            if ((tupleId < 0L) or (tupleId == HEADER_RECORD_ID)) {
-                throw IllegalStateException("")
-            }
+        override fun delete(tupleId: Long): T? {
+            throw UnsupportedOperationException("Operation not supported on legacy DBO.")
         }
 
-        /**
-         * Checks if this [ColumnV1.Tx] is still open. Otherwise, an exception will be thrown.
-         */
-        @Synchronized
-        private fun checkValidForRead() {
-            if (this.status == TxStatus.CLOSED) throw IllegalStateException("")
-            if (this.status == TxStatus.ERROR) throw IllegalStateException("")
+        override fun cleanup() {
+            this@ColumnV1.closeLock.unlockRead(this.globalStamp)
         }
     }
 }

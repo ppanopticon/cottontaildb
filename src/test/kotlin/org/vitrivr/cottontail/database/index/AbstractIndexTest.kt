@@ -74,8 +74,11 @@ abstract class AbstractIndexTest {
     protected var index: Index? = null
 
     /** The [TransactionManager] used for this [CatalogueTest] instance. */
-    protected val manager =
-        TransactionManager(Executors.newFixedThreadPool(1) as ThreadPoolExecutor)
+    protected val manager = TransactionManager(
+        Executors.newFixedThreadPool(1) as ThreadPoolExecutor,
+        TestConstants.config.execution.transactionTableSize,
+        TestConstants.config.execution.transactionHistorySize
+    )
 
     /**
      * Initializes this [IndexTest] and prepares required [Entity] and [Index].

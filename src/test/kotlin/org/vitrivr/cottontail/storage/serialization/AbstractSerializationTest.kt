@@ -52,8 +52,11 @@ abstract class AbstractSerializationTest {
     protected val catalogue: DefaultCatalogue = DefaultCatalogue(TestConstants.config)
 
     /** The [TransactionManager] used for this [CatalogueTest] instance. */
-    protected val manager =
-        TransactionManager(Executors.newFixedThreadPool(1) as ThreadPoolExecutor)
+    protected val manager = TransactionManager(
+        Executors.newFixedThreadPool(1) as ThreadPoolExecutor,
+        TestConstants.config.execution.transactionTableSize,
+        TestConstants.config.execution.transactionHistorySize
+    )
 
     /** The [Schema] instance used for the [AbstractSerializationTest]. */
     protected val schema: Schema = this.catalogue.let { cat ->

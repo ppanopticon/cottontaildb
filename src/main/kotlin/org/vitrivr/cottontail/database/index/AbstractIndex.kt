@@ -155,9 +155,11 @@ abstract class AbstractIndex(final override val path: Path, final override val p
             get() = this@AbstractIndex.type
 
         /** The default [TxSnapshot] of this [IndexTx]. Can be overridden! */
-        override val snapshot = object : TxSnapshot {
-            override fun commit() = this@AbstractIndex.store.commit()
-            override fun rollback() = this@AbstractIndex.store.rollback()
+        override val snapshot by lazy {
+            object : TxSnapshot {
+                override fun commit() = this@AbstractIndex.store.commit()
+                override fun rollback() = this@AbstractIndex.store.rollback()
+            }
         }
 
         /**

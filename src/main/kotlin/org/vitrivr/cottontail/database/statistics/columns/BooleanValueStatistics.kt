@@ -78,11 +78,26 @@ class BooleanValueStatistics : ValueStatistics<BooleanValue>(Type.Boolean) {
     }
 
     /**
-     * Resets this [ByteValueStatistics] and sets all its values to to the default value.
+     * Resets this [BooleanValueStatistics] and sets all its values to to the default value.
      */
     override fun reset() {
         super.reset()
         this.numberOfTrueEntries = 0L
         this.numberOfFalseEntries = 0L
+    }
+
+    /**
+     * Copies this [BooleanValueStatistics] and returns it.
+     *
+     * @return Copy of this [BooleanValueStatistics].
+     */
+    override fun copy(): BooleanValueStatistics {
+        val copy = BooleanValueStatistics()
+        copy.fresh = this.fresh
+        copy.numberOfNullEntries = this.numberOfNullEntries
+        copy.numberOfNonNullEntries = this.numberOfNonNullEntries
+        copy.numberOfTrueEntries = this.numberOfTrueEntries
+        copy.numberOfTrueEntries = this.numberOfTrueEntries
+        return copy
     }
 }

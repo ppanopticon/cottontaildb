@@ -64,7 +64,7 @@ class ByteValueStatistics : ValueStatistics<ByteValue>(Type.Byte) {
         /* We cannot create a sensible estimate if a value is deleted. */
         if (deleted != null) {
             if (this.min == deleted.value || this.max == deleted.value) {
-                this.dirty = true
+                this.fresh = false
             }
         }
     }
@@ -76,5 +76,20 @@ class ByteValueStatistics : ValueStatistics<ByteValue>(Type.Byte) {
         super.reset()
         this.min = Byte.MAX_VALUE
         this.max = Byte.MIN_VALUE
+    }
+
+    /**
+     * Copies this [ByteValueStatistics] and returns it.
+     *
+     * @return Copy of this [ByteValueStatistics].
+     */
+    override fun copy(): ByteValueStatistics {
+        val copy = ByteValueStatistics()
+        copy.fresh = this.fresh
+        copy.numberOfNullEntries = this.numberOfNullEntries
+        copy.numberOfNonNullEntries = this.numberOfNonNullEntries
+        copy.min = this.min
+        copy.max = this.max
+        return copy
     }
 }

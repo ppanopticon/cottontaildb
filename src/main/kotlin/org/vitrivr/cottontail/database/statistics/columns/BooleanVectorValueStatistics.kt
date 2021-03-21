@@ -79,4 +79,20 @@ class BooleanVectorValueStatistics(type: Type<BooleanVectorValue>) : ValueStatis
             this.numberOfTrueEntries[i] = 0L
         }
     }
+
+    /**
+     * Copies this [BooleanVectorValueStatistics] and returns it.
+     *
+     * @return Copy of this [BooleanVectorValueStatistics].
+     */
+    override fun copy(): BooleanVectorValueStatistics {
+        val copy = BooleanVectorValueStatistics(this.type)
+        copy.fresh = this.fresh
+        copy.numberOfNullEntries = this.numberOfNullEntries
+        copy.numberOfNonNullEntries = this.numberOfNonNullEntries
+        for (i in 0 until this.type.logicalSize) {
+            copy.numberOfTrueEntries[i] = this.numberOfTrueEntries[i]
+        }
+        return copy
+    }
 }

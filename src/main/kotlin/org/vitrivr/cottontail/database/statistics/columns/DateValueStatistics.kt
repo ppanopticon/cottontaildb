@@ -63,7 +63,7 @@ class DateValueStatistics : ValueStatistics<DateValue>(Type.Date) {
 
         /* We cannot create a sensible estimate if a value is deleted. */
         if (this.min == deleted?.value || this.max == deleted?.value) {
-            this.dirty = true
+            this.fresh = false
         }
     }
 
@@ -74,5 +74,20 @@ class DateValueStatistics : ValueStatistics<DateValue>(Type.Date) {
         super.reset()
         this.min = Long.MAX_VALUE
         this.max = Long.MIN_VALUE
+    }
+
+    /**
+     * Copies this [DateValueStatistics] and returns it.
+     *
+     * @return Copy of this [DateValueStatistics].
+     */
+    override fun copy(): DateValueStatistics {
+        val copy = DateValueStatistics()
+        copy.fresh = this.fresh
+        copy.numberOfNullEntries = this.numberOfNullEntries
+        copy.numberOfNonNullEntries = this.numberOfNonNullEntries
+        copy.min = this.min
+        copy.max = this.max
+        return copy
     }
 }

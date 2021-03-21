@@ -61,10 +61,14 @@ class LockManager {
      * @param dbo [DBO] of the object to release the lock on.
      */
     fun unlock(txn: LockHolder, dbo: DBO) {
-        val lock: Lock? = this.locks[dbo]
-        if (lock != null) {
+        this.locks.computeIfPresent(dbo) { _, lock ->
             lock.release(txn)
             txn.removeLock(lock)
+            if (lock.getMode() === LockMode.NO_LOCK) {
+                null
+            } else {
+                lock
+            }
         }
     }
 

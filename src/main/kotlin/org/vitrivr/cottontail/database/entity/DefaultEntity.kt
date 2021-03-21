@@ -76,30 +76,36 @@ class DefaultEntity(override val path: Path, override val parent: DefaultSchema)
         fun initialize(name: Name.EntityName, path: Path, config: Config, columns: List<Pair<ColumnDef<*>, ColumnEngine>>): Path {
             /* Prepare empty catalogue. */
             val dataPath = path.resolve("entity_${name.simple}")
-            if (!Files.exists(dataPath)) {
-                Files.createDirectories(dataPath)
-            } else {
-                throw DatabaseException("Failed to create entity '$name'. Data directory '$dataPath' seems to be occupied.")
-            }
-            val catalogue = config.mapdb.db(dataPath.resolve(CATALOGUE_FILE))
+            if (Files.exists(dataPath)) throw DatabaseException.InvalidFileException("Failed to create entity '$name'. Data directory '$dataPath' seems to be occupied.")
+            Files.createDirectories(dataPath)
 
             /* Prepare column references and column statistics. */
-            val entityHeader = EntityHeader(name = name.simple, columns = columns.map {
-                val colPath = dataPath.resolve("${it.first.name.simple}.col")
-                when (it.second) {
-                    ColumnEngine.MAPDB -> MapDBColumn.initialize(colPath, it.first, config.mapdb)
-                    ColumnEngine.HARE -> HareColumn.initialize(colPath, it.first, config.hare)
-                }
-                EntityHeader.ColumnRef(it.first.name.simple, it.second)
-            })
-            val entityStatistics = EntityStatistics()
-            columns.forEach { entityStatistics[it.first] = it.first.type.statistics() as ValueStatistics<Value> }
+            try {
+                val entityHeader = EntityHeader(name = name.simple, columns = columns.map {
+                    val colPath = dataPath.resolve("${it.first.name.simple}.col")
+                    it.second.create(colPath, it.first, config)
+                    EntityHeader.ColumnRef(it.first.name.simple, it.second)
+                })
+                val entityStatistics = EntityStatistics()
+                columns.forEach { entityStatistics[it.first] = it.first.type.statistics() as ValueStatistics<Value> }
 
-            /* Write entity header + statistics entry to disk. */
-            catalogue.atomicVar(ENTITY_HEADER_FIELD, EntityHeader.Serializer).create().set(entityHeader)
-            catalogue.atomicVar(ENTITY_STATISTICS_FIELD, EntityStatistics.Serializer).create().set(entityStatistics)
-            catalogue.commit()
-            catalogue.close()
+                /* Write entity header + statistics entry to disk. */
+                config.mapdb.db(dataPath.resolve(CATALOGUE_FILE)).use {
+                    it.atomicVar(ENTITY_HEADER_FIELD, EntityHeader.Serializer).create().set(entityHeader)
+                    it.atomicVar(ENTITY_STATISTICS_FIELD, EntityStatistics.Serializer).create().set(entityStatistics)
+                    it.commit()
+                    it.close()
+                }
+            } catch (e: DBException) {
+                FileUtilities.deleteRecursively(dataPath) /* Cleanup. */
+                throw DatabaseException("Failed to create entity '$name' due to error in the underlying data store: {${e.message}")
+            } catch (e: IOException) {
+                FileUtilities.deleteRecursively(dataPath) /* Cleanup. */
+                throw DatabaseException("Failed to create entity '$name' due to an IO exception: {${e.message}")
+            } catch (e: Throwable) {
+                FileUtilities.deleteRecursively(dataPath) /* Cleanup. */
+                throw DatabaseException("Failed to create entity '$name' due to an unexpected error: {${e.message}")
+            }
 
             return dataPath
         }
@@ -570,7 +576,6 @@ class DefaultEntity(override val path: Path, override val parent: DefaultSchema)
                 this.snapshot.indexes.values.forEach { (this.context.getTx(it) as IndexTx).update(event) }
                 this.snapshot.statistics.consume(event)
                 this.context.signalEvent(event)
-
             } catch (e: DatabaseException) {
                 this.status = TxStatus.ERROR
                 throw e

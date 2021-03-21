@@ -20,6 +20,18 @@ import java.lang.Math.floorDiv
  */
 open class ValueStatistics<T : Value>(val type: Type<T>) {
 
+    /** Flag indicating that this [ValueStatistics] needs updating. */
+    var fresh: Boolean = true
+        protected set
+
+    /** Number of null entries known to this [ValueStatistics]. */
+    var numberOfNullEntries: Long = 0L
+        protected set
+
+    /** Number of non-null entries known to this [ValueStatistics]. */
+    var numberOfNonNullEntries: Long = 0L
+        protected set
+
     companion object : Serializer<ValueStatistics<*>> {
         override fun serialize(out: DataOutput2, value: ValueStatistics<*>) {
             out.packInt(value.type.ordinal)
@@ -39,7 +51,7 @@ open class ValueStatistics<T : Value>(val type: Type<T>) {
                 is LongVectorValueStatistics -> LongVectorValueStatistics.Serializer(value.type).serialize(out, value)
                 is IntVectorValueStatistics -> IntVectorValueStatistics.Serializer(value.type).serialize(out, value)
             }
-            out.writeBoolean(value.dirty)
+            out.writeBoolean(value.fresh)
             out.packLong(value.numberOfNullEntries)
             out.packLong(value.numberOfNonNullEntries)
         }
@@ -65,24 +77,12 @@ open class ValueStatistics<T : Value>(val type: Type<T>) {
                 is Type.IntVector -> IntVectorValueStatistics.Serializer(type).deserialize(input, available)
                 is Type.LongVector -> LongVectorValueStatistics.Serializer(type).deserialize(input, available)
             }
-            stat.dirty = input.readBoolean()
+            stat.fresh = input.readBoolean()
             stat.numberOfNullEntries = input.unpackLong()
             stat.numberOfNonNullEntries = input.unpackLong()
             return stat
         }
     }
-
-    /** Flag indicating that this [ValueStatistics] needs updating. */
-    var dirty: Boolean = false
-        protected set
-
-    /** Number of null entries known to this [ValueStatistics]. */
-    var numberOfNullEntries: Long = 0L
-        protected set
-
-    /** Number of non-null entries known to this [ValueStatistics]. */
-    var numberOfNonNullEntries: Long = 0L
-        protected set
 
     /** Total number of entries known to this [ValueStatistics]. */
     val numberOfEntries
@@ -143,9 +143,22 @@ open class ValueStatistics<T : Value>(val type: Type<T>) {
      * Resets this [ValueStatistics] and sets all its values to to the default value.
      */
     open fun reset() {
-        this.dirty = false
+        this.fresh = true
         this.numberOfNullEntries = 0L
         this.numberOfNonNullEntries = 0L
+    }
+
+    /**
+     * Copies this [ValueStatistics] and returns it.
+     *
+     * @return Copy of this [ValueStatistics].
+     */
+    open fun copy(): ValueStatistics<T> {
+        val copy = ValueStatistics(this.type)
+        copy.fresh = this.fresh
+        copy.numberOfNullEntries = this.numberOfNullEntries
+        copy.numberOfNonNullEntries = this.numberOfNonNullEntries
+        return copy
     }
 
     /**

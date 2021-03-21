@@ -2,7 +2,6 @@ package org.vitrivr.cottontail.model.exceptions
 
 import org.vitrivr.cottontail.database.general.DBOVersion
 import org.vitrivr.cottontail.model.basics.Name
-import org.vitrivr.cottontail.model.basics.Type
 
 open class DatabaseException(message: String) : Throwable(message) {
 
@@ -12,8 +11,7 @@ open class DatabaseException(message: String) : Throwable(message) {
      * @param found: Int Found [DBOVersion] of [DBO]
      * @param expected: Int Expected [DBOVersion] of [DBO]
      */
-    class VersionMismatchException(found: DBOVersion, expected: DBOVersion) :
-        DatabaseException("Version mismatch for DBO: Expected $expected but found $found.")
+    class VersionMismatchException(found: DBOVersion, expected: DBOVersion) : DatabaseException("Version mismatch for DBO: Expected $expected but found $found.")
 
     /**
      * Thrown when trying to create a [Schema][org.vitrivr.cottontail.database.schema.DefaultSchema]
@@ -21,8 +19,7 @@ open class DatabaseException(message: String) : Throwable(message) {
      *
      * @param schema [Name] of the [Schema][org.vitrivr.cottontail.database.schema.DefaultSchema].
      */
-    class SchemaAlreadyExistsException(schema: Name) :
-        DatabaseException("Schema '$schema' does already exist!")
+    class SchemaAlreadyExistsException(schema: Name) : DatabaseException("Schema '$schema' does already exist!")
 
     /**
      * Thrown when trying to access a [Schema][org.vitrivr.cottontail.database.schema.DefaultSchema]
@@ -87,19 +84,6 @@ open class DatabaseException(message: String) : Throwable(message) {
      * @param column The [Name] of the [Column][org.vitrivr.cottontail.database.column.Column].
      */
     class ColumnDoesNotExistException(val column: Name.ColumnName) : DatabaseException("Column $column does not exist.")
-
-    /**
-     * Thrown by [Index][org.vitrivr.cottontail.database.index.AbstractIndex]es if they are given a
-     * [Predicate][org.vitrivr.cottontail.database.queries.Predicate] they cannot executed.
-     *
-     * @param index [Name] of the affected [Index][org.vitrivr.cottontail.database.index.AbstractIndex]
-     */
-    class PredicateNotSupportedBxIndexException(index: Name) : DatabaseException("Index '$index' cannot be used to execute the given predicate.")
-
-    /**
-     *
-     */
-    class ColumnTypeUnexpectedException(column: Name, expected: Type<*>, actual: Type<*>) : DatabaseException("Column '$column' has wrong type (expected: ${expected.name}, actual: ${actual.name}).")
 
     /**
      * Thrown when the Cottontail DB engine expects a different type of file.

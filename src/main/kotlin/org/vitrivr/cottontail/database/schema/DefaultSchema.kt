@@ -18,7 +18,6 @@ import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.utilities.io.FileUtilities
-import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.*
@@ -247,20 +246,17 @@ class DefaultSchema(override val path: Path, override val parent: DefaultCatalog
                 throw DatabaseException.DuplicateColumnException(name, cols)
             }
 
+            /* Initialize entity on disk and make it available to transaction. */
             try {
-                /* Initialize entity on disk and make it available to transaction. */
                 val data = DefaultEntity.initialize(name, this@DefaultSchema.path, this@DefaultSchema.parent.config, columns.toList())
                 val entity = DefaultEntity(data, this@DefaultSchema)
                 this.snapshot.created[name] = entity
                 this.snapshot.entities[name] = entity
                 this.snapshot.dropped.remove(name)
                 return entity
-            } catch (e: DBException) {
+            } catch (e: DatabaseException) {
                 this.status = TxStatus.ERROR
-                throw DatabaseException("Failed to create entity '$name' due to error in the underlying data store: {${e.message}")
-            } catch (e: IOException) {
-                this.status = TxStatus.ERROR
-                throw DatabaseException("Failed to create entity '$name' due to an IO exception: {${e.message}")
+                throw e
             }
         }
 

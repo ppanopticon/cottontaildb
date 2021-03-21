@@ -62,7 +62,7 @@ class LongValueStatistics : ValueStatistics<LongValue>(Type.Long) {
 
         /* We cannot create a sensible estimate if a value is deleted. */
         if (this.min == deleted?.value || this.max == deleted?.value) {
-            this.dirty = true
+            this.fresh = false
         }
     }
 
@@ -73,5 +73,20 @@ class LongValueStatistics : ValueStatistics<LongValue>(Type.Long) {
         super.reset()
         this.min = Long.MAX_VALUE
         this.max = Long.MIN_VALUE
+    }
+
+    /**
+     * Copies this [LongValueStatistics] and returns it.
+     *
+     * @return Copy of this [LongValueStatistics].
+     */
+    override fun copy(): LongValueStatistics {
+        val copy = LongValueStatistics()
+        copy.fresh = this.fresh
+        copy.numberOfNullEntries = this.numberOfNullEntries
+        copy.numberOfNonNullEntries = this.numberOfNonNullEntries
+        copy.min = this.min
+        copy.max = this.max
+        return copy
     }
 }

@@ -78,12 +78,14 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
             }
 
             /* Open and create new catalogue. */
-            val migratedDatabaseRoot =
-                config.root.parent.resolve("${config.root.fileName}~migrated")
-            val dstCatalogue: Catalogue? =
-                this.openDestinationCatalogue(config.copy(root = migratedDatabaseRoot))
+            val migratedDatabaseRoot = config.root.parent.resolve("${config.root.fileName}~migrated")
+            if (!Files.exists(migratedDatabaseRoot)) {
+                Files.createDirectories(migratedDatabaseRoot)
+            }
+            val dstCatalogue: Catalogue? = this.openDestinationCatalogue(config.copy(root = migratedDatabaseRoot))
             if (dstCatalogue == null) {
                 this.log("Failed to open destination catalogue.\n")
+                srcCatalogue.close()
                 return
             } else {
                 this.log("Destination catalogue ${dstCatalogue.config.root} loaded successfully.\n")
@@ -99,10 +101,6 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
                 /* Final commit. */
                 context.commit()
 
-                /* Close catalogues. */
-                srcCatalogue.close()
-                dstCatalogue.close()
-
                 /* Swap folders. */
                 Files.move(
                     config.root,
@@ -116,6 +114,10 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
 
                 /* Delete destination (Cleanup). */
                 FileUtilities.deleteRecursively(dstCatalogue.path)
+            } finally {
+                /* Close catalogues. */
+                srcCatalogue.close()
+                dstCatalogue.close()
             }
         }
         this.log("Data migration completed. Took $duration.\n")

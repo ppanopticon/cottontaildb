@@ -16,8 +16,7 @@ import kotlin.time.ExperimentalTime
  * @version 1.0.0
  */
 @ExperimentalTime
-class MigrationManagerV1(batchSize: Int = 1_000_000, logFile: Path = Paths.get(".")) :
-    AbstractMigrationManager(batchSize, logFile) {
+class MigrationManagerV1(batchSize: Int = 1_000_000, logFile: Path = Paths.get(".")) : AbstractMigrationManager(batchSize, logFile) {
 
     /** The version this [MigrationManagerV1] migrates from. */
     override val from: Short = 1

@@ -62,7 +62,7 @@ class IntValueStatistics : ValueStatistics<IntValue>(Type.Int) {
 
         /* We cannot create a sensible estimate if a value is deleted. */
         if (this.min == deleted?.value || this.max == deleted?.value) {
-            this.dirty = true
+            this.fresh = false
         }
     }
 
@@ -73,5 +73,20 @@ class IntValueStatistics : ValueStatistics<IntValue>(Type.Int) {
         super.reset()
         this.min = Int.MAX_VALUE
         this.max = Int.MIN_VALUE
+    }
+
+    /**
+     * Copies this [IntValueStatistics] and returns it.
+     *
+     * @return Copy of this [IntValueStatistics].
+     */
+    override fun copy(): IntValueStatistics {
+        val copy = IntValueStatistics()
+        copy.fresh = this.fresh
+        copy.numberOfNullEntries = this.numberOfNullEntries
+        copy.numberOfNonNullEntries = this.numberOfNonNullEntries
+        copy.min = this.min
+        copy.max = this.max
+        return copy
     }
 }

@@ -1,5 +1,14 @@
 # Change log for Cottontail DB
 
+## Version 0.12.3
+
+* Slight optimization as to how DefaultEntity.scan() handles sub-transactions.
+* Weight vectors that contain only ones are now removed during query binding.
+
+### Bugfixes
+
+* Fixed the deferred fetching rule for the query planner.
+
 ## Version 0.12.2
 
 ### Bugfixes

@@ -10,7 +10,7 @@ import org.vitrivr.cottontail.model.values.types.Value
  * A [ValueStatistics] implementation for [BooleanValue]s.
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.1.0
  */
 class BooleanValueStatistics : ValueStatistics<BooleanValue>(Type.Boolean) {
 
@@ -36,7 +36,7 @@ class BooleanValueStatistics : ValueStatistics<BooleanValue>(Type.Boolean) {
         private set
 
     /** Number of false entries for in this [BooleanValueStatistics]. */
-    var numberOfFalseEntries: Long = 0
+    var numberOfFalseEntries: Long = 0L
         private set
 
     /**
@@ -75,5 +75,14 @@ class BooleanValueStatistics : ValueStatistics<BooleanValue>(Type.Boolean) {
                 this.numberOfNonNullEntries -= 1
             }
         }
+    }
+
+    /**
+     * Resets this [ByteValueStatistics] and sets all its values to to the default value.
+     */
+    override fun reset() {
+        super.reset()
+        this.numberOfTrueEntries = 0L
+        this.numberOfFalseEntries = 0L
     }
 }

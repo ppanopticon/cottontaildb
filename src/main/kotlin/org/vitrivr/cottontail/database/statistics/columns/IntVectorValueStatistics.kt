@@ -12,7 +12,7 @@ import java.lang.Integer.min
  * A [ValueStatistics] implementation for [IntVectorValue]s.
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.1.0
  */
 class IntVectorValueStatistics(type: Type<IntVectorValue>) : ValueStatistics<IntVectorValue>(type) {
     /** Minimum value in this [IntVectorValueStatistics]. */
@@ -69,6 +69,17 @@ class IntVectorValueStatistics(type: Type<IntVectorValue>) : ValueStatistics<Int
             repeat(this.type.logicalSize) { stat.min.data[it] = input.readInt() }
             repeat(this.type.logicalSize) { stat.max.data[it] = input.readInt() }
             return stat
+        }
+    }
+
+    /**
+     * Resets this [IntVectorValueStatistics] and sets all its values to to the default value.
+     */
+    override fun reset() {
+        super.reset()
+        for (i in 0 until this.type.logicalSize) {
+            this.min.data[i] = Int.MAX_VALUE
+            this.max.data[i] = Int.MIN_VALUE
         }
     }
 }

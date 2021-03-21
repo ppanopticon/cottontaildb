@@ -13,7 +13,7 @@ import java.lang.Long.min
  * A [ValueStatistics] implementation for [LongVectorValue]s.
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.1.0
  */
 class LongVectorValueStatistics(type: Type<LongVectorValue>) : ValueStatistics<LongVectorValue>(type) {
     /** Minimum value in this [LongVectorValueStatistics]. */
@@ -70,6 +70,17 @@ class LongVectorValueStatistics(type: Type<LongVectorValue>) : ValueStatistics<L
             repeat(this.type.logicalSize) { stat.min.data[it] = input.readLong() }
             repeat(this.type.logicalSize) { stat.max.data[it] = input.readLong() }
             return stat
+        }
+    }
+
+    /**
+     * Resets this [LongVectorValueStatistics] and sets all its values to to the default value.
+     */
+    override fun reset() {
+        super.reset()
+        for (i in 0 until this.type.logicalSize) {
+            this.min.data[i] = Long.MAX_VALUE
+            this.max.data[i] = Long.MIN_VALUE
         }
     }
 }

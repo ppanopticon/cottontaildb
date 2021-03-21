@@ -62,27 +62,24 @@ class CottontailStoreWAL(
                 fileLockWait = fileLockWait,
                 isThreadSafe = isThreadSafe,
                 concShift = concShift,
-                allocateIncrement = allocateIncrement,
-                allocateStartSize = allocateStartSize,
-                fileDeleteAfterClose = fileDeleteAfterClose,
-                fileDeleteAfterOpen = fileDelteAfterOpen,
-                checksum = checksum,
-                checksumHeader = checksumHeader,
-                checksumHeaderBypass = checksumHeaderBypass
+            allocateIncrement = allocateIncrement,
+            allocateStartSize = allocateStartSize,
+            fileDeleteAfterClose = fileDeleteAfterClose,
+            fileDeleteAfterOpen = fileDelteAfterOpen,
+            checksum = checksum,
+            checksumHeader = checksumHeader,
+            checksumHeaderBypass = checksumHeaderBypass
         )
-        const val EOF_ENTRY = -1L
     }
 
-    protected val realVolume: Volume = {
-        volumeFactory.makeVolume(
-                file,
-                false,
-                fileLockWait,
-                Math.max(CC.PAGE_SHIFT, DataIO.shift(allocateIncrement.toInt())),
-                DataIO.roundUp(allocateStartSize, CC.PAGE_SIZE),
-                false
-        )
-    }()
+    protected val realVolume: Volume = volumeFactory.makeVolume(
+        file,
+        false,
+        fileLockWait,
+        Math.max(CC.PAGE_SHIFT, shift(allocateIncrement.toInt())),
+        roundUp(allocateStartSize, CC.PAGE_SIZE),
+        false
+    )
 
     override val volume: Volume = if (CC.ASSERT) ReadOnlyVolume(realVolume) else realVolume
 
@@ -119,8 +116,8 @@ class CottontailStoreWAL(
 
 
     init {
-        if (checksum)
-            throw DBException.WrongConfiguration("StoreWAL does not support checksum yet") //TODO StoreWAL checksums
+        if (checksum) throw DBException.WrongConfiguration("StoreWAL does not support checksum yet") //TODO StoreWAL checksums
+
         CottontailUtils.lock(structuralLock) {
             if (!volumeExistsAtStart) {
                 realVolume.ensureAvailable(CC.PAGE_SIZE)
@@ -181,7 +178,7 @@ class CottontailStoreWAL(
             CottontailUtils.assertReadLock(locks[segment])
 
         val indexOffset = recidToOffset(recid)
-        cacheIndexVals[segment].put(indexOffset, parity1Set(value))
+        this.cacheIndexVals[segment][indexOffset] = parity1Set(value)
     }
 
 
@@ -671,9 +668,9 @@ class CottontailStoreWAL(
         if (CC.ASSERT)
             CottontailUtils.assertLocked(structuralLock)
 
-        val eof = fileTail
+        val eof = this.fileTail
         val newEof = eof + CC.PAGE_SIZE
-        allocatedPages.add(eof)
+        this.allocatedPages.add(eof)
         fileTail = newEof
         return eof
     }
@@ -682,28 +679,26 @@ class CottontailStoreWAL(
         if (CC.ASSERT)
             CottontailUtils.assertLocked(structuralLock)
 
-        val indexPage = allocateNewPage()
 
         //update pointer to previous page
-        val pagePointerOffset =
-                if (indexPages.isEmpty)
-                    ZERO_PAGE_LINK
-                else
-                    indexPages[indexPages.size()-1] + 8
+        val indexPage = allocateNewPage()
+        val pagePointerOffset = if (indexPages.isEmpty) {
+            ZERO_PAGE_LINK
+        } else {
+            indexPages[indexPages.size() - 1] + 8
+        }
 
-//        if(CC.ASSERT && parity16Get(volume.getLong(pagePointerOffset))!=0L)
-//            throw DBException.DataCorruption("index pointer not empty")
-
-        wal.walPutLong(pagePointerOffset, parity16Set(indexPage))
-        cacheIndexLinks.put(pagePointerOffset, parity16Set(indexPage))
+        this.wal.walPutLong(pagePointerOffset, parity16Set(indexPage))
+        this.cacheIndexLinks.put(pagePointerOffset, parity16Set(indexPage))
         //volume.putLong(pagePointerOffset, parity16Set(indexPage))
 
         //add this page to list of pages
-        indexPages.add(indexPage)
+        this.indexPages.add(indexPage)
 
         //zero out pointer to next page with valid parity
-        wal.walPutLong(indexPage+8, parity16Set(0))
-        cacheIndexLinks.put(indexPage+8, parity16Set(0))
+        this.wal.walPutLong(indexPage + 8, parity16Set(0))
+        this.cacheIndexLinks[indexPage + 8] = parity16Set(0)
+
         //volume.putLong(indexPage+8, parity16Set(0))
         return indexPage
     }

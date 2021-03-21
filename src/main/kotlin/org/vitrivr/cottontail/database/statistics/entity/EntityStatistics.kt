@@ -13,7 +13,7 @@ import kotlin.math.max
  * A data object that collects statistics for an entity.
  *
  * @author Ralph Gasser
- * @version 1.0.1
+ * @version 1.1.0
  */
 data class EntityStatistics(var count: Long = 0L, var maximumTupleId: TupleId = 0L) : RecordStatistics() {
 
@@ -41,7 +41,7 @@ data class EntityStatistics(var count: Long = 0L, var maximumTupleId: TupleId = 
     }
 
     /**
-     * Consumes a [DataChangeEvent] and updates the [ValueStatistics] in this [EntityStatistic].
+     * Consumes a [DataChangeEvent] and updates the [ValueStatistics] in this [EntityStatistics].
      *
      * @param event The [DataChangeEvent] to process
      */
@@ -59,6 +59,16 @@ data class EntityStatistics(var count: Long = 0L, var maximumTupleId: TupleId = 
             event.updates.forEach { (t, u) -> this.columns[t]?.update(u.first, u.second) }
         }
     }
+
+    /**
+     * Resets this [EntityStatistics] and sets all its values to to the default value.
+     */
+    override fun reset() {
+        super.reset()
+        this.count = 0
+        this.maximumTupleId = -1
+    }
+
 
     /**
      * Creates an exact copy of this [EntityStatistics].

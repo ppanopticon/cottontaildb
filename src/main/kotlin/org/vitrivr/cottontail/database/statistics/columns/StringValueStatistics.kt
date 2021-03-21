@@ -12,7 +12,7 @@ import java.lang.Integer.min
  * A specialized [ValueStatistics] for [StringValue]s.
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.1.0
  */
 class StringValueStatistics : ValueStatistics<StringValue>(Type.String) {
 
@@ -68,5 +68,14 @@ class StringValueStatistics : ValueStatistics<StringValue>(Type.String) {
                 this.dirty = true
             }
         }
+    }
+
+    /**
+     * Resets this [StringValueStatistics] and sets all its values to to the default value.
+     */
+    override fun reset() {
+        super.reset()
+        this.minWidth = Int.MAX_VALUE
+        this.maxWidth = Int.MIN_VALUE
     }
 }

@@ -68,4 +68,13 @@ class ByteValueStatistics : ValueStatistics<ByteValue>(Type.Byte) {
             }
         }
     }
+
+    /**
+     * Resets this [ByteValueStatistics] and sets all its values to to the default value.
+     */
+    override fun reset() {
+        super.reset()
+        this.min = Byte.MAX_VALUE
+        this.max = Byte.MIN_VALUE
+    }
 }

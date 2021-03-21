@@ -1,7 +1,9 @@
 package org.vitrivr.cottontail.database.catalogue
 
+import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.general.TxSnapshot
 import org.vitrivr.cottontail.database.schema.Schema
+import org.vitrivr.cottontail.database.schema.SchemaTx
 import org.vitrivr.cottontail.model.basics.Name
 
 /**
@@ -9,9 +11,15 @@ import org.vitrivr.cottontail.model.basics.Name
  * dropped during the [CatalogueTx]
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.1.0
  */
 interface CatalogueTxSnapshot : TxSnapshot {
     /** A map of all [Schema] structures available to the enclosing [CatalogueTx]. */
     val schemas: MutableMap<Name.SchemaName, Schema>
+
+    /** A map of all [Entity] structures created by the enclosing [SchemaTx]. */
+    val created: MutableMap<Name.SchemaName, Schema>
+
+    /** A map of all [Entity] structures dropped by the enclosing [SchemaTx]. */
+    val dropped: MutableMap<Name.SchemaName, Schema>
 }

@@ -271,10 +271,6 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
             /* No op. */
         }
 
-        override fun releaseLock(dbo: DBO) {
-            /* No op. */
-        }
-
         /**
          * Since migrations cannot be executed on live-instances of Cottontail DB, the locks held on
          * any DB object is always [LockMode.EXCLUSIVE].

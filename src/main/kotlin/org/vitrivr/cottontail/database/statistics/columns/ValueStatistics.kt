@@ -140,6 +140,15 @@ open class ValueStatistics<T : Value>(val type: Type<T>) {
     }
 
     /**
+     * Resets this [ValueStatistics] and sets all its values to to the default value.
+     */
+    open fun reset() {
+        this.dirty = false
+        this.numberOfNullEntries = 0L
+        this.numberOfNonNullEntries = 0L
+    }
+
+    /**
      * Estimates [Selectivity] of the given [BooleanPredicate.Atomic], i.e., the percentage of [Record]s that match it.
      * Defaults to [Selectivity.DEFAULT_SELECTIVITY] but can be overridden by concrete implementations.
      *

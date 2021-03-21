@@ -12,7 +12,7 @@ import java.lang.Long.min
  * A [ValueStatistics] implementation for [LongValue]s.
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.1.0
  */
 class LongValueStatistics : ValueStatistics<LongValue>(Type.Long) {
 
@@ -64,5 +64,14 @@ class LongValueStatistics : ValueStatistics<LongValue>(Type.Long) {
         if (this.min == deleted?.value || this.max == deleted?.value) {
             this.dirty = true
         }
+    }
+
+    /**
+     * Resets this [LongValueStatistics] and sets all its values to to the default value.
+     */
+    override fun reset() {
+        super.reset()
+        this.min = Long.MAX_VALUE
+        this.max = Long.MIN_VALUE
     }
 }

@@ -33,7 +33,6 @@ abstract class AbstractTx(override val context: TransactionContext) : Tx {
             this.snapshot.commit()
             this.status = TxStatus.CLEAN
         }
-        this.context.releaseLock(this.dbo)
     }
 
     /**
@@ -48,7 +47,6 @@ abstract class AbstractTx(override val context: TransactionContext) : Tx {
             this.snapshot.rollback()
             this.status = TxStatus.CLEAN
         }
-        this.context.releaseLock(this.dbo)
     }
 
     /**

@@ -65,4 +65,13 @@ class IntValueStatistics : ValueStatistics<IntValue>(Type.Int) {
             this.dirty = true
         }
     }
+
+    /**
+     * Resets this [IntValueStatistics] and sets all its values to to the default value.
+     */
+    override fun reset() {
+        super.reset()
+        this.min = Int.MAX_VALUE
+        this.max = Int.MIN_VALUE
+    }
 }

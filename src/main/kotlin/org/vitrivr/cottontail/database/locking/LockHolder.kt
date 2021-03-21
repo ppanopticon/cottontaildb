@@ -11,7 +11,7 @@ import java.util.*
  * Inspired by: https://github.com/dstibrany/LockManager
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.0.1
  */
 open class LockHolder(val txId: TransactionId) : Comparable<LockHolder> {
     /** The [Lock]s held by this [Transaction]. */
@@ -31,6 +31,8 @@ open class LockHolder(val txId: TransactionId) : Comparable<LockHolder> {
     /**
      * Adds a [Lock] to the list of [Lock]s held by this [LockHolder].
      *
+     * This is an internal function and should only be used by the [LockManager].
+     *
      * @param lock The [Lock] that should be added.
      */
     internal fun addLock(lock: Lock) {
@@ -39,6 +41,8 @@ open class LockHolder(val txId: TransactionId) : Comparable<LockHolder> {
 
     /**
      * Removes a [Lock] from the list of [Lock]s held by this [LockHolder].
+     *
+     * This is an internal function and should only be used by the [LockManager].
      *
      * @param lock The [Lock] that should be removed.
      */
@@ -49,7 +53,5 @@ open class LockHolder(val txId: TransactionId) : Comparable<LockHolder> {
     /**
      * Compares this [LockHolder] to the other [LockHolder].
      */
-    override operator fun compareTo(other: LockHolder): Int {
-        return (this.txId - other.txId).toInt()
-    }
+    override operator fun compareTo(other: LockHolder): Int = (this.txId - other.txId).toInt()
 }

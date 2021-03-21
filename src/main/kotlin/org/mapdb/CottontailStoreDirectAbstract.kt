@@ -44,7 +44,7 @@ abstract class CottontailStoreDirectAbstract(
     protected val indexPages = if(isThreadSafe) LongArrayList().asSynchronized() else LongArrayList()
 
     protected fun recidToOffset(recid2:Long):Long{
-        var recid = recid2-1; //normalize recid so it starts from zero
+        var recid = recid2 - 1 //normalize recid so it starts from zero
         if(recid< StoreDirectJava.RECIDS_PER_ZERO_INDEX_PAGE){
             //zero index page
             return StoreDirectJava.HEAD_END + 16 + recid*8
@@ -52,7 +52,7 @@ abstract class CottontailStoreDirectAbstract(
         //strip zero index page
         recid -= StoreDirectJava.RECIDS_PER_ZERO_INDEX_PAGE
         val pageNum = recid/ StoreDirectJava.RECIDS_PER_INDEX_PAGE
-        return indexPages.get(pageNum.toInt()) + 16 + ((recid)% StoreDirectJava.RECIDS_PER_INDEX_PAGE)*8
+        return this.indexPages.get(pageNum.toInt()) + 16 + ((recid) % StoreDirectJava.RECIDS_PER_INDEX_PAGE) * 8
     }
 
     protected val closed = AtomicBoolean(false)
@@ -62,7 +62,7 @@ abstract class CottontailStoreDirectAbstract(
 
     protected fun assertNotClosed(){
         if(closed.get())
-            throw IllegalAccessError("Store was closed");
+            throw IllegalAccessError("Store was closed")
     }
 
 
@@ -78,10 +78,10 @@ abstract class CottontailStoreDirectAbstract(
         }
 
     /** maximal allocated recid */
-    public var maxRecid: Long
+    var maxRecid: Long
         get() = DataIO.parity3Get(headVol.getLong(StoreDirectJava.INDEX_TAIL_OFFSET)).ushr(3)
-        protected set(v:Long){
-            if(CC.ASSERT)
+        protected set(v: Long) {
+            if (CC.ASSERT)
                 CottontailUtils.assertLocked(structuralLock)
             headVol.putLong(StoreDirectJava.INDEX_TAIL_OFFSET, DataIO.parity3Set(v.shl(3)))
         }
@@ -109,7 +109,7 @@ abstract class CottontailStoreDirectAbstract(
         }
 
         if(headVol.getInt(20)!=calculateHeaderChecksum()) {
-            val msg = "Header checksum broken. Store was not closed correctly and might be corrupted. Use `DBMaker.checksumHeaderBypass()` to recover your data. Use clean shutdown or enable transactions to protect the store in the future.";
+            val msg = "Header checksum broken. Store was not closed correctly and might be corrupted. Use `DBMaker.checksumHeaderBypass()` to recover your data. Use clean shutdown or enable transactions to protect the store in the future."
             if(checksumHeaderBypass)
                 CottontailUtils.LOG.warning{msg}
             else
@@ -164,17 +164,17 @@ abstract class CottontailStoreDirectAbstract(
                 if(checksumHeader) 1 else 0
     }
 
-    abstract protected fun getIndexVal(recid:Long):Long;
+    protected abstract fun getIndexVal(recid: Long): Long
 
-    abstract protected fun setIndexVal(recid:Long, value:Long)
+    protected abstract fun setIndexVal(recid: Long, value: Long)
 
     protected fun loadIndexPages(indexPages: MutableLongList){
         //load index pages
-        var indexPagePointerOffset = StoreDirectJava.ZERO_PAGE_LINK;
+        var indexPagePointerOffset = StoreDirectJava.ZERO_PAGE_LINK
         while (true) {
             val nextPage = DataIO.parity16Get(volume.getLong(indexPagePointerOffset))
             if (nextPage == 0L)
-                break;
+                break
             if (CC.ASSERT && nextPage % CC.PAGE_SIZE != 0L)
                 throw DBException.DataCorruption("wrong page pointer")
             indexPages.add(nextPage)
@@ -229,7 +229,7 @@ abstract class CottontailStoreDirectAbstract(
 
     protected fun <R> deserialize(serializer: Serializer<R>, di: DataInput2, size: Long): R? {
         try{
-            val ret = serializer.deserialize(di, size.toInt());
+            val ret = serializer.deserialize(di, size.toInt())
             return ret
             //TODO assert number of bytes read
             //TODO wrap di, if untrusted serializer
@@ -240,45 +240,44 @@ abstract class CottontailStoreDirectAbstract(
 
     protected fun <R> serialize(record: R?, serializer:Serializer<R>):DataOutput2?{
         if(record == null)
-            return null;
+            return null
         try {
             val out = DataOutput2()
-            serializer.serialize(out, record);
-            return out;
+            serializer.serialize(out, record)
+            return out
         }catch(e: IOException){
             throw DBException.SerializationError(e)
         }
     }
 
 
-    protected fun allocateRecid():Long{
-        if(CC.ASSERT)
+    protected fun allocateRecid():Long {
+        if (CC.ASSERT)
             CottontailUtils.assertLocked(structuralLock)
 
-        val reusedRecid = longStackTake(RECID_LONG_STACK,false)
-        if(reusedRecid!=0L){
+        val reusedRecid = longStackTake(RECID_LONG_STACK, false)
+        if (reusedRecid != 0L) {
             //TODO ensure old value is zero
             return parity1Get(reusedRecid).ushr(1)
         }
 
-        val maxRecid2 = maxRecid;
-
-        val maxRecidOffset = recidToOffset(maxRecid2);
+        val maxRecid2 = maxRecid
+        val maxRecidOffset = recidToOffset(maxRecid2)
 
         // check if maxRecid is last on its index page
-        if(maxRecidOffset % CC.PAGE_SIZE == CC.PAGE_SIZE-8){
+        if (maxRecidOffset % CC.PAGE_SIZE == CC.PAGE_SIZE - 8) {
             //yes, we can not increment recid without allocating new index page
             allocateNewIndexPage()
         }
         // increment maximal recid
-        val ret = maxRecid2+1;
-        maxRecid = ret;
-        if(CC.ZEROS && volume.getLong(recidToOffset(ret))!=0L)
-            throw AssertionError();
-        return ret;
+        val ret = maxRecid2 + 1
+        maxRecid = ret
+        if (CC.ZEROS && volume.getLong(recidToOffset(ret)) != 0L)
+            throw AssertionError()
+        return ret
     }
 
-    abstract protected fun allocateNewIndexPage():Long
+    protected abstract fun allocateNewIndexPage(): Long
 
     protected fun allocateData(size:Int, recursive:Boolean):Long{
         if(CC.ASSERT)
@@ -305,18 +304,18 @@ abstract class CottontailStoreDirectAbstract(
             return reusedDataOffset
         }
 
-        val dataTail2 = dataTail;
+        val dataTail2 = dataTail
 
         //no data were allocated yet
         if(dataTail2==0L){
             //create new page and return it
-            val page = allocateNewPage();
+            val page = allocateNewPage()
             dataTail = page+size
             if(CC.ZEROS)
                 volume.assertZeroes(page, page+size)
             if(CC.ASSERT && page%16!=0L)
                 throw DBException.DataCorruption("wrong offset")
-            return page;
+            return page
         }
 
         //is there enough space on current page?
@@ -324,14 +323,14 @@ abstract class CottontailStoreDirectAbstract(
             //yes, so just increment data tail and return
             dataTail =
                     //check for case when page is completely filled
-                    if((dataTail2+size)%CC.PAGE_SIZE==0L)
-                        0L //in that case reset dataTail
-                    else
-                        dataTail2+size; //still space on current page, increment data tail
+                if ((dataTail2 + size) % CC.PAGE_SIZE == 0L)
+                    0L //in that case reset dataTail
+                else
+                    dataTail2 + size //still space on current page, increment data tail
 
-            if(CC.ZEROS)
-                volume.assertZeroes(dataTail2, dataTail2+size)
-            if(CC.ASSERT && dataTail2%16!=0L)
+            if (CC.ZEROS)
+                volume.assertZeroes(dataTail2, dataTail2 + size)
+            if (CC.ASSERT && dataTail2 % 16 != 0L)
                 throw DBException.DataCorruption("wrong offset")
             return dataTail2
         }
@@ -347,7 +346,7 @@ abstract class CottontailStoreDirectAbstract(
             releaseData(remSize, dataTail2, recursive)
         }
         //now start new allocation on fresh page
-        return allocateData(size, recursive);
+        return allocateData(size, recursive)
     }
 
 
@@ -367,7 +366,7 @@ abstract class CottontailStoreDirectAbstract(
 
         //offset is multiple of 16, 4 bits are unnecessary, save 3 bits, use 1 bit for parity
         val offset = parity1Set(offset.ushr(3))
-        longStackPut(longStackMasterLinkOffset(size), offset, recursive);
+        longStackPut(longStackMasterLinkOffset(size), offset, recursive)
     }
 
     protected fun releaseRecid(recid:Long){
@@ -377,11 +376,11 @@ abstract class CottontailStoreDirectAbstract(
                 false)
     }
 
-    abstract protected fun freeSizeIncrement(increment: Long)
+    protected abstract fun freeSizeIncrement(increment: Long)
 
-    abstract protected fun longStackPut(masterLinkOffset:Long, value:Long, recursive:Boolean)
+    protected abstract fun longStackPut(masterLinkOffset: Long, value: Long, recursive: Boolean)
 
-    abstract protected fun longStackTake(masterLinkOffset:Long, recursive:Boolean):Long
+    protected abstract fun longStackTake(masterLinkOffset: Long, recursive: Boolean): Long
 
 
     protected fun longStackMasterLinkOffset(size: Long): Long {
@@ -392,7 +391,7 @@ abstract class CottontailStoreDirectAbstract(
         return size / 2 + StoreDirectJava.RECID_LONG_STACK // really is size*8/16
     }
 
-    abstract protected fun allocateNewPage():Long
+    protected abstract fun allocateNewPage(): Long
 
     fun calculateChecksum():Long {
         var checksum = volume.getLong(0) + volume.hash(16, fileTail - 16, 0L)

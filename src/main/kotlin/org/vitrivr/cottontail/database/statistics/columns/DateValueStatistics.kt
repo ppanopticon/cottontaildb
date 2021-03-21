@@ -66,4 +66,13 @@ class DateValueStatistics : ValueStatistics<DateValue>(Type.Date) {
             this.dirty = true
         }
     }
+
+    /**
+     * Resets this [DateValueStatistics] and sets all its values to to the default value.
+     */
+    override fun reset() {
+        super.reset()
+        this.min = Long.MAX_VALUE
+        this.max = Long.MIN_VALUE
+    }
 }

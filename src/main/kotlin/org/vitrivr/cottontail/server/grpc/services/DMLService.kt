@@ -25,13 +25,12 @@ import org.vitrivr.cottontail.model.exceptions.TransactionException
 import java.util.*
 import kotlin.time.ExperimentalTime
 import kotlin.time.measureTime
-import kotlin.time.measureTimedValue
 
 /**
  * Implementation of [DMLGrpc.DMLImplBase], the gRPC endpoint for inserting data into Cottontail DB [DefaultEntity]s.
  *
  * @author Ralph Gasser
- * @version 1.4.0
+ * @version 1.5.0
  */
 @ExperimentalTime
 class DMLService(val catalogue: DefaultCatalogue, override val manager: TransactionManager) : DMLGrpc.DMLImplBase(), TransactionService {
@@ -53,178 +52,103 @@ class DMLService(val catalogue: DefaultCatalogue, override val manager: Transact
     /**
      * gRPC endpoint for handling UPDATE queries.
      */
-    override fun update(request: CottontailGrpc.UpdateMessage, responseObserver: StreamObserver<CottontailGrpc.QueryResponseMessage>) = try {
-        this.withTransactionContext(request.txId) { tx, q ->
-            try {
-                val ctx = QueryContext(tx)
-                val totalDuration = measureTime {
-                    /* Bind query and create logical plan. */
-                    val bindTime = measureTime {
-                        this.binder.bind(request, ctx)
-                    }
-                    LOGGER.debug(formatMessage(tx, q, "Parsing & binding UPDATE took $bindTime."))
+    override fun update(request: CottontailGrpc.UpdateMessage, responseObserver: StreamObserver<CottontailGrpc.QueryResponseMessage>) = this.withTransactionContext(request.txId, responseObserver) { tx, q ->
+        try {
+            val ctx = QueryContext(tx)
+            val totalDuration = measureTime {
+                /* Bind query and create logical plan. */
+                this.binder.bind(request, ctx)
 
-                    /* Plan query and create execution plan. */
-                    val planningTime = measureTime {
-                        this.planner.planAndSelect(ctx)
-                    }
-                    LOGGER.debug(formatMessage(tx, q, "Planning UPDATE took $planningTime."))
+                /* Generate physical execution plan for query. */
+                this.planner.planAndSelect(ctx)
 
-                    /* Execute UPDATE. */
-                    tx.execute(SpoolerSinkOperator(ctx.toOperatorTree(tx), q, 0, responseObserver))
-                }
-
-                /* Finalize invocation. */
-                responseObserver.onCompleted()
-                LOGGER.info(formatMessage(tx, q, "Executing UPDATE took $totalDuration."))
-            } catch (e: QueryException.QuerySyntaxException) {
-                val message = formatMessage(tx, q, "UPDATE failed due to syntax error: ${e.message}")
-                LOGGER.info(message)
-                responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(message).asException())
-            } catch (e: QueryException.QueryBindException) {
-                val message = formatMessage(tx, q, "UPDATE failed due to binding error: ${e.message}")
-                LOGGER.info(message)
-                responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(message).asException())
-            } catch (e: QueryException.QueryPlannerException) {
-                val message = formatMessage(tx, q, "UPDATE failed because of an error during query planning: ${e.message}")
-                LOGGER.info(message)
-                responseObserver.onError(Status.INTERNAL.withDescription(message).asException())
-            } catch (e: TransactionException.DeadlockException) {
-                val message = formatMessage(tx, q, "UPDATE failed due to deadlock with other transaction: ${e.message}")
-                LOGGER.info(message)
-                responseObserver.onError(Status.ABORTED.withDescription(message).asException())
-            } catch (e: ExecutionException) {
-                val message = formatMessage(tx, q, "UPDATE failed due to execution error: ${e.message}")
-                LOGGER.info(message)
-                responseObserver.onError(Status.INTERNAL.withDescription(message).asException())
-            } catch (e: Throwable) {
-                val message = formatMessage(tx, q, "UPDATE failed due an unhandled error: ${e.message}")
-                LOGGER.error(message, e)
-                responseObserver.onError(Status.UNKNOWN.withDescription(message).asException())
+                /* Execute UPDATE. */
+                tx.execute(SpoolerSinkOperator(ctx.toOperatorTree(tx), q, 0, responseObserver))
             }
+
+            /* Finalize invocation. */
+            Status.OK.withDescription(formatMessage(tx, q, "Executing UPDATE took $totalDuration."))
+        } catch (e: QueryException.QuerySyntaxException) {
+            Status.INVALID_ARGUMENT.withDescription(formatMessage(tx, q, "UPDATE failed due to syntax error: ${e.message}"))
+        } catch (e: QueryException.QueryBindException) {
+            Status.INVALID_ARGUMENT.withDescription(formatMessage(tx, q, "UPDATE failed due to syntax error: ${e.message}"))
+        } catch (e: TransactionException.DeadlockException) {
+            Status.ABORTED.withDescription(formatMessage(tx, q, "UPDATE failed due to deadlock with other transaction: ${e.message}"))
+        } catch (e: QueryException.QueryPlannerException) {
+            Status.INTERNAL.withDescription(formatMessage(tx, q, "UPDATE failed because of an error during query planning: ${e.message}")).withCause(e)
+        } catch (e: ExecutionException) {
+            Status.INTERNAL.withDescription(formatMessage(tx, q, "UPDATE failed due to execution error: ${e.message}")).withCause(e)
+        } catch (e: Throwable) {
+            Status.UNKNOWN.withDescription(formatMessage(tx, q, "UPDATE failed due an unhandled error: ${e.message}")).withCause(e)
         }
-    } catch (e: TransactionException.TransactionNotFoundException) {
-        val message = "Execution failed because transaction ${request.txId.value} could not be resumed."
-        LOGGER.info(message)
-        responseObserver.onError(Status.FAILED_PRECONDITION.withDescription(message).asException())
     }
 
     /**
      * gRPC endpoint for handling DELETE queries.
      */
-    override fun delete(request: CottontailGrpc.DeleteMessage, responseObserver: StreamObserver<CottontailGrpc.QueryResponseMessage>) = try {
-        this.withTransactionContext(request.txId) { tx, q ->
-            try {
-                val ctx = QueryContext(tx)
-                val totalDuration = measureTime {
-                    /* Bind query and create logical plan. */
-                    val bindTime = measureTime {
-                        this.binder.bind(request, ctx)
-                    }
-                    LOGGER.debug(formatMessage(tx, q, "Parsing & binding DELETE took $bindTime."))
+    override fun delete(request: CottontailGrpc.DeleteMessage, responseObserver: StreamObserver<CottontailGrpc.QueryResponseMessage>) = this.withTransactionContext(request.txId, responseObserver) { tx, q ->
+        try {
+            val ctx = QueryContext(tx)
+            val totalDuration = measureTime {
+                /* Bind query and create logical plan. */
+                this.binder.bind(request, ctx)
 
-                    /* Plan query and create execution plan. */
-                    val planTime = measureTimedValue {
-                        this.planner.planAndSelect(ctx)
-                    }
-                    LOGGER.debug(formatMessage(tx, q, "Planning DELETE took $planTime."))
+                /* Generate physical execution plan for query. */
+                this.planner.planAndSelect(ctx)
 
-                    /* Execute UPDATE. */
-                    tx.execute(SpoolerSinkOperator(ctx.toOperatorTree(tx), q, 0, responseObserver))
-                }
-
-                /* Finalize invocation. */
-                responseObserver.onCompleted()
-                LOGGER.info(formatMessage(tx, q, "Executed DELETE in $totalDuration."))
-            } catch (e: QueryException.QuerySyntaxException) {
-                val message = formatMessage(tx, q, "DELETE failed due to syntax error: ${e.message}")
-                LOGGER.info(message)
-                responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(message).asException())
-            } catch (e: QueryException.QueryBindException) {
-                val message = formatMessage(tx, q, "DELETE failed due to binding error: ${e.message}")
-                LOGGER.info(message)
-                responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(message).asException())
-            } catch (e: QueryException.QueryPlannerException) {
-                val message = formatMessage(tx, q, "DELETE failed because of an error during query planning: ${e.message}")
-                LOGGER.info(message)
-                responseObserver.onError(Status.INTERNAL.withDescription(message).asException())
-            } catch (e: TransactionException.DeadlockException) {
-                val message = formatMessage(tx, q, "DELETE failed due to deadlock with other transaction: ${e.message}")
-                LOGGER.info(message)
-                responseObserver.onError(Status.ABORTED.withDescription(message).asException())
-            } catch (e: ExecutionException) {
-                val message = formatMessage(tx, q, "DELETE failed due to execution error: ${e.message}")
-                LOGGER.info(message)
-                responseObserver.onError(Status.INTERNAL.withDescription(message).asException())
-            } catch (e: Throwable) {
-                val message = formatMessage(tx, q, "DELETE failed due an unhandled error: ${e.message}")
-                LOGGER.error(message, e)
-                responseObserver.onError(Status.UNKNOWN.withDescription(message).asException())
+                /* Execute DELETE. */
+                tx.execute(SpoolerSinkOperator(ctx.toOperatorTree(tx), q, 0, responseObserver))
             }
+
+            /* Finalize invocation. */
+            Status.OK.withDescription(formatMessage(tx, q, "Executed DELETE in $totalDuration."))
+        } catch (e: QueryException.QuerySyntaxException) {
+            Status.INVALID_ARGUMENT.withDescription(formatMessage(tx, q, "DELETE failed due to syntax error: ${e.message}"))
+        } catch (e: QueryException.QueryBindException) {
+            Status.INVALID_ARGUMENT.withDescription(formatMessage(tx, q, "DELETE failed due to binding error: ${e.message}"))
+        } catch (e: TransactionException.DeadlockException) {
+            Status.ABORTED.withDescription(formatMessage(tx, q, "DELETE failed due to deadlock with other transaction: ${e.message}"))
+        } catch (e: QueryException.QueryPlannerException) {
+            Status.INTERNAL.withDescription(formatMessage(tx, q, "DELETE failed because of an error during query planning: ${e.message}")).withCause(e)
+        } catch (e: ExecutionException) {
+            Status.INTERNAL.withDescription(formatMessage(tx, q, "DELETE failed due to execution error: ${e.message}")).withCause(e)
+        } catch (e: Throwable) {
+            Status.UNKNOWN.withDescription(formatMessage(tx, q, "DELETE failed due an unexpected error: ${e.message}")).withCause(e)
         }
-    } catch (e: TransactionException.TransactionNotFoundException) {
-        val message = "Execution failed because transaction ${request.txId.value} could not be resumed."
-        LOGGER.info(message)
-        responseObserver.onError(Status.FAILED_PRECONDITION.withDescription(message).asException())
     }
 
     /**
      * gRPC endpoint for handling INSERT queries.
      */
-    override fun insert(request: CottontailGrpc.InsertMessage, responseObserver: StreamObserver<CottontailGrpc.QueryResponseMessage>) = try {
-        this.withTransactionContext(request.txId) { tx, q ->
-            try {
-                val ctx = QueryContext(tx)
-                val totalDuration = measureTime {
-                    /* Bind query and create logical plan. */
-                    val bindTime = measureTime {
-                        this.binder.bind(request, ctx)
-                    }
-                    LOGGER.debug(formatMessage(tx, q, "Parsing & binding INSERT took $bindTime."))
+    override fun insert(request: CottontailGrpc.InsertMessage, responseObserver: StreamObserver<CottontailGrpc.QueryResponseMessage>) = this.withTransactionContext(request.txId, responseObserver) { tx, q ->
+        try {
+            val ctx = QueryContext(tx)
+            val totalDuration = measureTime {
+                /* Bind query and create logical plan. */
+                this.binder.bind(request, ctx)
 
-                    /* Execute INSERT. */
-                    val planTime = measureTime {
-                        this.planner.planAndSelect(ctx)
-                    }
-                    LOGGER.debug(formatMessage(tx, q, "Planning INSERT took $planTime."))
+                /* Generate physical execution plan for query.. */
+                this.planner.planAndSelect(ctx)
 
-                    /* Register InsertOperator for later re-use. */
-                    tx.execute(SpoolerSinkOperator(ctx.toOperatorTree(tx), q, 0, responseObserver))
-                }
-
-                /* Finalize invocation. */
-                responseObserver.onCompleted()
-                LOGGER.info("Executed INSERT in $totalDuration.")
-            } catch (e: QueryException.QuerySyntaxException) {
-                val message = "INSERT failed due to syntax error: ${e.message}"
-                LOGGER.info(message)
-                responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(message).asException())
-            } catch (e: QueryException.QueryBindException) {
-                val message = "INSERT failed due to binding error: ${e.message}"
-                LOGGER.info(message)
-                responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(message).asException())
-            } catch (e: QueryException.QueryPlannerException) {
-                val message = formatMessage(tx, q, "INSERT failed because of an error during query planning: ${e.message}")
-                LOGGER.info(message)
-                responseObserver.onError(Status.INTERNAL.withDescription(message).asException())
-            } catch (e: TransactionException.DeadlockException) {
-                val message = "INSERT failed due to deadlock with other transaction: ${e.message}"
-                LOGGER.info(message)
-                responseObserver.onError(Status.ABORTED.withDescription(message).asException())
-            } catch (e: ExecutionException) {
-                val message = "INSERT failed due to execution error: ${e.message}"
-                LOGGER.info(message)
-                responseObserver.onError(Status.INTERNAL.withDescription(message).asException())
-            } catch (e: Throwable) {
-                val message = "INSERT failed due an unhandled error: ${e.message}"
-                LOGGER.error(message, e)
-                responseObserver.onError(Status.UNKNOWN.withDescription(message).asException())
+                /* Execute INSERT. */
+                tx.execute(SpoolerSinkOperator(ctx.toOperatorTree(tx), q, 0, responseObserver))
             }
+
+            /* Finalize invocation. */
+            Status.OK.withDescription("Executed INSERT in $totalDuration.")
+        } catch (e: QueryException.QuerySyntaxException) {
+            Status.INVALID_ARGUMENT.withDescription(formatMessage(tx, q, "INSERT failed due to syntax error: ${e.message}"))
+        } catch (e: QueryException.QueryBindException) {
+            Status.INVALID_ARGUMENT.withDescription(formatMessage(tx, q, "INSERT failed due to binding error: ${e.message}"))
+        } catch (e: TransactionException.DeadlockException) {
+            Status.ABORTED.withDescription(formatMessage(tx, q, "INSERT failed due to deadlock with other transaction: ${e.message}"))
+        } catch (e: QueryException.QueryPlannerException) {
+            Status.INTERNAL.withDescription(formatMessage(tx, q, "INSERT failed because of an error during query planning: ${e.message}")).withCause(e)
+        } catch (e: ExecutionException) {
+            Status.INTERNAL.withDescription(formatMessage(tx, q, "INSERT failed due to execution error: ${e.message}")).withCause(e)
+        } catch (e: Throwable) {
+            Status.UNKNOWN.withDescription(formatMessage(tx, q, "INSERT failed due an unexpected error: ${e.message}")).withCause(e)
         }
-    } catch (e: TransactionException.TransactionNotFoundException) {
-        val message = "Execution failed because transaction ${request.txId.value} could not be resumed."
-        LOGGER.info(message)
-        responseObserver.onError(Status.FAILED_PRECONDITION.withDescription(message).asException())
     }
 
 

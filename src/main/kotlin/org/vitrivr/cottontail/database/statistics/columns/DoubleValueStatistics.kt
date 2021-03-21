@@ -78,4 +78,14 @@ class DoubleValueStatistics : ValueStatistics<DoubleValue>(Type.Double) {
             }
         }
     }
+
+    /**
+     * Resets this [DoubleValueStatistics] and sets all its values to to the default value.
+     */
+    override fun reset() {
+        super.reset()
+        this.min = Double.MAX_VALUE
+        this.max = Double.MIN_VALUE
+        this.sum = 0.0
+    }
 }

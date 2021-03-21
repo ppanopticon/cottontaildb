@@ -12,7 +12,7 @@ import java.lang.Float.min
  * A [ValueStatistics] implementation for [FloatVectorValue]s.
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.1.0
  */
 class FloatVectorValueStatistics(type: Type<FloatVectorValue>) : ValueStatistics<FloatVectorValue>(type) {
     /** Minimum value in this [FloatVectorValueStatistics]. */
@@ -83,6 +83,18 @@ class FloatVectorValueStatistics(type: Type<FloatVectorValue>) : ValueStatistics
             repeat(this.type.logicalSize) { stat.max.data[it] = input.readFloat() }
             repeat(this.type.logicalSize) { stat.sum.data[it] = input.readFloat() }
             return stat
+        }
+    }
+
+    /**
+     * Resets this [FloatVectorValueStatistics] and sets all its values to to the default value.
+     */
+    override fun reset() {
+        super.reset()
+        for (i in 0 until this.type.logicalSize) {
+            this.min.data[i] = Float.MAX_VALUE
+            this.max.data[i] = Float.MIN_VALUE
+            this.sum.data[i] = 0.0f
         }
     }
 }

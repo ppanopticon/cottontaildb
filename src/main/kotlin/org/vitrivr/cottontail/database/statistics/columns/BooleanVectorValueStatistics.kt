@@ -69,4 +69,14 @@ class BooleanVectorValueStatistics(type: Type<BooleanVectorValue>) : ValueStatis
             return stat
         }
     }
+
+    /**
+     * Resets this [BooleanVectorValueStatistics] and sets all its values to to the default value.
+     */
+    override fun reset() {
+        super.reset()
+        for (i in 0 until this.type.logicalSize) {
+            this.numberOfTrueEntries[i] = 0L
+        }
+    }
 }

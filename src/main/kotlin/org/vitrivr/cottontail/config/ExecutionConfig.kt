@@ -9,14 +9,16 @@ import java.util.concurrent.TimeUnit
  * Config for Cottontail DB's task execution engine.
  *
  * @author Ralph Gasser
- * @version 1.1.0
+ * @version 1.2.0
  */
 @Serializable
 data class ExecutionConfig(
     val coreThreads: Int = (Runtime.getRuntime().availableProcessors() / 2),
     val maxThreads: Int = Runtime.getRuntime().availableProcessors(),
     val keepAliveMs: Long = 1000L,
-    val queueSize: Int = 100
+    val queueSize: Int = 100,
+    val transactionTableSize: Int = 100,
+    val transactionHistorySize: Int = 500
 ) {
 
     /**

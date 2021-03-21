@@ -17,6 +17,7 @@ import org.vitrivr.cottontail.execution.operators.sinks.SpoolerSinkOperator
 import org.vitrivr.cottontail.execution.operators.system.ExplainQueryOperator
 import org.vitrivr.cottontail.grpc.CottontailGrpc
 import org.vitrivr.cottontail.grpc.DQLGrpc
+import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.model.exceptions.ExecutionException
 import org.vitrivr.cottontail.model.exceptions.QueryException
 import org.vitrivr.cottontail.model.exceptions.TransactionException
@@ -78,6 +79,8 @@ class DQLService(val catalogue: Catalogue, override val manager: TransactionMana
             Status.ABORTED.withDescription(formatMessage(tx, q, "Could not execute query due to deadlock with other transaction: ${e.message}"))
         } catch (e: QueryException.QueryPlannerException) {
             Status.INTERNAL.withDescription(formatMessage(tx, q, "Could not execute query because of an error during query planning: ${e.message}")).withCause(e)
+        } catch (e: DatabaseException) {
+            Status.INTERNAL.withDescription(formatMessage(tx, q, "Could not execute query due to database error: ${e.message}")).withCause(e)
         } catch (e: ExecutionException) {
             Status.INTERNAL.withDescription(formatMessage(tx, q, "Could not execute query due to an unhandled execution error: ${e.message}")).withCause(e)
         } catch (e: Throwable) {
@@ -112,6 +115,8 @@ class DQLService(val catalogue: Catalogue, override val manager: TransactionMana
             Status.ABORTED.withDescription(formatMessage(tx, q, "Could not explain query due to deadlock with other transaction: ${e.message}"))
         } catch (e: QueryException.QueryPlannerException) {
             Status.INTERNAL.withDescription(formatMessage(tx, q, "Could not execute query because of an error during query planning: ${e.message}")).withCause(e)
+        } catch (e: DatabaseException) {
+            Status.INTERNAL.withDescription(formatMessage(tx, q, "Could not explain query due to database error: ${e.message}")).withCause(e)
         } catch (e: ExecutionException) {
             Status.INTERNAL.withDescription(formatMessage(tx, q, "Could not explain query due to an unhandled execution error: ${e.message}")).withCause(e)
         } catch (e: Throwable) {

@@ -42,8 +42,10 @@ class DDLService(val catalogue: DefaultCatalogue, override val manager: Transact
             Status.OK
         } catch (e: TransactionException.DeadlockException) {
             Status.ABORTED.withDescription(formatMessage(tx, q, "Failed to fetch list of schemas because of a deadlock with another transaction."))
-        } catch (e: ExecutionException) {
+        } catch (e: DatabaseException) {
             Status.INTERNAL.withDescription(formatMessage(tx, q, "Failed to fetch list of schemas because of a database error.")).withCause(e)
+        } catch (e: ExecutionException) {
+            Status.INTERNAL.withDescription(formatMessage(tx, q, "Failed to fetch list of schemas because of an execution error.")).withCause(e)
         } catch (e: Throwable) {
             Status.UNKNOWN.withDescription(formatMessage(tx, q, "Failed to fetch list of schemas because of an unexpected error.")).withCause(e)
         }
@@ -63,8 +65,10 @@ class DDLService(val catalogue: DefaultCatalogue, override val manager: Transact
             Status.ALREADY_EXISTS.withDescription(formatMessage(tx, q, "Failed to create schema '${request.schema.fqn()}': Schema with identical name already exists."))
         } catch (e: TransactionException.DeadlockException) {
             Status.ABORTED.withDescription(formatMessage(tx, q, "Failed to create schema '${request.schema.fqn()}' because of a deadlock with another transaction."))
-        } catch (e: ExecutionException) {
+        } catch (e: DatabaseException) {
             Status.INTERNAL.withDescription(formatMessage(tx, q, "Failed to create schema '${request.schema.fqn()}' because of a database error.")).withCause(e)
+        } catch (e: ExecutionException) {
+            Status.INTERNAL.withDescription(formatMessage(tx, q, "Failed to create schema '${request.schema.fqn()}' because of an execution error.")).withCause(e)
         } catch (e: Throwable) {
             Status.UNKNOWN.withDescription(formatMessage(tx, q, "Failed to create schema '${request.schema.fqn()}' because of an unexpected error.")).withCause(e)
         }
@@ -84,8 +88,10 @@ class DDLService(val catalogue: DefaultCatalogue, override val manager: Transact
             Status.NOT_FOUND.withDescription(formatMessage(tx, q, "Failed to drop schema '${request.schema.fqn()}': Schema does not exist."))
         } catch (e: TransactionException.DeadlockException) {
             Status.ABORTED.withDescription(formatMessage(tx, q, "Failed to drop schema'${request.schema.fqn()}' because of a deadlock with another transaction."))
-        } catch (e: ExecutionException) {
+        } catch (e: DatabaseException) {
             Status.INTERNAL.withDescription(formatMessage(tx, q, "Failed to drop schema '${request.schema.fqn()}' because of a database error.")).withCause(e)
+        } catch (e: ExecutionException) {
+            Status.INTERNAL.withDescription(formatMessage(tx, q, "Failed to drop schema '${request.schema.fqn()}' because of an execution error.")).withCause(e)
         } catch (e: Throwable) {
             Status.UNKNOWN.withDescription(formatMessage(tx, q, "Failed to drop schema '${request.schema.fqn()}' because of an unexpected error.")).withCause(e)
         }
@@ -110,8 +116,10 @@ class DDLService(val catalogue: DefaultCatalogue, override val manager: Transact
             Status.NOT_FOUND.withDescription(formatMessage(tx, q, "Failed to fetch entity information for '${request.entity.fqn()}': Entity does not exist."))
         } catch (e: TransactionException.DeadlockException) {
             Status.ABORTED.withDescription(formatMessage(tx, q, "Failed to fetch entity information for '${request.entity.fqn()}' because of a deadlock with another transaction."))
-        } catch (e: ExecutionException) {
+        } catch (e: DatabaseException) {
             Status.INTERNAL.withDescription(formatMessage(tx, q, "Failed to fetch entity information '${request.entity.fqn()}' because of a database error.")).withCause(e)
+        } catch (e: ExecutionException) {
+            Status.INTERNAL.withDescription(formatMessage(tx, q, "Failed to fetch entity information '${request.entity.fqn()}' because of an execution error.")).withCause(e)
         } catch (e: Throwable) {
             Status.UNKNOWN.withDescription(formatMessage(tx, q, "Failed to fetch entity information '${request.entity.fqn()}' because of an unexpected error.")).withCause(e)
         }
@@ -143,8 +151,10 @@ class DDLService(val catalogue: DefaultCatalogue, override val manager: Transact
             Status.ALREADY_EXISTS.withDescription(formatMessage(tx, q, "Failed to create entity '${request.definition.entity.fqn()}': Entity with identical name already exists."))
         } catch (e: TransactionException.DeadlockException) {
             Status.ABORTED.withDescription(formatMessage(tx, q, "Failed to create entity '${request.definition.entity.fqn()}' because of a deadlock with another transaction."))
-        } catch (e: ExecutionException) {
+        } catch (e: DatabaseException) {
             Status.INTERNAL.withDescription(formatMessage(tx, q, "Failed to create entity '${request.definition.entity.fqn()}' because of a database error.")).withCause(e)
+        } catch (e: ExecutionException) {
+            Status.INTERNAL.withDescription(formatMessage(tx, q, "Failed to create entity '${request.definition.entity.fqn()}' because of an execution error.")).withCause(e)
         } catch (e: Throwable) {
             Status.UNKNOWN.withDescription(formatMessage(tx, q, "Failed to create entity '${request.definition.entity.fqn()}' because of an unexpected error.")).withCause(e)
         }
@@ -168,8 +178,10 @@ class DDLService(val catalogue: DefaultCatalogue, override val manager: Transact
             Status.NOT_FOUND.withDescription(formatMessage(tx, q, "Failed to drop entity '${request.entity.fqn()}': Entity does not exist."))
         } catch (e: TransactionException.DeadlockException) {
             Status.ABORTED.withDescription(formatMessage(tx, q, "Failed to drop entity '${request.entity.fqn()}' because of a deadlock with another transaction."))
-        } catch (e: ExecutionException) {
+        } catch (e: DatabaseException) {
             Status.INTERNAL.withDescription(formatMessage(tx, q, "Failed to drop entity '${request.entity.fqn()}' because of a database error.")).withCause(e)
+        } catch (e: ExecutionException) {
+            Status.INTERNAL.withDescription(formatMessage(tx, q, "Failed to drop entity '${request.entity.fqn()}' because of an exeution error.")).withCause(e)
         } catch (e: Throwable) {
             Status.UNKNOWN.withDescription(formatMessage(tx, q, "Failed to drop entity '${request.entity.fqn()}' because of an unexpected error.")).withCause(e)
         }
@@ -193,8 +205,10 @@ class DDLService(val catalogue: DefaultCatalogue, override val manager: Transact
             Status.NOT_FOUND.withDescription(formatMessage(tx, q, "Failed to truncate entity '${request.entity.fqn()}': Entity does not exist."))
         } catch (e: TransactionException.DeadlockException) {
             Status.ABORTED.withDescription(formatMessage(tx, q, "Failed to truncate entity '${request.entity.fqn()}' because of a deadlock with another transaction."))
-        } catch (e: ExecutionException) {
+        } catch (e: DatabaseException) {
             Status.INTERNAL.withDescription(formatMessage(tx, q, "Failed to truncate entity '${request.entity.fqn()}' because of a database error.")).withCause(e)
+        } catch (e: ExecutionException) {
+            Status.INTERNAL.withDescription(formatMessage(tx, q, "Failed to truncate entity '${request.entity.fqn()}' because of an execution error.")).withCause(e)
         } catch (e: Throwable) {
             Status.UNKNOWN.withDescription(formatMessage(tx, q, "Failed to truncate entity '${request.entity.fqn()}' because of an unexpected error.")).withCause(e)
         }
@@ -218,8 +232,10 @@ class DDLService(val catalogue: DefaultCatalogue, override val manager: Transact
             Status.NOT_FOUND.withDescription(formatMessage(tx, q, "Failed to optimize entity '${request.entity.fqn()}': Entity does not exist."))
         } catch (e: TransactionException.DeadlockException) {
             Status.ABORTED.withDescription(formatMessage(tx, q, "Failed to optimize entity '${request.entity.fqn()}' because of a deadlock with another transaction."))
-        } catch (e: ExecutionException) {
+        } catch (e: DatabaseException) {
             Status.INTERNAL.withDescription(formatMessage(tx, q, "Failed to truncate entity '${request.entity.fqn()}' because of a database error.")).withCause(e)
+        } catch (e: ExecutionException) {
+            Status.INTERNAL.withDescription(formatMessage(tx, q, "Failed to truncate entity '${request.entity.fqn()}' because of an execution error.")).withCause(e)
         } catch (e: Throwable) {
             Status.UNKNOWN.withDescription(formatMessage(tx, q, "Failed to truncate entity '${request.entity.fqn()}' because of an unexpected error.")).withCause(e)
         }
@@ -247,8 +263,10 @@ class DDLService(val catalogue: DefaultCatalogue, override val manager: Transact
             Status.NOT_FOUND.withDescription(formatMessage(tx, q, "Failed to list entities for schema '${request.schema.fqn()}': Schema does not exist."))
         } catch (e: TransactionException.DeadlockException) {
             Status.ABORTED.withDescription(formatMessage(tx, q, "Failed to list entities for schema '${request.schema.fqn()}' because of a deadlock with another transaction."))
-        } catch (e: ExecutionException) {
+        } catch (e: DatabaseException) {
             Status.INTERNAL.withDescription(formatMessage(tx, q, "Failed to list entities for schema '${request.schema.fqn()}' because of a database error.")).withCause(e)
+        } catch (e: ExecutionException) {
+            Status.INTERNAL.withDescription(formatMessage(tx, q, "Failed to list entities for schema '${request.schema.fqn()}' because of an execution error.")).withCause(e)
         } catch (e: Throwable) {
             Status.UNKNOWN.withDescription(formatMessage(tx, q, "Failed to list entities for schema '${request.schema.fqn()}' because of an unexpected error.")).withCause(e)
         }
@@ -283,8 +301,10 @@ class DDLService(val catalogue: DefaultCatalogue, override val manager: Transact
             Status.ALREADY_EXISTS.withDescription(formatMessage(tx, q, "Failed to create index '${request.definition.name.fqn()}': Index with identical name does already exist."))
         } catch (e: TransactionException.DeadlockException) {
             Status.ABORTED.withDescription(formatMessage(tx, q, "Failed to list entities for schema '${request.definition.name.fqn()}' because of a deadlock with another transaction."))
-        } catch (e: ExecutionException) {
+        } catch (e: DatabaseException) {
             Status.INTERNAL.withDescription(formatMessage(tx, q, "Failed to create index '${request.definition.name.fqn()}' because of a database error.")).withCause(e)
+        } catch (e: ExecutionException) {
+            Status.INTERNAL.withDescription(formatMessage(tx, q, "Failed to create index '${request.definition.name.fqn()}' because of an execution error.")).withCause(e)
         } catch (e: Throwable) {
             Status.UNKNOWN.withDescription(formatMessage(tx, q, "Failed to create index '${request.definition.name.fqn()}' because of an unexpected error.")).withCause(e)
         }
@@ -312,8 +332,10 @@ class DDLService(val catalogue: DefaultCatalogue, override val manager: Transact
             Status.NOT_FOUND.withDescription(formatMessage(tx, q, "Failed to drop index '${request.index.fqn()}': Index does not exist."))
         } catch (e: TransactionException.DeadlockException) {
             Status.ABORTED.withDescription(formatMessage(tx, q, "Failed to list entities for schema '${request.index.fqn()}' because of a deadlock with another transaction."))
-        } catch (e: ExecutionException) {
+        } catch (e: DatabaseException) {
             Status.INTERNAL.withDescription(formatMessage(tx, q, "Failed to drop index '${request.index.fqn()}' because of a database error.")).withCause(e)
+        } catch (e: ExecutionException) {
+            Status.INTERNAL.withDescription(formatMessage(tx, q, "Failed to drop index '${request.index.fqn()}' because of an execution error.")).withCause(e)
         } catch (e: Throwable) {
             Status.UNKNOWN.withDescription(formatMessage(tx, q, "Failed to drop index '${request.index.fqn()}' because of an unexpected error.")).withCause(e)
         }
@@ -341,7 +363,7 @@ class DDLService(val catalogue: DefaultCatalogue, override val manager: Transact
         } catch (e: DatabaseException.IndexDoesNotExistException) {
             Status.NOT_FOUND.withDescription(formatMessage(tx, q, "Failed to rebuild index '${request.index.fqn()}': Index does not exist."))
         } catch (e: TransactionException.DeadlockException) {
-            Status.ABORTED.withDescription(formatMessage(tx, q, "Failed to list entities for schema '${request.index.fqn()}' because of a deadlock with another transaction."))
+            Status.ABORTED.withDescription(formatMessage(tx, q, "Failed to rebuild index for schema '${request.index.fqn()}' because of a deadlock with another transaction."))
         } catch (e: DatabaseException) {
             Status.INTERNAL.withDescription(formatMessage(tx, q, "Failed to rebuild index '${request.index.fqn()}' because of a database error.")).withCause(e)
         } catch (e: Throwable) {

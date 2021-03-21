@@ -19,6 +19,7 @@ import org.vitrivr.cottontail.execution.operators.sinks.SpoolerSinkOperator
 import org.vitrivr.cottontail.execution.operators.utility.NoOpSinkOperator
 import org.vitrivr.cottontail.grpc.CottontailGrpc
 import org.vitrivr.cottontail.grpc.DMLGrpc
+import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.model.exceptions.ExecutionException
 import org.vitrivr.cottontail.model.exceptions.QueryException
 import org.vitrivr.cottontail.model.exceptions.TransactionException
@@ -76,6 +77,8 @@ class DMLService(val catalogue: DefaultCatalogue, override val manager: Transact
             Status.ABORTED.withDescription(formatMessage(tx, q, "UPDATE failed due to deadlock with other transaction: ${e.message}"))
         } catch (e: QueryException.QueryPlannerException) {
             Status.INTERNAL.withDescription(formatMessage(tx, q, "UPDATE failed because of an error during query planning: ${e.message}")).withCause(e)
+        } catch (e: DatabaseException) {
+            Status.INTERNAL.withDescription(formatMessage(tx, q, "DELETE failed due to database error: ${e.message}")).withCause(e)
         } catch (e: ExecutionException) {
             Status.INTERNAL.withDescription(formatMessage(tx, q, "UPDATE failed due to execution error: ${e.message}")).withCause(e)
         } catch (e: Throwable) {
@@ -110,6 +113,8 @@ class DMLService(val catalogue: DefaultCatalogue, override val manager: Transact
             Status.ABORTED.withDescription(formatMessage(tx, q, "DELETE failed due to deadlock with other transaction: ${e.message}"))
         } catch (e: QueryException.QueryPlannerException) {
             Status.INTERNAL.withDescription(formatMessage(tx, q, "DELETE failed because of an error during query planning: ${e.message}")).withCause(e)
+        } catch (e: DatabaseException) {
+            Status.INTERNAL.withDescription(formatMessage(tx, q, "DELETE failed due to database error: ${e.message}")).withCause(e)
         } catch (e: ExecutionException) {
             Status.INTERNAL.withDescription(formatMessage(tx, q, "DELETE failed due to execution error: ${e.message}")).withCause(e)
         } catch (e: Throwable) {
@@ -131,11 +136,12 @@ class DMLService(val catalogue: DefaultCatalogue, override val manager: Transact
                 this.planner.planAndSelect(ctx)
 
                 /* Execute INSERT. */
-                tx.execute(SpoolerSinkOperator(ctx.toOperatorTree(tx), q, 0, responseObserver))
+                val op = SpoolerSinkOperator(ctx.toOperatorTree(tx), q, 0, responseObserver)
+                tx.execute(op)
             }
 
             /* Finalize invocation. */
-            Status.OK.withDescription("Executed INSERT in $totalDuration.")
+            Status.OK.withDescription(formatMessage(tx, q, "Executed INSERT in $totalDuration."))
         } catch (e: QueryException.QuerySyntaxException) {
             Status.INVALID_ARGUMENT.withDescription(formatMessage(tx, q, "INSERT failed due to syntax error: ${e.message}"))
         } catch (e: QueryException.QueryBindException) {
@@ -144,6 +150,8 @@ class DMLService(val catalogue: DefaultCatalogue, override val manager: Transact
             Status.ABORTED.withDescription(formatMessage(tx, q, "INSERT failed due to deadlock with other transaction: ${e.message}"))
         } catch (e: QueryException.QueryPlannerException) {
             Status.INTERNAL.withDescription(formatMessage(tx, q, "INSERT failed because of an error during query planning: ${e.message}")).withCause(e)
+        } catch (e: DatabaseException) {
+            Status.INTERNAL.withDescription(formatMessage(tx, q, "INSERT failed due to database error: ${e.message}")).withCause(e)
         } catch (e: ExecutionException) {
             Status.INTERNAL.withDescription(formatMessage(tx, q, "INSERT failed due to execution error: ${e.message}")).withCause(e)
         } catch (e: Throwable) {

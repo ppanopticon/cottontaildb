@@ -221,66 +221,63 @@ class DefaultEntity(override val path: Path, override val parent: DefaultSchema)
         override val dbo: DefaultEntity
             get() = this@DefaultEntity
 
-        /** [TxSnapshot] of this [EntityTx] */
-        override val snapshot = object : EntityTxSnapshot {
+        /**
+         * [TxSnapshot] of this [EntityTx]
+         *
+         * Important: The [EntityTxSnapshot] is created lazily upon first access, which means that whatever
+         * caller creates it, it holds the necessary locks!
+         */
+        override val snapshot by lazy {
+            object : EntityTxSnapshot {
+                /** Local snapshot of the surrounding [Entity]'s [EntityStatistics]. */
+                override val statistics: EntityStatistics = this@DefaultEntity.statisticsField.get()
 
-            /** Local snapshot of the surrounding [Entity]'s [EntityStatistics]. */
-            override val statistics: EntityStatistics = this@DefaultEntity.statisticsField.get()
+                /** Local snapshot of the surrounding [Entity]'s [Index]es. */
+                override val indexes = Object2ObjectOpenHashMap(this@DefaultEntity.indexes)
 
-            /** Local snapshot of the surrounding [Entity]'s [Index]es. */
-            override val indexes = Object2ObjectOpenHashMap(this@DefaultEntity.indexes)
+                /** A map of all [Index] structures created by the enclosing [EntityTx]. */
+                override val created = Object2ObjectOpenHashMap<Name.IndexName, Index>()
 
-            /**
-             * Commits the [EntityTx] and integrates all changes made through it into the [DefaultEntity].
-             */
-            override fun commit() {
-                try {
-                    /* Update update header and commit changes. */
-                    val oldHeader = this@DefaultEntity.headerField.get()
-                    val newHeader = oldHeader.copy(modified = System.currentTimeMillis(), indexes = this.indexes.values.map { EntityHeader.IndexRef(it.name.simple, it.type) })
+                /** A map of all [Index] structures dropped by the enclosing [EntityTx]. */
+                override val dropped = Object2ObjectOpenHashMap<Name.IndexName, Index>()
 
-                    /* Write header + statistics and commit. */
-                    this@DefaultEntity.headerField.compareAndSet(oldHeader, newHeader)
-                    this@DefaultEntity.statisticsField.set(this.statistics)
-                    this@DefaultEntity.store.commit()
-                } catch (e: DBException) {
-                    this@Tx.status = TxStatus.ERROR
-                    throw DatabaseException("Failed to create index '$name' due to a storage exception: ${e.message}")
-                }
-
-                /* Materialize created indexes. */
-                this.indexes.forEach {
-                    if (!this@DefaultEntity.indexes.contains(it.key)) {
-                        this@DefaultEntity.indexes[it.key] = it.value
-                    }
-                }
-
-                /* Materialize dropped indexes. */
-                val remove = this@DefaultEntity.indexes.values.filter {
-                    !this.indexes.containsKey(it.name)
-                }
-                remove.forEach {
+                /**
+                 * Commits the [EntityTx] and integrates all changes made through it into the [DefaultEntity].
+                 */
+                override fun commit() {
                     try {
-                        it.close()
-                        FileUtilities.deleteRecursively(it.path)
-                    } finally {
-                        this@DefaultEntity.indexes.remove(it.name)
-                    }
-                }
-            }
+                        /* Update update header and commit changes. */
+                        val oldHeader = this@DefaultEntity.headerField.get()
+                        val newHeader = oldHeader.copy(modified = System.currentTimeMillis(), indexes = this.indexes.values.map { EntityHeader.IndexRef(it.name.simple, it.type) })
 
-            /**
-             * Rolls back the [EntityTx] and integrates all changes made through it into the [DefaultEntity].
-             */
-            override fun rollback() {
-                /* Delete newly created indexes. */
-                this.indexes.forEach {
-                    if (!this@DefaultEntity.indexes.contains(it.key)) {
-                        it.value.close()
+                        /* Write header + statistics and commit. */
+                        this@DefaultEntity.headerField.compareAndSet(oldHeader, newHeader)
+                        this@DefaultEntity.statisticsField.set(this.statistics)
+                        this@DefaultEntity.store.commit()
+                    } catch (e: DBException) {
+                        this@Tx.status = TxStatus.ERROR
+                        throw DatabaseException("Failed to create index '$name' due to a storage exception: ${e.message}")
+                    }
+
+                    /* Materialize changes in surrounding schema (in-memory). */
+                    this.created.forEach { this@DefaultEntity.indexes[it.key] = it.value }
+                    this.dropped.forEach {
+                        val index = this@DefaultEntity.indexes.remove(it.key)
+                        index?.close()
                         FileUtilities.deleteRecursively(it.value.path)
                     }
                 }
-                this@DefaultEntity.store.rollback()
+
+                /**
+                 * Rolls back the [EntityTx] and reverts all changes.
+                 */
+                override fun rollback() {
+                    this.created.forEach { (_, v) ->
+                        v.close()
+                        FileUtilities.deleteRecursively(v.path)
+                    }
+                    this@DefaultEntity.store.rollback()
+                }
             }
         }
 
@@ -385,10 +382,23 @@ class DefaultEntity(override val path: Path, override val parent: DefaultSchema)
             }
 
             /* Creates and opens the index and adds it to snapshot. */
-            val data = this@DefaultEntity.path.resolve("${name.simple}.idx")
-            val newIndex = type.create(data, this.dbo, name, columns, params)
-            this.snapshot.indexes[newIndex.name] = newIndex
-            return newIndex
+            try {
+                val data = this@DefaultEntity.path.resolve("${name.simple}.idx")
+                val newIndex = type.create(data, this.dbo, name, columns, params)
+
+                /* Update snapshot. */
+                this.snapshot.created[name] = newIndex
+                this.snapshot.indexes[name] = newIndex
+                this.snapshot.dropped.remove(name)
+
+                return newIndex
+            } catch (e: DBException) {
+                this.status = TxStatus.ERROR
+                throw DatabaseException("Failed to create index '$name' due to a storage exception: ${e.message}")
+            } catch (e: IOException) {
+                this.status = TxStatus.ERROR
+                throw DatabaseException("Failed to create index '$name' due to an IO exception: ${e.message}")
+            }
         }
 
         /**
@@ -399,7 +409,7 @@ class DefaultEntity(override val path: Path, override val parent: DefaultSchema)
         override fun dropIndex(name: Name.IndexName) = this.withWriteLock {
             /* Obtain index and acquire exclusive lock on it. */
             val index = this.snapshot.indexes.remove(name) ?: throw DatabaseException.IndexDoesNotExistException(name)
-            if (this.context.lockOn(index) == LockMode.NO_LOCK) {
+            if (this.context.lockOn(index) != LockMode.EXCLUSIVE) {
                 this.context.requestLock(index, LockMode.EXCLUSIVE)
             }
 
@@ -407,6 +417,11 @@ class DefaultEntity(override val path: Path, override val parent: DefaultSchema)
                 /* Update header. */
                 val oldHeader = this@DefaultEntity.headerField.get()
                 this@DefaultEntity.headerField.set(oldHeader.copy(indexes = oldHeader.indexes.filter { it.name != index.name.simple }))
+
+                /* Remove entity from local snapshot. */
+                this.snapshot.indexes.remove(name)
+                this.snapshot.created.remove(name)
+                this.snapshot.dropped[name] = index
             } catch (e: DBException) {
                 this.status = TxStatus.ERROR
                 throw DatabaseException("Failed to drop index '$name' due to a storage exception: ${e.message}")
@@ -428,8 +443,9 @@ class DefaultEntity(override val path: Path, override val parent: DefaultSchema)
             }
             val columns = this.listColumns().map { it.columnDef }.toTypedArray()
             val map = Object2ObjectOpenHashMap<ColumnDef<*>, Value>(columns.size)
+            val range = 0L..this.maxTupleId()
             this.snapshot.statistics.reset()
-            this.scan(columns).forEach { r ->
+            this.scan(columns, range).forEach { r ->
                 r.forEach { columnDef, value -> map[columnDef] = value }
                 val event = DataChangeEvent.InsertDataChangeEvent(this@DefaultEntity, r.tupleId, map) /* Fake data change event for update. */
                 this.snapshot.statistics.consume(event)

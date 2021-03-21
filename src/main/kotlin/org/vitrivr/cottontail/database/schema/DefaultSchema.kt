@@ -272,7 +272,7 @@ class DefaultSchema(override val path: Path, override val parent: DefaultCatalog
         override fun dropEntity(name: Name.EntityName) = this.withWriteLock {
             /* Get entity and try to obtain lock. */
             val entity = this@DefaultSchema.registry[name] ?: throw DatabaseException.EntityDoesNotExistException(name)
-            if (this.context.lockOn(entity) == LockMode.NO_LOCK) {
+            if (this.context.lockOn(entity) != LockMode.EXCLUSIVE) {
                 this.context.requestLock(entity, LockMode.EXCLUSIVE)
             }
 

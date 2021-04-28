@@ -10,10 +10,7 @@ import org.vitrivr.cottontail.database.column.ColumnEngine
 import org.vitrivr.cottontail.database.column.mapdb.MapDBColumn
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.Entity
-import org.vitrivr.cottontail.database.general.AbstractTx
-import org.vitrivr.cottontail.database.general.DBO
-import org.vitrivr.cottontail.database.general.DBOVersion
-import org.vitrivr.cottontail.database.general.TxSnapshot
+import org.vitrivr.cottontail.database.general.*
 import org.vitrivr.cottontail.database.schema.Schema
 import org.vitrivr.cottontail.database.schema.SchemaTx
 import org.vitrivr.cottontail.execution.TransactionContext
@@ -125,11 +122,10 @@ class SchemaV1(override val name: Name.SchemaName, override val parent: Catalogu
 
         /** The [TxSnapshot] of this [SchemaTx]. */
         override val snapshot = object : TxSnapshot {
-            override fun commit() =
-                throw UnsupportedOperationException("Operation not supported on legacy DBO.")
-
-            override fun rollback() =
-                throw UnsupportedOperationException("Operation not supported on legacy DBO.")
+            override val actions: List<TxAction> = emptyList()
+            override fun commit() = throw UnsupportedOperationException("Operation not supported on legacy DBO.")
+            override fun rollback() = throw UnsupportedOperationException("Operation not supported on legacy DBO.")
+            override fun record(action: TxAction): Boolean = throw UnsupportedOperationException("Operation not supported on legacy DBO.")
         }
 
         /** Reference to the surrounding [Schema]. */

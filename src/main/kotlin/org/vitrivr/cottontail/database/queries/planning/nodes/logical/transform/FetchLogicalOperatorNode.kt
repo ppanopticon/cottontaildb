@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.database.queries.planning.nodes.logical.transform
 
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
+import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.UnaryLogicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.transform.FetchPhysicalOperatorNode
 
@@ -13,9 +14,9 @@ import org.vitrivr.cottontail.database.queries.planning.nodes.physical.transform
  * that involve pruning the result set (e.g. filters or nearest neighbour search).
  *
  * @author Ralph Gasser
- * @version 2.1.0
+ * @version 2.1.1
  */
-class FetchLogicalOperatorNode(input: Logical? = null, val entity: Entity, val fetch: Array<ColumnDef<*>>) : UnaryLogicalOperatorNode(input) {
+class FetchLogicalOperatorNode(input: Logical? = null, val entity: EntityTx, val fetch: Array<ColumnDef<*>>) : UnaryLogicalOperatorNode(input) {
 
     companion object {
         private const val NODE_NAME = "Fetch"

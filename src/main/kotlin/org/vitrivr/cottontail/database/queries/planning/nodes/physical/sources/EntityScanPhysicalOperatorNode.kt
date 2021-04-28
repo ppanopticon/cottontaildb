@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.database.queries.planning.nodes.physical.sources
 
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
+import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
@@ -15,9 +16,9 @@ import org.vitrivr.cottontail.execution.operators.sources.EntityScanOperator
  * A [UnaryPhysicalOperatorNode] that formalizes a scan of a physical [Entity] in Cottontail DB.
  *
  * @author Ralph Gasser
- * @version 2.1.0
+ * @version 2.1.1
  */
-class EntityScanPhysicalOperatorNode(override val groupId: Int, val entity: Entity, override val columns: Array<ColumnDef<*>>) : NullaryPhysicalOperatorNode() {
+class EntityScanPhysicalOperatorNode(override val groupId: Int, val entity: EntityTx, override val columns: Array<ColumnDef<*>>) : NullaryPhysicalOperatorNode() {
 
     companion object {
         private const val NODE_NAME = "ScanEntity"
@@ -28,7 +29,7 @@ class EntityScanPhysicalOperatorNode(override val groupId: Int, val entity: Enti
         get() = NODE_NAME
 
     /** The number of rows returned by this [EntityScanPhysicalOperatorNode] equals to the number of rows in the [Entity]. */
-    override val outputSize = this.entity.numberOfRows
+    override val outputSize = this.entity.count()
 
     /** [EntityScanPhysicalOperatorNode] is always executable. */
     override val executable: Boolean = true
@@ -37,7 +38,7 @@ class EntityScanPhysicalOperatorNode(override val groupId: Int, val entity: Enti
     override val canBePartitioned: Boolean = true
 
     /** The [RecordStatistics] is taken from the underlying [Entity]. [RecordStatistics] are used by the query planning for [Cost] estimation. */
-    override val statistics: RecordStatistics = this.entity.statistics
+    override val statistics: RecordStatistics = this.entity.snapshot.statistics
 
     /** The estimated [Cost] of scanning the [Entity]. */
     override val cost = Cost(Cost.COST_DISK_ACCESS_READ, Cost.COST_MEMORY_ACCESS) * this.outputSize * this.columns.map {
@@ -58,12 +59,7 @@ class EntityScanPhysicalOperatorNode(override val groupId: Int, val entity: Enti
      * @return List of [OperatorNode.Physical], each representing a partition of the original tree.
      */
     override fun partition(p: Int): List<NullaryPhysicalOperatorNode> {
-        val partitionSize = Math.floorDiv(this.outputSize, p.toLong())
-        return (0 until p).map {
-            val start = (it * partitionSize)
-            val end = ((it + 1) * partitionSize) - 1
-            RangedEntityScanPhysicalOperatorNode(this.groupId, this.entity, this.columns, start..end)
-        }
+        return (0 until p).map { RangedEntityScanPhysicalOperatorNode(this.groupId, this.entity, this.columns, it, p) }
     }
 
     /**
@@ -72,7 +68,7 @@ class EntityScanPhysicalOperatorNode(override val groupId: Int, val entity: Enti
      * @param tx The [TransactionContext] used for execution.
      * @param ctx The [QueryContext] used for the conversion (e.g. late binding).
      */
-    override fun toOperator(tx: TransactionContext, ctx: QueryContext) = EntityScanOperator(this.groupId, this.entity, this.columns, 0L..this.entity.maxTupleId)
+    override fun toOperator(tx: TransactionContext, ctx: QueryContext) = EntityScanOperator(this.groupId, this.entity, this.columns, 0, 1)
 
     /** Generates and returns a [String] representation of this [EntityScanPhysicalOperatorNode]. */
     override fun toString() = "${super.toString()}[${this.columns.joinToString(",") { it.name.toString() }}]"

@@ -1,6 +1,7 @@
 package org.vitrivr.cottontail.database.queries.planning.nodes.physical
 
 import org.vitrivr.cottontail.database.column.ColumnDef
+import org.vitrivr.cottontail.database.queries.Digest
 import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.binding.Binding
@@ -14,7 +15,7 @@ import org.vitrivr.cottontail.model.values.types.Value
  * An abstract [OperatorNode.Physical] implementation that has no input node, i.e., acts as a source.
  *
  * @author Ralph Gasser
- * @version 2.1.0
+ * @version 2.1.1
  */
 abstract class NullaryPhysicalOperatorNode : OperatorNode.Physical() {
     /** The arity of the [NullaryPhysicalOperatorNode] is always on. */
@@ -83,7 +84,7 @@ abstract class NullaryPhysicalOperatorNode : OperatorNode.Physical() {
     /**
      * Calculates and returns the digest for this [NullaryPhysicalOperatorNode].
      *
-     * @return Digest for this [NullaryPhysicalOperatorNode]
+     * @return [Digest] for this [NullaryPhysicalOperatorNode]
      */
-    final override fun digest(): Long = this.hashCode().toLong()
+    final override fun digest(): Digest = this.hashCode().toLong()
 }

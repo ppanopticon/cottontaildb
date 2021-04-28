@@ -4,10 +4,13 @@ import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.queries.binding.Binding
 import org.vitrivr.cottontail.database.queries.binding.BindingContext
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
-import org.vitrivr.cottontail.math.knn.metrics.DistanceKernel
+import org.vitrivr.cottontail.math.knn.basics.DistanceKernel
+import org.vitrivr.cottontail.math.knn.kernels.Distances
 import org.vitrivr.cottontail.model.basics.Record
 import org.vitrivr.cottontail.model.exceptions.QueryException
+import org.vitrivr.cottontail.model.values.types.RealVectorValue
 import org.vitrivr.cottontail.model.values.types.Value
+import org.vitrivr.cottontail.model.values.types.VectorValue
 import org.vitrivr.cottontail.utilities.math.KnnUtilities
 
 /**
@@ -17,9 +20,9 @@ import org.vitrivr.cottontail.utilities.math.KnnUtilities
  * @see Record
  *
  * @author Ralph Gasser
- * @version 1.5.0
+ * @version 1.6.0
  */
-class KnnPredicate(val column: ColumnDef<*>, val k: Int, val distance: DistanceKernel, val hint: KnnPredicateHint? = null, val query: Binding<Value>, val weight: Binding<Value>? = null) : Predicate {
+class KnnPredicate(val column: ColumnDef<*>, val k: Int, val distance: Distances, val hint: KnnPredicateHint? = null, val query: Binding<Value>, val weight: Binding<Value>? = null) : Predicate {
 
     init {
         /* Basic sanity checks. */
@@ -38,9 +41,9 @@ class KnnPredicate(val column: ColumnDef<*>, val k: Int, val distance: DistanceK
     /** CPU cost required for applying this [KnnPredicate] to a single record. */
     override val atomicCpuCost: Float
         get() = if (this.weight == null) {
-            this.distance.costForDimension(this.column.type.logicalSize)
+            this.distance.cost(this.column.type.logicalSize, true)
         } else {
-            2 * this.distance.costForDimension(this.column.type.logicalSize)
+            2 * this.distance.cost(this.column.type.logicalSize, false)
         }
 
     /**
@@ -53,6 +56,17 @@ class KnnPredicate(val column: ColumnDef<*>, val k: Int, val distance: DistanceK
         this.query.context = ctx
         this.weight?.context = ctx
         return this
+    }
+
+    /**
+     * Returns a [DistanceKernel] implementation for this [KnnPredicate].
+     *
+     * @return [DistanceKernel]
+     */
+    fun toKernel(): DistanceKernel<*> = if (this.weight != null) {
+        this.distance.kernelForQueryAndWeight(this.query.value as RealVectorValue<*>, this.weight.value as RealVectorValue<*>)
+    } else {
+        this.distance.kernelForQuery(this.query.value as VectorValue<*>)
     }
 
     /**

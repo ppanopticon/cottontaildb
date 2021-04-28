@@ -8,7 +8,7 @@ import org.vitrivr.cottontail.database.column.ColumnDef
  * @see Record
  *
  * @author Ralph Gasser
- * @version 1.3.0
+ * @version 1.4.0
  */
 interface Scanable {
     /**
@@ -24,8 +24,9 @@ interface Scanable {
      * and this [Scanable]. Can be used for partitioning.
      *
      * @param columns The [ColumnDef]s that should be scanned.
-     * @param range The [LongRange] to iterate over
+     * @param partitionIndex The [partitionIndex] for this [scan] call.
+     * @param partitions The total number of partitions for this [scan] call.
      * @return [Iterator]
      */
-    fun scan(columns: Array<ColumnDef<*>>, range: LongRange): Iterator<Record>
+    fun scan(columns: Array<ColumnDef<*>>, partitionIndex: Int, partitions: Int): Iterator<Record>
 }

@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.database.queries.planning.nodes.physical.sources
 
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
+import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
@@ -9,14 +10,15 @@ import org.vitrivr.cottontail.database.queries.planning.nodes.physical.NullaryPh
 import org.vitrivr.cottontail.database.statistics.entity.RecordStatistics
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.execution.operators.sources.EntityScanOperator
+import java.lang.Math.floorDiv
 
 /**
  * A [NullaryPhysicalOperatorNode] that formalizes a scan of a physical [Entity] in Cottontail DB on a given range.
  *
  * @author Ralph Gasser
- * @version 2.1.0
+ * @version 2.1.1
  */
-class RangedEntityScanPhysicalOperatorNode(override val groupId: Int, val entity: Entity, override val columns: Array<ColumnDef<*>>, val range: LongRange) : NullaryPhysicalOperatorNode() {
+class RangedEntityScanPhysicalOperatorNode(override val groupId: Int, val entity: EntityTx, override val columns: Array<ColumnDef<*>>, val partitionIndex: Int, val partitions: Int) : NullaryPhysicalOperatorNode() {
 
 
     companion object {
@@ -28,8 +30,8 @@ class RangedEntityScanPhysicalOperatorNode(override val groupId: Int, val entity
         get() = NODE_NAME
 
 
-    override val outputSize = (this.range.last - this.range.first)
-    override val statistics: RecordStatistics = this.entity.statistics
+    override val outputSize: Long = floorDiv(this.entity.count(), this.partitions.toLong())
+    override val statistics: RecordStatistics = this.entity.snapshot.statistics
     override val executable: Boolean = true
     override val canBePartitioned: Boolean = false
     override val cost = Cost(Cost.COST_DISK_ACCESS_READ, Cost.COST_MEMORY_ACCESS) * this.outputSize * this.columns.map {
@@ -37,7 +39,8 @@ class RangedEntityScanPhysicalOperatorNode(override val groupId: Int, val entity
     }.sum()
 
     init {
-        require(this.range.first >= 0L) { "Start of a ranged entity scan must be greater than zero." }
+        require(this.partitions >= 1) { "A range entity scan requires at least one partition in order to be valid." }
+        require(this.partitionIndex < this.partitions) { "The partition index must be smaller than the overall number of partitions." }
     }
 
     /**
@@ -45,7 +48,7 @@ class RangedEntityScanPhysicalOperatorNode(override val groupId: Int, val entity
      *
      * @return Copy of this [RangedEntityScanPhysicalOperatorNode].
      */
-    override fun copy() = RangedEntityScanPhysicalOperatorNode(this.groupId, this.entity, this.columns, this.range)
+    override fun copy() = RangedEntityScanPhysicalOperatorNode(this.groupId, this.entity, this.columns, this.partitionIndex, this.partitions)
 
     /**
      * [RangedIndexScanPhysicalOperatorNode] cannot be partitioned.
@@ -60,10 +63,10 @@ class RangedEntityScanPhysicalOperatorNode(override val groupId: Int, val entity
      * @param tx The [TransactionContext] used for execution.
      * @param ctx The [QueryContext] used for the conversion (e.g. late binding).
      */
-    override fun toOperator(tx: TransactionContext, ctx: QueryContext) = EntityScanOperator(this.groupId, this.entity, this.columns, this.range)
+    override fun toOperator(tx: TransactionContext, ctx: QueryContext) = EntityScanOperator(this.groupId, this.entity, this.columns, this.partitionIndex, this.partitions)
 
     /** Generates and returns a [String] representation of this [RangedEntityScanPhysicalOperatorNode]. */
-    override fun toString() = "${super.toString()}[${this.columns.joinToString(",") { it.name.toString() }},${this.range}]"
+    override fun toString() = "${super.toString()}[${this.columns.joinToString(",") { it.name.toString() }},${this.partitionIndex}/${this.partitions}]"
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -71,7 +74,8 @@ class RangedEntityScanPhysicalOperatorNode(override val groupId: Int, val entity
 
         if (entity != other.entity) return false
         if (!columns.contentEquals(other.columns)) return false
-        if (range != other.range) return false
+        if (partitionIndex != other.partitionIndex) return false
+        if (partitions != other.partitions) return false
 
         return true
     }
@@ -79,7 +83,8 @@ class RangedEntityScanPhysicalOperatorNode(override val groupId: Int, val entity
     override fun hashCode(): Int {
         var result = entity.hashCode()
         result = 31 * result + columns.contentHashCode()
-        result = 31 * result + range.hashCode()
+        result = 31 * result + partitionIndex.hashCode()
+        result = 31 * result + partitions.hashCode()
         return result
     }
 }

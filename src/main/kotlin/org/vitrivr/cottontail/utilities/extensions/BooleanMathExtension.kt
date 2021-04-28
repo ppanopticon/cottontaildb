@@ -5,14 +5,21 @@ package org.vitrivr.cottontail.utilities.extensions
  *
  * @return [Int] representation of this [Boolean]
  */
-fun Boolean.toInt() = if (this) 1 else 0
+fun Boolean.toByte() = if (this) 1.toByte() else 0.toByte()
+
+/**
+ * Converts this [Boolean] to an [Short] (true = 1, false = 0).
+ *
+ * @return [Short] representation of this [Boolean]
+ */
+fun Boolean.toShort() = if (this) 1.toShort() else 0.toShort()
 
 /**
  * Converts this [Boolean] to an [Int] (true = 1, false = 0).
  *
  * @return [Int] representation of this [Boolean]
  */
-fun Boolean.toByte() = if (this) 1.toByte() else 0.toByte()
+fun Boolean.toInt() = if (this) 1 else 0
 
 /**
  * Converts this [Boolean] to an [Double] (true = 1.0, false = 0.0).

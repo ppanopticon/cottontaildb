@@ -1,12 +1,8 @@
 name: Publish Cottontail DB Docker Image
-
 on:
   push:
     tags:
-    - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
-
-env:
-  IMAGE_NAME: cottontaildb
+      - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
 
 jobs:
   build:
@@ -41,29 +37,25 @@ jobs:
         draft: false
         prerelease: false
     - name: Upload Release Asset
-      id: upload-release-asset 
+      id: upload-release-asset
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
+        upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
         asset_path: ./build/distributions/cottontaildb-bin.tar
         asset_name: cottontail-db-${{ env.VERSION }}.tar
         asset_content_type: application/tar
-    - name: Build Docker Image
-      run: docker build . --file Dockerfile --tag ${{ env.IMAGE_NAME }}
-    - name: Log into Docker Registry
-      run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login docker.pkg.github.com -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
-    - name: Push Docker image
-      run: |
-        IMAGE_ID=docker.pkg.github.com/vitrivr/cottontaildb/${{ env.IMAGE_NAME }}
-
-        # Use Docker `latest` tag convention
-        [ "$VERSION" == "master" ] && VERSION=latest
-        echo IMAGE_ID=$IMAGE_ID
-        echo VERSION=$VERSION
-
-        docker tag $IMAGE_NAME $IMAGE_ID:$VERSION
-        docker push $IMAGE_ID:$VERSION
-
-
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v1
+    - name: Login to DockerHub
+      uses: docker/login-action@v1
+      with:
+        username: ${{ secrets.DOCKER_USERNAME}}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    - name: Push Docker Image to DockerHub
+      uses: docker/build-push-action@v2
+      with:
+        context: .
+        push: true
+        tags: vitrivr/cottontaildb:latest,vitrivr/cottontaildb:${{ env.VERSION }}

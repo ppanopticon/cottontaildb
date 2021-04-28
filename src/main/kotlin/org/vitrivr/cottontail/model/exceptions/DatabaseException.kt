@@ -3,7 +3,7 @@ package org.vitrivr.cottontail.model.exceptions
 import org.vitrivr.cottontail.database.general.DBOVersion
 import org.vitrivr.cottontail.model.basics.Name
 
-open class DatabaseException(message: String) : Throwable(message) {
+open class DatabaseException(message: String, cause: Throwable? = null) : Throwable(message, cause) {
 
     /**
      * Thrown when trying to access a [DBO] with an older, unsupported [DBOVersion].

@@ -7,9 +7,7 @@ Cottontail DB is a column store aimed at multimedia retrieval. It allows for cla
 Cottontail DB, please have a look at the [Wiki](https://github.com/vitrivr/cottontaildb/wiki/).
 
 ## Setup
-Cottontail DB requires Java 11 or newer (Open JDK or Oracle JDK should both work). 
-
-Please clone this repository using
+Cottontail DB requires Java 11 or newer (Open JDK or Oracle JDK should both work). Please clone this repository using:
 
 ``git clone https://github.com/vitrivr/cottontaildb.git``
 
@@ -22,6 +20,9 @@ stored relatively to the project root in `build/distributions` as either TAR or 
 
 All the details as to how Cottontail DB can be setup and started can be found in the [Wiki](https://github.com/vitrivr/cottontaildb/wiki/Setup).
 
+### Using Cottontail DB Docker Image
+
+Cottontail DB is available as Docker Image from [DockerHub](https://hub.docker.com/r/vitrivr/cottontaildb). Please have a look at the repository instructions and/or the [Wiki](https://github.com/vitrivr/cottontaildb/wiki/Setup) for more information.
 
 ### Connecting to Cottontail DB
 

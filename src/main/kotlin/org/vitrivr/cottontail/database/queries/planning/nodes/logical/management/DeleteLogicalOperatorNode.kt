@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.database.queries.planning.nodes.logical.managemen
 
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
+import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.UnaryLogicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.management.DeletePhysicalOperatorNode
@@ -11,9 +12,9 @@ import org.vitrivr.cottontail.execution.operators.management.DeleteOperator
  * A [DeleteLogicalOperatorNode] that formalizes a DELETE operation on an [Entity].
  *
  * @author Ralph Gasser
- * @version 2.1.0
+ * @version 2.1.1
  */
-class DeleteLogicalOperatorNode(input: OperatorNode.Logical? = null, val entity: Entity) : UnaryLogicalOperatorNode(input) {
+class DeleteLogicalOperatorNode(input: OperatorNode.Logical? = null, val entity: EntityTx) : UnaryLogicalOperatorNode(input) {
 
     companion object {
         private const val NODE_NAME = "Delete"

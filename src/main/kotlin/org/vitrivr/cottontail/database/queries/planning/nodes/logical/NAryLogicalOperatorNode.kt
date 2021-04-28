@@ -1,6 +1,7 @@
 package org.vitrivr.cottontail.database.queries.planning.nodes.logical
 
 import org.vitrivr.cottontail.database.column.ColumnDef
+import org.vitrivr.cottontail.database.queries.Digest
 import org.vitrivr.cottontail.database.queries.GroupId
 import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.binding.Binding
@@ -15,7 +16,7 @@ import java.util.*
  * An abstract [OperatorNode.Logical] implementation that has multiple [OperatorNode.Logical]s as input.
  *
  * @author Ralph Gasser
- * @version 2.1.0
+ * @version 2.1.1
  */
 abstract class NAryLogicalOperatorNode(vararg inputs: Logical) : OperatorNode.Logical() {
 
@@ -133,9 +134,9 @@ abstract class NAryLogicalOperatorNode(vararg inputs: Logical) : OperatorNode.Lo
     /**
      * Calculates and returns the digest for this [NAryLogicalOperatorNode].
      *
-     * @return Digest for this [NAryLogicalOperatorNode]
+     * @return [Digest] for this [NAryLogicalOperatorNode]
      */
-    override fun digest(): Long {
+    override fun digest(): Digest {
         var result = this.hashCode().toLong()
         for (i in this._inputs) {
             result = 33L * result + i.digest()

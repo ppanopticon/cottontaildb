@@ -6,6 +6,7 @@ import org.vitrivr.cottontail.database.column.mapdb.MapDBColumn
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.general.AbstractTx
 import org.vitrivr.cottontail.database.general.DBOVersion
+import org.vitrivr.cottontail.database.general.TxAction
 import org.vitrivr.cottontail.database.general.TxSnapshot
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.model.basics.Name
@@ -20,7 +21,6 @@ import org.vitrivr.cottontail.storage.engine.hare.access.interfaces.HareColumnWr
 import org.vitrivr.cottontail.storage.engine.hare.buffer.BufferPool
 import org.vitrivr.cottontail.utilities.extensions.write
 import java.nio.file.Path
-import java.util.*
 import java.util.concurrent.locks.StampedLock
 
 /**
@@ -116,6 +116,8 @@ class HareColumn<T : Value>(override val path: Path, override val parent: Entity
             @Volatile
             override var delta = 0L
 
+            override val actions: List<TxAction> = emptyList()
+
             /** Commits the [ColumnTx] and integrates all changes made through it into the [MapDBColumn]. */
             override fun commit() {
                 this@Tx.writer.commit()
@@ -125,6 +127,8 @@ class HareColumn<T : Value>(override val path: Path, override val parent: Entity
             override fun rollback() {
                 this@Tx.writer.rollback()
             }
+
+            override fun record(action: TxAction): Boolean = false
         }
 
         override fun count(): Long = this.withReadLock {
@@ -175,7 +179,7 @@ class HareColumn<T : Value>(override val path: Path, override val parent: Entity
                  *
                  * @return The value [T] at the position of this [ColumnCursor].
                  */
-                override fun readThrough(): T? = this.cursor.nextValue()
+                override fun readThrough(): T? = this@Tx.read(this.cursor.next())
             }
         }
 

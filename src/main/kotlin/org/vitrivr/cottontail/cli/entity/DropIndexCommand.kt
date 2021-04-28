@@ -1,8 +1,10 @@
 package org.vitrivr.cottontail.cli.entity
 
+import com.github.ajalt.clikt.output.TermUi
 import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.arguments.convert
-import com.github.ajalt.clikt.parameters.options.*
+import com.github.ajalt.clikt.parameters.options.flag
+import com.github.ajalt.clikt.parameters.options.option
 import io.grpc.StatusException
 import org.vitrivr.cottontail.database.queries.binding.extensions.proto
 import org.vitrivr.cottontail.grpc.CottontailGrpc
@@ -19,7 +21,10 @@ import kotlin.time.measureTimedValue
  * @version 1.0.3
  */
 @ExperimentalTime
-class DropIndexCommand(private val ddlStub: DDLGrpc.DDLBlockingStub) : AbstractEntityCommand(name = "drop-index", help = "Drops the index on an entity. Usage: entity drop-index <schema>.<entity> <index>") {
+class DropIndexCommand(private val ddlStub: DDLGrpc.DDLBlockingStub) : AbstractEntityCommand(
+    name = "drop-index",
+    help = "Drops the index on an entity. Usage: entity drop-index <schema>.<entity> <index>"
+) {
 
     /** Name of the index to drop. */
     private val indexName: Name.IndexName by argument(
@@ -32,16 +37,15 @@ class DropIndexCommand(private val ddlStub: DDLGrpc.DDLBlockingStub) : AbstractE
         "-c",
         "--confirm",
         help = "Directly provides the confirmation option."
-    ).convert {
-        it.toLowerCase() == "y"
-    }.prompt(
-        "Do you really want to drop the index ${this.indexName} [y/N]?",
-        default = "n",
-        showDefault = false
-    )
+    ).flag()
 
     override fun exec() {
-        if (this.confirm) {
+        if (this.confirm || TermUi.confirm(
+                "Do you really want to drop the index ${this.indexName} [y/N]?",
+                default = false,
+                showDefault = false
+            ) == true
+        ) {
             try {
                 val timedTable = measureTimedValue {
                     TabulationUtilities.tabulate(

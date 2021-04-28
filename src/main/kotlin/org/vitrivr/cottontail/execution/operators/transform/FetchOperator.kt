@@ -16,9 +16,9 @@ import org.vitrivr.cottontail.model.values.types.Value
  * the specified [Entity]. Can  be used for late population of requested [ColumnDef]s.
  *
  * @author Ralph Gasser
- * @version 1.0.2
+ * @version 1.0.3
  */
-class FetchOperator(parent: Operator, val entity: Entity, val fetch: Array<ColumnDef<*>>) : Operator.PipelineOperator(parent) {
+class FetchOperator(parent: Operator, val entity: EntityTx, val fetch: Array<ColumnDef<*>>) : Operator.PipelineOperator(parent) {
 
     /** Columns returned by [FetchOperator] are a combination of the parent and the [FetchOperator]'s columns */
     override val columns: Array<ColumnDef<*>> = (this.parent.columns + this.fetch)
@@ -33,12 +33,11 @@ class FetchOperator(parent: Operator, val entity: Entity, val fetch: Array<Colum
      * @return [Flow] representing this [FetchOperator]
      */
     override fun toFlow(context: TransactionContext): Flow<Record> {
-        val tx = context.getTx(this.entity) as EntityTx
         val buffer = ArrayList<Value?>(this.columns.size)
         return this.parent.toFlow(context).map { r ->
             buffer.clear()
             r.forEach { _, v -> buffer.add(v) }
-            tx.read(r.tupleId, this.fetch).forEach { _, v -> buffer.add(v) }
+            this@FetchOperator.entity.read(r.tupleId, this.fetch).forEach { _, v -> buffer.add(v) }
             StandaloneRecord(r.tupleId, this.columns, buffer.toTypedArray())
         }
     }

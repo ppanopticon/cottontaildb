@@ -1,11 +1,9 @@
 package org.vitrivr.cottontail.database.index.va
 
-import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions
-import org.junit.jupiter.api.BeforeAll
-import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
+import org.vitrivr.cottontail.database.catalogue.CatalogueTx
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.index.AbstractIndexTest
@@ -13,11 +11,10 @@ import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.index.IndexType
 import org.vitrivr.cottontail.database.queries.binding.BindingContext
 import org.vitrivr.cottontail.database.queries.predicates.knn.KnnPredicate
+import org.vitrivr.cottontail.database.schema.SchemaTx
 import org.vitrivr.cottontail.execution.TransactionType
-import org.vitrivr.cottontail.math.knn.metrics.DistanceKernel
-import org.vitrivr.cottontail.math.knn.metrics.EuclidianDistance
-import org.vitrivr.cottontail.math.knn.metrics.ManhattanDistance
-import org.vitrivr.cottontail.math.knn.metrics.SquaredEuclidianDistance
+import org.vitrivr.cottontail.math.knn.basics.DistanceKernel
+import org.vitrivr.cottontail.math.knn.kernels.Distances
 import org.vitrivr.cottontail.math.knn.selection.ComparablePair
 import org.vitrivr.cottontail.math.knn.selection.MinHeapSelection
 import org.vitrivr.cottontail.model.basics.Name
@@ -29,6 +26,7 @@ import org.vitrivr.cottontail.model.values.DoubleValue
 import org.vitrivr.cottontail.model.values.FloatVectorValue
 import org.vitrivr.cottontail.model.values.LongValue
 import org.vitrivr.cottontail.model.values.types.Value
+import org.vitrivr.cottontail.model.values.types.VectorValue
 import org.vitrivr.cottontail.utilities.math.KnnUtilities
 import java.util.*
 import java.util.stream.Stream
@@ -40,15 +38,13 @@ import kotlin.time.measureTime
  * This is a collection of test cases to test the correct behaviour of [VAFIndex] for [FloatVectorValue]s.
  *
  * @author Ralph Gasser
- * @param 1.2.0
+ * @param 1.2.1
  */
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class VAFFloatIndexTest : AbstractIndexTest() {
 
     companion object {
         @JvmStatic
-        fun kernels(): Stream<DistanceKernel> =
-            Stream.of(ManhattanDistance, EuclidianDistance, SquaredEuclidianDistance)
+        fun kernels(): Stream<Distances> = Stream.of(Distances.L1, Distances.L2, Distances.L2SQUARED)
     }
 
     /** Random number generator. */
@@ -74,23 +70,14 @@ class VAFFloatIndexTest : AbstractIndexTest() {
     /** Random number generator. */
     private var counter: Long = 0L
 
-    @BeforeAll
-    override fun initialize() {
-        super.initialize()
-    }
-
-    @AfterAll
-    override fun teardown() {
-        super.teardown()
-    }
-
     @ParameterizedTest
     @MethodSource("kernels")
     @ExperimentalTime
-    fun test(distance: DistanceKernel) {
+    fun test(distance: Distances) {
         val txn = this.manager.Transaction(TransactionType.SYSTEM)
         val k = 100
         val query = FloatVectorValue.random(this.indexColumn.type.logicalSize, this.random)
+        val kernel = distance.kernelForQuery(query) as DistanceKernel<VectorValue<*>>
         val context = BindingContext<Value>()
         val predicate = KnnPredicate(
             column = this.indexColumn,
@@ -99,8 +86,14 @@ class VAFFloatIndexTest : AbstractIndexTest() {
             query = context.bind(query)
         )
 
-        val indexTx = txn.getTx(this.index!!) as IndexTx
-        val entityTx = txn.getTx(this.entity!!) as EntityTx
+        /* Obtain necessary transactions. */
+        val catalogueTx = txn.getTx(this.catalogue) as CatalogueTx
+        val schema = catalogueTx.schemaForName(this.schemaName)
+        val schemaTx = txn.getTx(schema) as SchemaTx
+        val entity = schemaTx.entityForName(this.entityName)
+        val entityTx = txn.getTx(entity) as EntityTx
+        val index = entityTx.indexForName(this.indexName)
+        val indexTx = txn.getTx(index) as IndexTx
 
         /* Fetch results through index. */
         val indexResults = ArrayList<Record>(k)
@@ -117,7 +110,7 @@ class VAFFloatIndexTest : AbstractIndexTest() {
                     bruteForceResults.offer(
                         ComparablePair(
                             it.tupleId,
-                            predicate.distance.invoke(query, vector)
+                            kernel(vector)
                         )
                     )
                 }
@@ -134,6 +127,7 @@ class VAFFloatIndexTest : AbstractIndexTest() {
         }
 
         log("Test done for ${distance::class.java.simpleName}! VAF took $indexDuration, brute-force took $bruteForceDuration.")
+        txn.commit()
     }
 
     override fun nextRecord(): StandaloneRecord {

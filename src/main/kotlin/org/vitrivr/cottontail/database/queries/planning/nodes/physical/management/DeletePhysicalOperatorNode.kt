@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.database.queries.planning.nodes.physical.manageme
 
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
+import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.management.DeleteLogicalOperatorNode
@@ -16,7 +17,7 @@ import org.vitrivr.cottontail.execution.operators.management.DeleteOperator
  * @author Ralph Gasser
  * @version 2.1.0
  */
-class DeletePhysicalOperatorNode(input: Physical? = null, val entity: Entity) : UnaryPhysicalOperatorNode(input) {
+class DeletePhysicalOperatorNode(input: Physical? = null, val entity: EntityTx) : UnaryPhysicalOperatorNode(input) {
 
     companion object {
         private const val NODE_NAME = "Delete"
@@ -33,7 +34,7 @@ class DeletePhysicalOperatorNode(input: Physical? = null, val entity: Entity) : 
     override val outputSize: Long = 1L
 
     /** The [Cost] of this [DeletePhysicalOperatorNode]. */
-    override val cost: Cost = Cost(io = this.entity.numberOfColumns * Cost.COST_DISK_ACCESS_WRITE) * (this.input?.outputSize ?: 0)
+    override val cost: Cost = Cost(io = this.entity.count() * Cost.COST_DISK_ACCESS_WRITE) * (this.input?.outputSize ?: 0)
 
     /** The [DeletePhysicalOperatorNode]s cannot be partitioned. */
     override val canBePartitioned: Boolean = false

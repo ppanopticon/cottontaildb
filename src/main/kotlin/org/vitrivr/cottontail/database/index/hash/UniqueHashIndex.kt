@@ -6,13 +6,16 @@ import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.events.DataChangeEvent
-import org.vitrivr.cottontail.database.index.*
+import org.vitrivr.cottontail.database.index.AbstractIndex
+import org.vitrivr.cottontail.database.index.IndexTx
+import org.vitrivr.cottontail.database.index.IndexType
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
 import org.vitrivr.cottontail.database.queries.predicates.bool.BooleanPredicate
 import org.vitrivr.cottontail.database.queries.predicates.bool.ComparisonOperator
 import org.vitrivr.cottontail.execution.TransactionContext
-import org.vitrivr.cottontail.model.basics.*
+import org.vitrivr.cottontail.model.basics.Record
+import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.exceptions.TxException
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.types.Value
@@ -132,7 +135,7 @@ class UniqueHashIndex(path: Path, parent: DefaultEntity) : AbstractIndex(path, p
             /* Recreate entries. */
             this@UniqueHashIndex.map.clear()
             entityTx.scan(this@UniqueHashIndex.columns).forEach { record ->
-                val value = record[this.columns[0]] ?: throw TxException.TxValidationException(this.context.txId, "Value cannot be null for UniqueHashIndex ${this@UniqueHashIndex.name} given value is (value = null, tupleId = ${record.tupleId}).")
+                val value = record[this.dbo.columns[0]] ?: throw TxException.TxValidationException(this.context.txId, "Value cannot be null for UniqueHashIndex ${this@UniqueHashIndex.name} given value is (value = null, tupleId = ${record.tupleId}).")
                 if (!this.addMapping(value, record.tupleId)) {
                     throw TxException.TxValidationException(this.context.txId, "Value must be unique for UniqueHashIndex ${this@UniqueHashIndex.name} but is not (value = $value, tupleId = ${record.tupleId}).")
                 }
@@ -148,23 +151,23 @@ class UniqueHashIndex(path: Path, parent: DefaultEntity) : AbstractIndex(path, p
         override fun update(event: DataChangeEvent) = this.withWriteLock {
             when (event) {
                 is DataChangeEvent.InsertDataChangeEvent -> {
-                    val value = event.inserts[this.columns[0]]
+                    val value = event.inserts[this.dbo.columns[0]]
                     if (value != null) {
                         this.addMapping(value, event.tupleId)
                     }
                 }
                 is DataChangeEvent.UpdateDataChangeEvent -> {
-                    val old = event.updates[this.columns[0]]?.first
+                    val old = event.updates[this.dbo.columns[0]]?.first
                     if (old != null) {
                         this.removeMapping(old)
                     }
-                    val new = event.updates[this.columns[0]]?.second
+                    val new = event.updates[this.dbo.columns[0]]?.second
                     if (new != null) {
                         this.addMapping(new, event.tupleId)
                     }
                 }
                 is DataChangeEvent.DeleteDataChangeEvent -> {
-                    val old = event.deleted[this.columns[0]]
+                    val old = event.deleted[this.dbo.columns[0]]
                     if (old != null) {
                         this.removeMapping(old)
                     }

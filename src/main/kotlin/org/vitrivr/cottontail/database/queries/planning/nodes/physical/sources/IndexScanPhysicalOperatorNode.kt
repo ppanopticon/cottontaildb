@@ -4,6 +4,7 @@ import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.index.AbstractIndex
 import org.vitrivr.cottontail.database.index.Index
+import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.binding.BindingContext
@@ -28,7 +29,7 @@ import org.vitrivr.cottontail.model.values.types.Value
  * @author Ralph Gasser
  * @version 2.1.0
  */
-class IndexScanPhysicalOperatorNode(override val groupId: Int, val index: Index, val predicate: Predicate) : NullaryPhysicalOperatorNode() {
+class IndexScanPhysicalOperatorNode(override val groupId: Int, val index: IndexTx, val predicate: Predicate) : NullaryPhysicalOperatorNode() {
     companion object {
         private const val NODE_NAME = "ScanIndex"
     }
@@ -38,25 +39,25 @@ class IndexScanPhysicalOperatorNode(override val groupId: Int, val index: Index,
         get() = NODE_NAME
 
     /** The [ColumnDef]s produced by this [IndexScanPhysicalOperatorNode] depends on the [ColumnDef]s produced by the [Index]. */
-    override val columns: Array<ColumnDef<*>> = this.index.produces
+    override val columns: Array<ColumnDef<*>> = this.index.dbo.produces
 
     /** [IndexScanPhysicalOperatorNode] are always executable. */
     override val executable: Boolean = true
 
     /** Whether an [IndexScanPhysicalOperatorNode] can be partitioned depends on the [Index]. */
-    override val canBePartitioned: Boolean = this.index.supportsPartitioning
+    override val canBePartitioned: Boolean = this.index.dbo.supportsPartitioning
 
     /** The [RecordStatistics] is taken from the underlying [Entity]. [RecordStatistics] are used by the query planning for [Cost] estimation. */
-    override val statistics: RecordStatistics = this.index.parent.statistics
+    override val statistics: RecordStatistics = this.index.dbo.parent.statistics
 
     /** Cost estimation for [IndexScanPhysicalOperatorNode]s is delegated to the [Index]. */
-    override val cost: Cost = this.index.cost(this.predicate)
+    override val cost: Cost = this.index.dbo.cost(this.predicate)
 
     /** */
     override val outputSize: Long = when (this.predicate) {
-        is BooleanPredicate -> NaiveSelectivityCalculator.estimate(this.predicate, this.statistics)(this.index.parent.numberOfRows)
+        is BooleanPredicate -> NaiveSelectivityCalculator.estimate(this.predicate, this.statistics)(this.index.dbo.parent.numberOfRows)
         is KnnPredicate -> this.predicate.k.toLong()
-        else -> this.index.parent.numberOfRows
+        else -> this.index.dbo.parent.numberOfRows
     }
 
     /**
@@ -73,7 +74,7 @@ class IndexScanPhysicalOperatorNode(override val groupId: Int, val index: Index,
      * @return List of [OperatorNode.Physical], each representing a partition of the original tree.
      */
     override fun partition(p: Int): List<NullaryPhysicalOperatorNode> {
-        check(this.index.supportsPartitioning) { "Index ${index.name} does not support partitioning!" }
+        check(this.index.dbo.supportsPartitioning) { "Index ${index.dbo.name} does not support partitioning!" }
         return (0 until p).map {
             RangedIndexScanPhysicalOperatorNode(this.groupId, this.index, this.predicate, it, p)
         }

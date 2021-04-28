@@ -16,7 +16,7 @@ class DoubleVectorMapDBSerializer(val size: Int) : MapDBSerializer<DoubleVectorV
     }
 
     override fun serialize(out: DataOutput2, value: DoubleVectorValue) {
-        for (i in 0 until size) {
+        for (i in 0 until this.size) {
             out.writeDouble(value[i].value)
         }
     }

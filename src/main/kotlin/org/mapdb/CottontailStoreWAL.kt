@@ -595,8 +595,11 @@ class CottontailStoreWAL(
 
             for (page in indexPagesBackup)
                 this.indexPages.add(page)
+
+            /* Perform proper rollback. */
             this.wal.rollback()
-        }finally{
+            this.wal.destroyWalFiles()
+        } finally {
             CottontailUtils.unlockWriteAll(locks)
         }
     }

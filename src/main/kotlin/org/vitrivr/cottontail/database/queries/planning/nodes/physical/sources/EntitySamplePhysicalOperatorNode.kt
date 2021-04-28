@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.database.queries.planning.nodes.physical.sources
 
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
+import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
@@ -15,11 +16,11 @@ import kotlin.math.min
  * A [NullaryPhysicalOperatorNode] that formalizes the random sampling of a physical [Entity] in Cottontail DB.
  *
  * @author Ralph Gasser
- * @version 2.1.0
+ * @version 2.1.1
  */
 class EntitySamplePhysicalOperatorNode(
     override val groupId: Int,
-    val entity: Entity,
+    val entity: EntityTx,
     override val columns: Array<ColumnDef<*>>,
     override val outputSize: Long,
     val seed: Long = System.currentTimeMillis()
@@ -45,7 +46,7 @@ class EntitySamplePhysicalOperatorNode(
     }.sum()
 
     /** The [RecordStatistics] is taken from the underlying [Entity]. [RecordStatistics] are used by the query planning for [Cost] estimation. */
-    override val statistics: RecordStatistics = this.entity.statistics
+    override val statistics: RecordStatistics = this.entity.dbo.statistics
 
     init {
         require(this.outputSize > 0) { "Sample size must be greater than zero for sampling an entity but is $outputSize." }

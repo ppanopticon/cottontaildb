@@ -1,6 +1,8 @@
 package org.vitrivr.cottontail.database.queries.planning
 
 import it.unimi.dsi.fastutil.ints.Int2ObjectLinkedOpenHashMap
+import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap
+import it.unimi.dsi.fastutil.objects.Object2ObjectMaps
 import org.vitrivr.cottontail.database.queries.GroupId
 import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.QueryContext
@@ -28,12 +30,12 @@ import kotlin.collections.LinkedHashMap
  * Finally, the best plan in terms of [Cost] is selected.
  *
  * @author Ralph Gasser
- * @version 2.0.0
+ * @version 2.1.0
  */
-class CottontailQueryPlanner(private val logicalRules: Collection<RewriteRule>, private val physicalRules: Collection<RewriteRule>, val planCacheSize: Int = 100) {
+class CottontailQueryPlanner(private val logicalRules: Collection<RewriteRule>, private val physicalRules: Collection<RewriteRule>, planCacheSize: Int = 100) {
 
     /** Internal cache used to store query plans for known queries. */
-    private val planCache = LinkedHashMap<Long, OperatorNode.Physical>()
+    private val planCache = CottontailPlanCache(planCacheSize)
 
     /**
      * Executes query planning for a given [QueryContext] and generates a [OperatorNode.Physical] for it.
@@ -49,8 +51,8 @@ class CottontailQueryPlanner(private val logicalRules: Collection<RewriteRule>, 
         require(logical != null) { "Cannot plan for a QueryContext that doesn't have a valid logical query representation." }
         val digest = logical.digest()
         if (!bypassCache) {
-            if (this.planCache.containsKey(digest)) {
-                context.physical = this.planCache[digest]
+            context.physical = this.planCache[digest]
+            if (context.physical != null) {
                 return
             }
         }
@@ -60,12 +62,7 @@ class CottontailQueryPlanner(private val logicalRules: Collection<RewriteRule>, 
         context.physical = candidates.minByOrNull { it.totalCost } ?: throw QueryException.QueryPlannerException("Failed to generate a physical execution plan for expression: $logical.")
 
         /* Update plan cache. */
-        if (!cache) {
-            if (this.planCache.size >= this.planCacheSize) {
-                this.planCache.remove(this.planCache.keys.first())
-            }
-            this.planCache[digest] = context.physical!!
-        }
+        if (!cache) this.planCache[digest] = context.physical!!
     }
 
     /**
@@ -90,11 +87,6 @@ class CottontailQueryPlanner(private val logicalRules: Collection<RewriteRule>, 
         }
         return listOf(this.compose(0, candidates))
     }
-
-    /**
-     * Clears the plan cache of this [CottontailQueryPlanner]
-     */
-    fun clearCache() = this.planCache.clear()
 
     /**
      * Decomposes the given [OperatorNode.Logical], i.e., splits the tree into a sub-tree per group.

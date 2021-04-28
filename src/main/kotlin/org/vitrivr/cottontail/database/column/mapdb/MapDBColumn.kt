@@ -1,25 +1,22 @@
 package org.vitrivr.cottontail.database.column.mapdb
 
-import org.mapdb.*
+import org.mapdb.CottontailStoreWAL
+import org.mapdb.DBException
+import org.mapdb.Serializer
+import org.mapdb.Store
 import org.vitrivr.cottontail.config.MapDBConfig
 import org.vitrivr.cottontail.database.column.*
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.Entity
-import org.vitrivr.cottontail.database.general.AbstractTx
-import org.vitrivr.cottontail.database.general.DBOVersion
-import org.vitrivr.cottontail.database.general.TxSnapshot
-import org.vitrivr.cottontail.database.general.TxStatus
+import org.vitrivr.cottontail.database.general.*
 import org.vitrivr.cottontail.execution.TransactionContext
-
-import org.vitrivr.cottontail.model.basics.*
+import org.vitrivr.cottontail.model.basics.Name
+import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.model.exceptions.TxException
 import org.vitrivr.cottontail.model.values.types.Value
-
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.*
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.StampedLock
 
 /**
@@ -37,7 +34,6 @@ class MapDBColumn<T : Value>(override val path: Path, override val parent: Entit
      * Companion object with some important constants.
      */
     companion object {
-
         /**
          * The shift between Cottontail DB's [TupleId] and the record ID used by MapDB.
          *
@@ -45,6 +41,7 @@ class MapDBColumn<T : Value>(override val path: Path, override val parent: Entit
          * MapDB's record ID is 1 based + the first record is reserved for the header.
          */
         private const val RECORD_ID_TUPLE_ID_SHIFT = 2L
+
 
         /** Record ID of the [ColumnHeader]. */
         private const val HEADER_RECORD_ID: Long = 1L
@@ -93,14 +90,13 @@ class MapDBColumn<T : Value>(override val path: Path, override val parent: Entit
     override val engine: ColumnEngine
         get() = ColumnEngine.MAPDB
 
-    /** The maximum tuple ID used by this [Column]. It's the maximum record ID minus the [RECORD_ID_TUPLE_ID_SHIFT]. */
+    /** The maximum tuple ID used by this [Column]. */
     override val maxTupleId: Long
-        get() = this.store.maxRecid - RECORD_ID_TUPLE_ID_SHIFT
+        get() = this.store.maxRecid
 
     /** Status indicating whether this [MapDBColumn] is open or closed. */
-    @Volatile
-    override var closed: Boolean = false
-        private set
+    override val closed: Boolean
+        get() = this.store.isClosed
 
     /** An internal lock that is used to synchronize closing of the[MapDBColumn] in presence of ongoing [MapDBColumn.Tx]. */
     private val closeLock = StampedLock()
@@ -119,18 +115,7 @@ class MapDBColumn<T : Value>(override val path: Path, override val parent: Entit
      */
     override fun close() {
         if (!this.closed) {
-            try {
-                val stamp = this.closeLock.tryWriteLock(1000, TimeUnit.MILLISECONDS)
-                try {
-                    this.store.close()
-                    this.closed = true
-                } catch (e: Throwable) {
-                    this.closeLock.unlockWrite(stamp)
-                    throw e
-                }
-            } catch (e: InterruptedException) {
-                throw IllegalStateException("Could not close column ${this.name}. Failed to acquire exclusive lock which indicates, that transaction wasn't closed properly.")
-            }
+            this.store.close()
         }
     }
 
@@ -146,23 +131,26 @@ class MapDBColumn<T : Value>(override val path: Path, override val parent: Entit
         override val dbo: Column<T>
             get() = this@MapDBColumn
 
-        /** Tries to acquire a global read-lock on the surrounding column. */
-        init {
-            if (this@MapDBColumn.closed) {
-                throw TxException.TxDBOClosedException(this.context.txId)
-            }
-        }
-
         /** The [Serializer] used for de-/serialization of [MapDBColumn] entries. */
         private val serializer = this@MapDBColumn.type.serializerFactory().mapdb(this@MapDBColumn.type.logicalSize)
 
         /** Obtains a global (non-exclusive) read-lock on [MapDBColumn]. Prevents enclosing [MapDBColumn] from being closed while this [MapDBColumn.Tx] is still in use. */
-        private val globalStamp = this@MapDBColumn.closeLock.readLock()
+        private val closeStamp = this@MapDBColumn.closeLock.readLock()
+
+        /** Tries to acquire a global read-lock on the surrounding column. */
+        init {
+            if (this@MapDBColumn.closed) {
+                this@MapDBColumn.closeLock.unlockRead(this.closeStamp)
+                throw TxException.TxDBOClosedException(this.context.txId, this@MapDBColumn)
+            }
+        }
 
         /** [TxSnapshot] of this [ColumnTx]. */
         override val snapshot = object : ColumnTxSnapshot {
             @Volatile
             override var delta = 0L
+
+            override val actions: List<TxAction> = emptyList()
 
             /** Commits the [ColumnTx] and integrates all changes made through it into the [MapDBColumn]. */
             override fun commit() {
@@ -175,6 +163,8 @@ class MapDBColumn<T : Value>(override val path: Path, override val parent: Entit
             override fun rollback() {
                 this@MapDBColumn.store.rollback()
             }
+
+            override fun record(action: TxAction): Boolean = false
         }
 
         /**
@@ -213,10 +203,12 @@ class MapDBColumn<T : Value>(override val path: Path, override val parent: Entit
          * @param range The [LongRange] that should be scanned.
          * @return [Iterator]
          */
-        override fun scan(range: LongRange) = object : Iterator<TupleId> {
-            private val wrapped = this@MapDBColumn.store.RecordIdIterator((range.first + RECORD_ID_TUPLE_ID_SHIFT)..(range.last + RECORD_ID_TUPLE_ID_SHIFT))
-            override fun hasNext(): Boolean = this.wrapped.hasNext()
-            override fun next(): TupleId = this.wrapped.next() - RECORD_ID_TUPLE_ID_SHIFT
+        override fun scan(range: LongRange) = this@Tx.withReadLock {
+            object : Iterator<TupleId> {
+                private val wrapped = this@MapDBColumn.store.RecordIdIterator((range.first + RECORD_ID_TUPLE_ID_SHIFT)..(range.last + RECORD_ID_TUPLE_ID_SHIFT))
+                override fun hasNext(): Boolean = this.wrapped.hasNext()
+                override fun next(): TupleId = this.wrapped.next() - RECORD_ID_TUPLE_ID_SHIFT
+            }
         }
 
         /**
@@ -317,7 +309,7 @@ class MapDBColumn<T : Value>(override val path: Path, override val parent: Entit
          * Releases the [closeLock] on the [MapDBColumn].
          */
         override fun cleanup() {
-            this@MapDBColumn.closeLock.unlockRead(this.globalStamp)
+            this@MapDBColumn.closeLock.unlockRead(this.closeStamp)
         }
     }
 }

@@ -1,6 +1,7 @@
 package org.vitrivr.cottontail.database.queries.planning.nodes.logical
 
 import org.vitrivr.cottontail.database.column.ColumnDef
+import org.vitrivr.cottontail.database.queries.Digest
 import org.vitrivr.cottontail.database.queries.GroupId
 import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.QueryContext
@@ -14,7 +15,7 @@ import java.io.PrintStream
  * An abstract [OperatorNode.Logical] implementation that has a single [OperatorNode] as input.
  *
  * @author Ralph Gasser
- * @version 2.1.0
+ * @version 2.1.1
  */
 abstract class UnaryLogicalOperatorNode(input: Logical? = null) : OperatorNode.Logical() {
     /** Input arity of [UnaryLogicalOperatorNode] is always one. */
@@ -113,9 +114,9 @@ abstract class UnaryLogicalOperatorNode(input: Logical? = null) : OperatorNode.L
     /**
      * Calculates and returns the digest for this [UnaryLogicalOperatorNode].
      *
-     * @return Digest for this [UnaryLogicalOperatorNode]
+     * @return [Digest] for this [UnaryLogicalOperatorNode]
      */
-    final override fun digest(): Long {
+    final override fun digest(): Digest {
         val result = 33L * this.hashCode() + (this.input?.digest() ?: -1L)
         return 33L * result + this.depth.hashCode()
     }

@@ -29,10 +29,12 @@ class Lock internal constructor(private val waitForGraph: WaitForGraph) {
     private val waiters: Condition = this.lock.writeLock().newCondition()
 
     /** Number of shared locks held by this [Lock]. */
+    @Volatile
     var sharedLockCount = 0
         private set
 
     /** Returns true, if this [Lock] is exclusively locked, false otherwise. */
+    @Volatile
     var isExclusivelyLocked = false
         private set
 

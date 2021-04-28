@@ -1,6 +1,7 @@
 package org.vitrivr.cottontail.database.queries.planning.nodes.logical
 
 import org.vitrivr.cottontail.database.column.ColumnDef
+import org.vitrivr.cottontail.database.queries.Digest
 import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.binding.Binding
@@ -12,7 +13,7 @@ import org.vitrivr.cottontail.model.values.types.Value
  * An abstract [OperatorNode.Logical] implementation that has no input.
  *
  * @author Ralph Gasser
- * @version 2.1.0
+ * @version 2.1.1
  */
 abstract class NullaryLogicalOperatorNode : OperatorNode.Logical() {
     /** Input arity of [NullaryLogicalOperatorNode] is always zero. */
@@ -78,7 +79,7 @@ abstract class NullaryLogicalOperatorNode : OperatorNode.Logical() {
     /**
      * Calculates and returns the digest for this [NullaryLogicalOperatorNode].
      *
-     * @return Digest for this [NullaryLogicalOperatorNode]
+     * @return [Digest] for this [NullaryLogicalOperatorNode]
      */
-    final override fun digest(): Long = this.hashCode().toLong()
+    final override fun digest(): Digest = this.hashCode().toLong()
 }

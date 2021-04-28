@@ -23,9 +23,9 @@ import kotlin.time.measureTime
  * that it receives with the provided [Value].
  *
  * @author Ralph Gasser
- * @version 1.1.0
+ * @version 1.1.1
  */
-class UpdateOperator(parent: Operator, val entity: Entity, val values: List<Pair<ColumnDef<*>, Value?>>) : Operator.PipelineOperator(parent) {
+class UpdateOperator(parent: Operator, val entity: EntityTx, val values: List<Pair<ColumnDef<*>, Value?>>) : Operator.PipelineOperator(parent) {
 
     companion object {
         /** The columns produced by the [UpdateOperator]. */
@@ -51,14 +51,13 @@ class UpdateOperator(parent: Operator, val entity: Entity, val values: List<Pair
     override fun toFlow(context: TransactionContext): Flow<Record> {
         var updated = 0L
         val parent = this.parent.toFlow(context)
-        val tx = context.getTx(this.entity) as EntityTx
         return flow {
             val time = measureTime {
                 parent.collect { record ->
                     for (value in this@UpdateOperator.values) {
                         record[value.first] = value.second
                     }
-                    tx.update(record) /* Safe, cause tuple IDs are retained for simple queries. */
+                    this@UpdateOperator.entity.update(record) /* Safe, cause tuple IDs are retained for simple queries. */
                     updated += 1
                 }
             }

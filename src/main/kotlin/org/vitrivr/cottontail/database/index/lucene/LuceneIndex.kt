@@ -13,6 +13,7 @@ import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.events.DataChangeEvent
+import org.vitrivr.cottontail.database.general.TxAction
 import org.vitrivr.cottontail.database.general.TxSnapshot
 import org.vitrivr.cottontail.database.index.AbstractIndex
 import org.vitrivr.cottontail.database.index.IndexTx
@@ -25,7 +26,8 @@ import org.vitrivr.cottontail.database.queries.predicates.bool.BooleanPredicate
 import org.vitrivr.cottontail.database.queries.predicates.bool.ComparisonOperator
 import org.vitrivr.cottontail.database.queries.predicates.bool.ConnectionOperator
 import org.vitrivr.cottontail.execution.TransactionContext
-import org.vitrivr.cottontail.model.basics.*
+import org.vitrivr.cottontail.model.basics.Record
+import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.exceptions.QueryException
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
@@ -257,6 +259,8 @@ class LuceneIndex(path: Path, parent: DefaultEntity, config: LuceneIndexConfig? 
 
         /** The default [TxSnapshot] of this [IndexTx].  */
         override val snapshot = object : TxSnapshot {
+            override val actions: List<TxAction> = emptyList()
+
             /** Commits DB and Lucene writer and updates lucene reader. */
             override fun commit() {
                 this@LuceneIndex.store.commit()
@@ -275,6 +279,8 @@ class LuceneIndex(path: Path, parent: DefaultEntity, config: LuceneIndexConfig? 
                     this@Tx.writer?.rollback()
                 }
             }
+
+            override fun record(action: TxAction): Boolean = false
         }
 
         /**
@@ -312,14 +318,14 @@ class LuceneIndex(path: Path, parent: DefaultEntity, config: LuceneIndexConfig? 
             this.ensureWriterAvailable()
             when (event) {
                 is DataChangeEvent.InsertDataChangeEvent -> {
-                    val new = event.inserts[this.columns[0]]
+                    val new = event.inserts[this.dbo.columns[0]]
                     if (new is StringValue) {
                         this.writer?.addDocument(this@LuceneIndex.documentFromValue(new, event.tupleId))
                     }
                 }
                 is DataChangeEvent.UpdateDataChangeEvent -> {
                     this.writer?.deleteDocuments(Term(TID_COLUMN, event.tupleId.toString()))
-                    val new = event.updates[this.columns[0]]?.second
+                    val new = event.updates[this.dbo.columns[0]]?.second
                     if (new is StringValue) {
                         this.writer?.addDocument(this@LuceneIndex.documentFromValue(new, event.tupleId))
                     }

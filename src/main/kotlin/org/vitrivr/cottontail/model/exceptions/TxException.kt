@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.model.exceptions
 
+import org.vitrivr.cottontail.database.general.DBO
 import org.vitrivr.cottontail.model.basics.TransactionId
 
 
@@ -15,7 +16,7 @@ open class TxException(message: String) : DatabaseException(message) {
      *
      * @param tid The [TransactionId] of the [org.vitrivr.cottontail.database.general.Tx] in which this error occurred.
      */
-    class TxDBOClosedException(tid: TransactionId) : TxException("Tx $tid could not be created: Enclosing DBO has been closed.")
+    class TxDBOClosedException(tid: TransactionId, dbo: DBO) : TxException("Tx $tid could not be created for DBO '${dbo.name}': Enclosing DBO has been closed.")
 
     /**
      * [org.vitrivr.cottontail.database.general.Tx] cannot be used anymore, because it was closed already.

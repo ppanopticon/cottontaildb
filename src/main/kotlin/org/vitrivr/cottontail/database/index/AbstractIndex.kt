@@ -1,22 +1,27 @@
 package org.vitrivr.cottontail.database.index
 
 import org.mapdb.DB
+import org.mapdb.DBException
 import org.vitrivr.cottontail.config.Config
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.general.AbstractTx
 import org.vitrivr.cottontail.database.general.DBOVersion
+import org.vitrivr.cottontail.database.general.TxAction
 import org.vitrivr.cottontail.database.general.TxSnapshot
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
 import org.vitrivr.cottontail.database.queries.sort.SortOrder
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
+import org.vitrivr.cottontail.utilities.extensions.write
+import org.vitrivr.cottontail.utilities.io.TxFileUtilities
+
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.*
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.StampedLock
 
 /**
@@ -26,7 +31,7 @@ import java.util.concurrent.locks.StampedLock
  * @see Index
  *
  * @author Ralph Gasser
- * @version 2.0.0
+ * @version 2.1.0
  */
 abstract class AbstractIndex(final override val path: Path, final override val parent: Entity) : Index {
     /**
@@ -52,19 +57,25 @@ abstract class AbstractIndex(final override val path: Path, final override val p
          * @param columns The [ColumnDef] indexed by the [IndexHeader]
          * @param config The Cottontail DB  configuration
          */
-        fun initialize(
-            path: Path,
-            name: Name.IndexName,
-            type: IndexType,
-            columns: Array<ColumnDef<*>>,
-            config: Config
-        ) {
-            if (Files.exists(path)) throw DatabaseException.InvalidFileException("Could not initialize index. A file already exists under $path.")
-            val db: DB = config.mapdb.db(path)
-            val header = db.atomicVar(INDEX_HEADER_FIELD, IndexHeader.Serializer).create()
-            header.set(IndexHeader(name.simple, type, columns))
-            db.commit()
-            db.close()
+        fun initialize(path: Path, name: Name.IndexName, type: IndexType, columns: Array<ColumnDef<*>>, config: Config) {
+            val dataPath = TxFileUtilities.createPath(path.resolve("${name.simple}.idx"))
+            if (Files.exists(path)) throw DatabaseException.InvalidFileException("Failed to create index '$name': A file already exists under $path.")
+            try {
+                val db: DB = config.mapdb.db(path)
+                val header = db.atomicVar(INDEX_HEADER_FIELD, IndexHeader.Serializer).create()
+                header.set(IndexHeader(name.simple, type, columns))
+                db.commit()
+                db.close()
+            } catch (e: DBException) {
+                TxFileUtilities.delete(dataPath) /* Cleanup. */
+                throw DatabaseException("Failed to create index '$name' due to error in the underlying data store: {${e.message}")
+            } catch (e: IOException) {
+                TxFileUtilities.delete(dataPath) /* Cleanup. */
+                throw DatabaseException("Failed to create index '$name' due to an IO exception: {${e.message}")
+            } catch (e: Throwable) {
+                TxFileUtilities.delete(dataPath) /* Cleanup. */
+                throw DatabaseException("Failed to create index '$name' due to an unexpected error: {${e.message}")
+            }
         }
     }
 
@@ -100,25 +111,13 @@ abstract class AbstractIndex(final override val path: Path, final override val p
         get() = this.dirtyField.get()
 
     /** Flag indicating if this [AbstractIndex] has been closed. */
-    @Volatile
-    override var closed: Boolean = false
-        protected set
+    override val closed: Boolean
+        get() = this.store.isClosed()
 
     /** Closes this [AbstractIndex] and the associated data structures. */
-    override fun close() {
+    override fun close() = this.closeLock.write {
         if (!this.closed) {
-            try {
-                val stamp = this.closeLock.tryWriteLock(1000, TimeUnit.MILLISECONDS)
-                try {
-                    this.store.close()
-                    this.closed = true
-                } catch (e: Throwable) {
-                    this.closeLock.unlockWrite(stamp)
-                    throw e
-                }
-            } catch (e: InterruptedException) {
-                throw IllegalStateException("Could not close index ${this.name}. Failed to acquire exclusive lock which indicates, that some Tx wasn't closed properly.")
-            }
+            this.store.close()
         }
     }
 
@@ -134,18 +133,6 @@ abstract class AbstractIndex(final override val path: Path, final override val p
         override val dbo: AbstractIndex
             get() = this@AbstractIndex
 
-        /** The simple [Name]s of the [AbstractIndex] that underpins this [IndexTx] */
-        override val name: Name
-            get() = this@AbstractIndex.name
-
-        /** The [ColumnDef]s covered by the [AbstractIndex] that underpins this [IndexTx]. */
-        override val columns: Array<ColumnDef<*>>
-            get() = this@AbstractIndex.columns
-
-        /** The [ColumnDef]s returned by the [AbstractIndex] that underpins this [IndexTx]. */
-        override val produces: Array<ColumnDef<*>>
-            get() = this@AbstractIndex.produces
-
         /** The order in which results of this [IndexTx] appear. Empty array that there is no particular order. */
         override val order: Array<Pair<ColumnDef<*>, SortOrder>>
             get() = this@AbstractIndex.order
@@ -157,8 +144,10 @@ abstract class AbstractIndex(final override val path: Path, final override val p
         /** The default [TxSnapshot] of this [IndexTx]. Can be overridden! */
         override val snapshot by lazy {
             object : TxSnapshot {
+                override val actions: List<TxAction> = emptyList()
                 override fun commit() = this@AbstractIndex.store.commit()
                 override fun rollback() = this@AbstractIndex.store.rollback()
+                override fun record(action: TxAction): Boolean = false
             }
         }
 

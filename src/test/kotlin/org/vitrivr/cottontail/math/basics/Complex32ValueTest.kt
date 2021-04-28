@@ -17,14 +17,12 @@ import java.util.*
  */
 class Complex32ValueTest {
 
-
     companion object {
-        private const val DELTA = 1e-4f
+        private const val DELTA = 1e-3f
         fun isCorrect(expected: Complex, actual: Complex32Value) {
             if (actual.real.value == 0.0f) {
                 assertEquals(expected.real.toFloat(), actual.real.value)
-            } else
-            {
+            } else {
                 val r_ratio = expected.real.toFloat() / actual.real.value
                 Assertions.assertTrue(r_ratio > 1.0f - DELTA)
                 Assertions.assertTrue(r_ratio < 1.0f + DELTA)
@@ -39,15 +37,14 @@ class Complex32ValueTest {
         }
     }
 
+    private val random = SplittableRandom()
+
     @Test
     internal fun testValueCreation() {
         isCorrect(Complex(1.0, 0.0), Complex32Value(1.0f))
         isCorrect(Complex(1.0, 0.0), Complex32Value(1.0))
         isCorrect(Complex(1.0, 0.0), Complex32Value(FloatValue(1.0f)))
     }
-
-
-    private val random = SplittableRandom()
 
     @RepeatedTest(25)
     fun testAdd() {
@@ -71,10 +68,7 @@ class Complex32ValueTest {
     @RepeatedTest(25)
     fun testUnaryMinus() {
         val c1 = Complex32Value.random(random)
-
         val c1p = Complex(c1.real.asDouble().value, c1.imaginary.asDouble().value)
-
-
         isCorrect(c1p.multiply(-1), -c1)
     }
 

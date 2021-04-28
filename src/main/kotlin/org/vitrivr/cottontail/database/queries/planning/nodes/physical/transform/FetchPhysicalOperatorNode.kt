@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.database.queries.planning.nodes.physical.transfor
 
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
+import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
@@ -16,9 +17,9 @@ import org.vitrivr.cottontail.execution.operators.transform.FetchOperator
  * This can be used for late population, which can lead to optimized performance for kNN queries
  *
  * @author Ralph Gasser
- * @version 2.1.0
+ * @version 2.1.1
  */
-class FetchPhysicalOperatorNode(input: Physical? = null, val entity: Entity, val fetch: Array<ColumnDef<*>>) : UnaryPhysicalOperatorNode(input) {
+class FetchPhysicalOperatorNode(input: Physical? = null, val entity: EntityTx, val fetch: Array<ColumnDef<*>>) : UnaryPhysicalOperatorNode(input) {
 
     companion object {
         private const val NODE_NAME = "Fetch"

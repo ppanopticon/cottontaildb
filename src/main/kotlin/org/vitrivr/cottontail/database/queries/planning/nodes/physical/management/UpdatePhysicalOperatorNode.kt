@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.database.queries.planning.nodes.physical.manageme
 
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
+import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.binding.Binding
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
@@ -15,9 +16,9 @@ import org.vitrivr.cottontail.model.values.types.Value
  * A [UpdatePhysicalOperatorNode] that formalizes a UPDATE operation on an [Entity].
  *
  * @author Ralph Gasser
- * @version 2.1.0
+ * @version 2.1.1
  */
-class UpdatePhysicalOperatorNode(input: Physical? = null, val entity: Entity, val values: List<Pair<ColumnDef<*>, Binding<Value>>>) : UnaryPhysicalOperatorNode(input) {
+class UpdatePhysicalOperatorNode(input: Physical? = null, val entity: EntityTx, val values: List<Pair<ColumnDef<*>, Binding<Value>>>) : UnaryPhysicalOperatorNode(input) {
     companion object {
         private const val NODE_NAME = "Update"
     }

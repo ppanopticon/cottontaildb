@@ -12,6 +12,7 @@ import org.vitrivr.cottontail.utilities.extensions.read
 import org.vitrivr.cottontail.utilities.extensions.write
 import java.util.*
 import java.util.concurrent.locks.StampedLock
+import kotlin.math.min
 
 /**
  * A [Recordset] as returned and processed by Cottontail DB. [Recordset]s are tables. A [Recordset]'s
@@ -23,7 +24,7 @@ import java.util.concurrent.locks.StampedLock
  * @see org.vitrivr.cottontail.database.entity.DefaultEntity
  *
  * @author Ralph Gasser
- * @version 1.6.0
+ * @version 1.7.0
  */
 class Recordset(val columns: Array<ColumnDef<*>>, capacity: Long = 250L) : Scanable, Filterable {
     /** List of all the [Record]s contained in this [Recordset] (TupleId -> Record). */
@@ -207,18 +208,29 @@ class Recordset(val columns: Array<ColumnDef<*>>, capacity: Long = 250L) : Scana
      * @param columns The [ColumnDef] to include in the iteration.
      * @return [Iterator] of this [Recordset].
      */
-    override fun scan(columns: Array<ColumnDef<*>>): Iterator<Record> =
-        this.scan(columns, 0L until this.rowCount)
+    override fun scan(columns: Array<ColumnDef<*>>): Iterator<Record> = this.scan(columns, 0, 1)
 
     /**
      * Returns an [Iterator] for this [Recordset] for the given [columns] and the given [range].
      * The [Iterator] is NOT thread safe.
      *
      * @param columns The [ColumnDef] to include in the iteration.
-     * @param range The range to iterate over.
+     * @param partitionIndex The [partitionIndex] for this [scan] call.
+     * @param partitions The total number of partitions for this [scan] call.
      * @return [Iterator] of this [Recordset].
      */
-    override fun scan(columns: Array<ColumnDef<*>>, range: LongRange) = object : Iterator<Record> {
+    override fun scan(columns: Array<ColumnDef<*>>, partitionIndex: Int, partitions: Int) = object : Iterator<Record> {
+
+        /** The [LongRange] to iterate over. */
+        private val range: LongRange
+
+        init {
+            val maximum: Long = this@Recordset.rowCount
+            val partitionSize: Long = Math.floorDiv(maximum, partitions.toLong()) + 1L
+            val start: Long = partitionIndex * partitionSize
+            val end = min(((partitionIndex + 1) * partitionSize), maximum)
+            this.range = start until end
+        }
 
         /** Internal pointer kept as reference to the next [Record]. */
         @Volatile

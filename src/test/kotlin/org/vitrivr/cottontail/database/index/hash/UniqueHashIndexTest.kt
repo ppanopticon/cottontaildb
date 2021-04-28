@@ -1,7 +1,9 @@
 package org.vitrivr.cottontail.database.index.hash
 
-import org.junit.jupiter.api.*
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertArrayEquals
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.RepeatedTest
+import org.vitrivr.cottontail.database.catalogue.CatalogueTx
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.index.AbstractIndexTest
@@ -10,6 +12,7 @@ import org.vitrivr.cottontail.database.index.IndexType
 import org.vitrivr.cottontail.database.queries.binding.BindingContext
 import org.vitrivr.cottontail.database.queries.predicates.bool.BooleanPredicate
 import org.vitrivr.cottontail.database.queries.predicates.bool.ComparisonOperator
+import org.vitrivr.cottontail.database.schema.SchemaTx
 import org.vitrivr.cottontail.execution.TransactionType
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.Type
@@ -26,10 +29,9 @@ import kotlin.collections.HashMap
  * @author Ralph Gasser
  * @param 1.2.0
  */
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class UniqueHashIndexTest : AbstractIndexTest() {
 
-    /** List of columns for this [NonUniqueHashIndexTest]. */
+    /** List of columns for this [UniqueHashIndexTest]. */
     override val columns = arrayOf(
         ColumnDef(this.entityName.column("id"), Type.String),
         ColumnDef(this.entityName.column("feature"), Type.FloatVector(128))
@@ -49,42 +51,28 @@ class UniqueHashIndexTest : AbstractIndexTest() {
     /** Random number generator. */
     private val random = SplittableRandom()
 
-    @BeforeAll
-    override fun initialize() {
-        super.initialize()
-    }
-
-    @AfterAll
-    override fun teardown() {
-        super.teardown()
-        this.list.clear()
-    }
-
-    /**
-     * Tests basic metadata information regarding the [UniqueHashIndex]
-     */
-    @Test
-    fun testMetadata() {
-        assertNotNull(this.index)
-        assertArrayEquals(arrayOf(this.columns[0]), this.index?.columns)
-        assertArrayEquals(arrayOf(this.columns[0]), this.index?.produces)
-        assertEquals(this.indexName, this.index?.name)
-    }
-
     /**
      * Tests if Index#filter() returns the values that have been stored.
      */
     @RepeatedTest(3)
     fun testFilterEqualPositive() {
         val txn = this.manager.Transaction(TransactionType.SYSTEM)
-        val indexTx = txn.getTx(this.index!!) as IndexTx
-        val entityTx = txn.getTx(this.entity!!) as EntityTx
+
+        /* Obtain necessary transactions. */
+        val catalogueTx = txn.getTx(this.catalogue) as CatalogueTx
+        val schema = catalogueTx.schemaForName(this.schemaName)
+        val schemaTx = txn.getTx(schema) as SchemaTx
+        val entity = schemaTx.entityForName(this.entityName)
+        val entityTx = txn.getTx(entity) as EntityTx
+        val index = entityTx.indexForName(this.indexName)
+        val indexTx = txn.getTx(index) as IndexTx
+
         val context = BindingContext<Value>()
         for (entry in this.list.entries) {
             val predicate = BooleanPredicate.Atomic.Literal(
-                this.columns[0] as ColumnDef<StringValue>,
-                ComparisonOperator.Binary.Equal(context.bind(entry.key)),
-                false,
+                    this.columns[0] as ColumnDef<StringValue>,
+                    ComparisonOperator.Binary.Equal(context.bind(entry.key)),
+                    false,
             )
             indexTx.filter(predicate).forEach { r ->
                 val rec = entityTx.read(r.tupleId, this.columns)
@@ -104,13 +92,22 @@ class UniqueHashIndexTest : AbstractIndexTest() {
     @RepeatedTest(3)
     fun testFilterEqualNegative() {
         val txn = this.manager.Transaction(TransactionType.SYSTEM)
-        val indexTx = txn.getTx(this.index!!) as IndexTx
+
+        /* Obtain necessary transactions. */
+        val catalogueTx = txn.getTx(this.catalogue) as CatalogueTx
+        val schema = catalogueTx.schemaForName(this.schemaName)
+        val schemaTx = txn.getTx(schema) as SchemaTx
+        val entity = schemaTx.entityForName(this.entityName)
+        val entityTx = txn.getTx(entity) as EntityTx
+        val index = entityTx.indexForName(this.indexName)
+        val indexTx = txn.getTx(index) as IndexTx
+
         var count = 0
         val context = BindingContext<Value>()
         val predicate = BooleanPredicate.Atomic.Literal(
-            this.columns[0] as ColumnDef<StringValue>,
-            ComparisonOperator.Binary.Equal(context.bind(StringValue(UUID.randomUUID().toString()))),
-            false
+                this.columns[0] as ColumnDef<StringValue>,
+                ComparisonOperator.Binary.Equal(context.bind(StringValue(UUID.randomUUID().toString()))),
+                false
         )
         indexTx.filter(predicate).forEach { count += 1 }
         assertEquals(0, count)

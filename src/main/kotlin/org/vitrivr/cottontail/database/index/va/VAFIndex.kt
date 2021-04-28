@@ -19,10 +19,8 @@ import org.vitrivr.cottontail.database.queries.predicates.Predicate
 import org.vitrivr.cottontail.database.queries.predicates.knn.KnnPredicate
 import org.vitrivr.cottontail.database.statistics.columns.*
 import org.vitrivr.cottontail.execution.TransactionContext
-import org.vitrivr.cottontail.math.knn.metrics.EuclidianDistance
-import org.vitrivr.cottontail.math.knn.metrics.ManhattanDistance
-import org.vitrivr.cottontail.math.knn.metrics.MinkowskiDistance
-import org.vitrivr.cottontail.math.knn.metrics.SquaredEuclidianDistance
+import org.vitrivr.cottontail.math.knn.basics.DistanceKernel
+import org.vitrivr.cottontail.math.knn.kernels.Distances
 import org.vitrivr.cottontail.math.knn.selection.ComparablePair
 import org.vitrivr.cottontail.math.knn.selection.MinHeapSelection
 import org.vitrivr.cottontail.math.knn.selection.MinSingleSelection
@@ -42,7 +40,7 @@ import kotlin.math.min
 
 /**
  * An [AbstractIndex] structure for nearest neighbor search (NNS) that uses a vector approximation (VA) file ([1]).
- * Can be used for all types of [RealVectorValue]s and all [MinkowskiDistance] metrics.
+ * Can be used for all types of [RealVectorValue]s and all Minkowski metrics (L1, L2 etc).
  *
  * References:
  * [1] Weber, R. and Blott, S., 1997. An approximation based data structure for similarity search (No. 9141, p. 416). Technical Report 24, ESPRIT Project HERMES.
@@ -55,6 +53,7 @@ class VAFIndex(path: Path, parent: DefaultEntity, config: VAFIndexConfig? = null
     companion object {
         private const val VAF_INDEX_SIGNATURES_FIELD = "vaf_signatures"
         private const val VAF_INDEX_MARKS_FIELD = "vaf_marks"
+        private val SUPPORTED_DISTANCES = arrayOf(Distances.L1, Distances.L2, Distances.L2SQUARED)
         val LOGGER: Logger = LoggerFactory.getLogger(VAFIndex::class.java)
     }
 
@@ -104,7 +103,7 @@ class VAFIndex(path: Path, parent: DefaultEntity, config: VAFIndexConfig? = null
      * @return Cost estimate for the [Predicate]
      */
     override fun cost(predicate: Predicate) =
-        if (predicate is KnnPredicate && predicate.column == this.columns[0] && (predicate.distance is MinkowskiDistance || predicate.distance is SquaredEuclidianDistance)) {
+        if (predicate is KnnPredicate && predicate.column == this.columns[0] && (predicate.distance in SUPPORTED_DISTANCES)) {
             Cost(
                 this.signatures.size * this.marksStore.get().d * Cost.COST_DISK_ACCESS_READ + 0.1f * (this.signatures.size * this.columns[0].type.physicalSize * Cost.COST_DISK_ACCESS_READ),
                 this.signatures.size * this.marksStore.get().d * (2 * Cost.COST_MEMORY_ACCESS + Cost.COST_FLOP) + 0.1f * this.signatures.size * predicate.atomicCpuCost,
@@ -274,10 +273,9 @@ class VAFIndex(path: Path, parent: DefaultEntity, config: VAFIndexConfig? = null
                 check(value is RealVectorValue<*>) { "Bound value for query vector has wrong type (found = ${value.type})." }
                 this.query = value
                 this.bounds = when (this.predicate.distance) {
-                    is ManhattanDistance -> L1Bounds(this.query, this.marks)
-                    is EuclidianDistance -> L2Bounds(this.query, this.marks)
-                    is SquaredEuclidianDistance -> L2SBounds(this.query, this.marks)
-                    is MinkowskiDistance -> LpBounds(this.query, this.marks, this.predicate.distance.p)
+                    Distances.L1 -> L1Bounds(this.query, this.marks)
+                    Distances.L2 -> L2Bounds(this.query, this.marks)
+                    Distances.L2SQUARED -> L2SBounds(this.query, this.marks)
                     else -> throw IllegalArgumentException("The ${this.predicate.distance} distance kernel is not supported by VAFIndex.")
                 }
 
@@ -305,13 +303,14 @@ class VAFIndex(path: Path, parent: DefaultEntity, config: VAFIndexConfig? = null
 
                 /* Iterate over all signatures. */
                 var read = 0L
+                val kernel = this.predicate.toKernel() as DistanceKernel<VectorValue<*>>
                 for (sigIndex in this.range) {
                     val signature = this@VAFIndex.signatures[sigIndex]
                     if (signature != null) {
                         if (knn.size < this.predicate.k || this.bounds.isVASSACandidate(signature, knn.peek()!!.second.value)) {
                             val value = txn.read(signature.tupleId, this@VAFIndex.columns)[this@VAFIndex.columns[0]]
                             if (value is VectorValue<*>) {
-                                knn.offer(ComparablePair(signature.tupleId, this.predicate.distance(value, this.query)))
+                                knn.offer(ComparablePair(signature.tupleId, kernel(value)))
                             }
                             read += 1
                         }

@@ -1,9 +1,9 @@
 package org.vitrivr.cottontail.database.locking
 
+import it.unimi.dsi.fastutil.objects.Object2ObjectMaps
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap
 import org.vitrivr.cottontail.database.general.DBO
 import org.vitrivr.cottontail.model.basics.Name
-import java.util.*
 
 /**
  * A [LockManager] implementation that allows for management of [Lock]s on [DBO]s.
@@ -16,7 +16,7 @@ import java.util.*
 class LockManager {
 
     /** List of all [Lock]s managed by this [LockManager]. */
-    private val locks = Collections.synchronizedMap(Object2ObjectOpenHashMap<DBO, Lock>())
+    private val locks = Object2ObjectMaps.synchronize(Object2ObjectOpenHashMap<DBO, Lock>())
 
     /** The [WaitForGraph] data structure used to detect deadlock situations. */
     private val waitForGraph: WaitForGraph = WaitForGraph()
@@ -35,7 +35,7 @@ class LockManager {
      * @param dbo [DBO] of the object to acquire a lock on.
      * @param mode The [LockMode]
      */
-    fun lock(txn: LockHolder, dbo: DBO, mode: LockMode) {
+    fun lock(txn: LockHolder, dbo: DBO, mode: LockMode) = synchronized(dbo) {
         require(mode != LockMode.NO_LOCK) { "Cannot acquire a lock of mode $mode; try LockManager.release()." }
         val lockOn = lockOn(txn, dbo)
         if (lockOn === mode) {
@@ -51,7 +51,6 @@ class LockManager {
             lock.acquire(txn, mode)
             txn.addLock(lock)
         }
-        return
     }
 
     /**
@@ -60,7 +59,7 @@ class LockManager {
      * @param txn [LockHolder] to release the lock for.
      * @param dbo [DBO] of the object to release the lock on.
      */
-    fun unlock(txn: LockHolder, dbo: DBO) {
+    fun unlock(txn: LockHolder, dbo: DBO) = synchronized(dbo) {
         this.locks.computeIfPresent(dbo) { _, lock ->
             lock.release(txn)
             txn.removeLock(lock)

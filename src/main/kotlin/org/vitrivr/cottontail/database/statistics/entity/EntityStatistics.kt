@@ -15,7 +15,7 @@ import kotlin.math.max
  * @author Ralph Gasser
  * @version 1.1.0
  */
-class EntityStatistics(var count: Long = 0L, var maximumTupleId: TupleId = 0L) : RecordStatistics() {
+class EntityStatistics(var count: Long = 0L, var maximumTupleId: TupleId = -1) : RecordStatistics() {
 
     /**
      * Serializer for [EntityStatistics] object.

@@ -6,10 +6,7 @@ import org.vitrivr.cottontail.config.Config
 import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.catalogue.CatalogueTx
 import org.vitrivr.cottontail.database.entity.DefaultEntity
-import org.vitrivr.cottontail.database.general.AbstractTx
-import org.vitrivr.cottontail.database.general.DBO
-import org.vitrivr.cottontail.database.general.DBOVersion
-import org.vitrivr.cottontail.database.general.TxSnapshot
+import org.vitrivr.cottontail.database.general.*
 import org.vitrivr.cottontail.database.schema.Schema
 import org.vitrivr.cottontail.database.schema.SchemaTx
 import org.vitrivr.cottontail.execution.TransactionContext
@@ -129,11 +126,10 @@ class CatalogueV1(override val config: Config) : Catalogue {
 
         /** The [TxSnapshot] of this [SchemaTx]. */
         override val snapshot = object : TxSnapshot {
-            override fun commit() =
-                throw UnsupportedOperationException("Operation not supported on legacy DBO.")
-
-            override fun rollback() =
-                throw UnsupportedOperationException("Operation not supported on legacy DBO.")
+            override val actions: List<TxAction> = emptyList()
+            override fun commit() = throw UnsupportedOperationException("Operation not supported on legacy DBO.")
+            override fun rollback() = throw UnsupportedOperationException("Operation not supported on legacy DBO.")
+            override fun record(action: TxAction): Boolean = throw UnsupportedOperationException("Operation not supported on legacy DBO.")
         }
 
         /** Obtains a global (non-exclusive) read-lock on [CatalogueV1]. Prevents enclosing [SchemaV1] from being closed. */

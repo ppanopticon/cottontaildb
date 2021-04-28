@@ -7,10 +7,10 @@ import org.vitrivr.cottontail.math.absFromFromComplexFieldVector
 import org.vitrivr.cottontail.math.arrayFieldVectorFromVectorValue
 import org.vitrivr.cottontail.math.conjFromFromComplexFieldVector
 import org.vitrivr.cottontail.math.isApproximatelyTheSame
-import org.vitrivr.cottontail.math.knn.metrics.EuclidianDistance
-import org.vitrivr.cottontail.math.knn.metrics.ManhattanDistance
-import org.vitrivr.cottontail.math.knn.metrics.RealInnerProductDistance
+import org.vitrivr.cottontail.math.knn.basics.DistanceKernel
+import org.vitrivr.cottontail.math.knn.kernels.Distances
 import org.vitrivr.cottontail.model.values.Complex64VectorValue
+import org.vitrivr.cottontail.model.values.types.VectorValue
 import org.vitrivr.cottontail.utilities.VectorUtility
 import kotlin.math.pow
 import kotlin.time.Duration
@@ -40,9 +40,11 @@ class Complex64VectorDistanceTest : AbstractDistanceTest() {
         var time1 = Duration.ZERO
         var time2 = Duration.ZERO
 
+        val kernel = Distances.L1.kernelForQuery(query) as DistanceKernel<VectorValue<*>>
+
         collection.forEach {
             time1 += measureTime {
-                sum1 += ManhattanDistance(it, query).value
+                sum1 += kernel(it).value
             }
             time2 += measureTime {
                 sum2 += (query - it).abs().sum().value
@@ -75,9 +77,11 @@ class Complex64VectorDistanceTest : AbstractDistanceTest() {
         var time1 = Duration.ZERO
         var time2 = Duration.ZERO
 
+        val kernel = Distances.L2SQUARED.kernelForQuery(query) as DistanceKernel<VectorValue<*>>
+
         collection.forEach {
             time1 += measureTime {
-                sum1 += (it.l2sq(query)).value
+                sum1 += kernel(it).value
             }
             time2 += measureTime {
                 sum2 += (query - it).abs().pow(2).sum().value
@@ -110,9 +114,11 @@ class Complex64VectorDistanceTest : AbstractDistanceTest() {
         var time1 = Duration.ZERO
         var time2 = Duration.ZERO
 
+        val kernel = Distances.L2.kernelForQuery(query) as DistanceKernel<VectorValue<*>>
+
         collection.forEach {
             time1 += measureTime {
-                sum1 += EuclidianDistance(it, query).value
+                sum1 += kernel(it).value
             }
             time2 += measureTime {
                 sum2 += (query - it).abs().pow(2).sum().sqrt().value
@@ -133,27 +139,27 @@ class Complex64VectorDistanceTest : AbstractDistanceTest() {
     @ExperimentalTime
     @ParameterizedTest
     @MethodSource("dimensions")
-    fun testIPRealDistance(dimension: Int) {
+    fun testInnerProduct(dimension: Int) {
         val query = Complex64VectorValue.random(dimension, RANDOM)
         val queryp = arrayFieldVectorFromVectorValue(query)
         val collection = VectorUtility.randomComplex64VectorSequence(dimension, TestConstants.collectionSize, RANDOM)
 
         var sum1 = 0.0
         var sum2 = 0.0
-        var sum3 = 0.0
 
         var time1 = Duration.ZERO
         var time2 = Duration.ZERO
 
+        val kernel = Distances.INNERPRODUCT.kernelForQuery(query) as DistanceKernel<VectorValue<*>>
+
         collection.forEach {
             val conjDataitem = conjFromFromComplexFieldVector(arrayFieldVectorFromVectorValue(it))
             time1 += measureTime {
-                sum1 += 1.0 - query.dotRealPart(it).value
+                sum1 += 1.0 - queryp.dotProduct(conjDataitem).abs()
             }
             time2 += measureTime {
-                sum2 += RealInnerProductDistance(query, it).value
+                sum2 += kernel(it).value
             }
-            sum3 += 1.0 - queryp.dotProduct(conjDataitem).real
         }
 
         println("Calculating abs of DOT for collection (s=${TestConstants.collectionSize}, d=$dimension) took ${time1 / TestConstants.collectionSize} (optimized) resp. ${time2 / TestConstants.collectionSize} per vector on average.")
@@ -161,7 +167,6 @@ class Complex64VectorDistanceTest : AbstractDistanceTest() {
         if (time1 > time2) {
             LOGGER.warn("Optimized version of L1 is slower than default version!")
         }
-        isApproximatelyTheSame(sum3, sum1)
-        isApproximatelyTheSame(sum3, sum2)
+        isApproximatelyTheSame(sum1, sum2)
     }
 }

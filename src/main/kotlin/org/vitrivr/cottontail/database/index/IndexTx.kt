@@ -7,7 +7,6 @@ import org.vitrivr.cottontail.database.queries.predicates.Predicate
 import org.vitrivr.cottontail.database.queries.sort.SortOrder
 import org.vitrivr.cottontail.model.basics.Countable
 import org.vitrivr.cottontail.model.basics.Filterable
-import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.Record
 import org.vitrivr.cottontail.model.exceptions.TxException
 
@@ -15,18 +14,12 @@ import org.vitrivr.cottontail.model.exceptions.TxException
  * A [Tx] that operates on a single [AbstractIndex]. [Tx]s are a unit of isolation for data operations (read/write).
  *
  * @author Ralph Gasser
- * @version 1.8.0
+ * @version 1.8.1
  */
 interface IndexTx : Tx, Filterable, Countable {
 
-    /** The simple [Name]s of the [AbstractIndex] that underpins this [IndexTx] */
-    val name: Name
-
-    /** The [ColumnDef]s covered by the [AbstractIndex] that underpins this [IndexTx]. */
-    val columns: Array<ColumnDef<*>>
-
-    /** The [ColumnDef]s produced by the [AbstractIndex] that underpins this [IndexTx]. */
-    val produces: Array<ColumnDef<*>>
+    /** Reference to the [Index] this [IndexTx] belongs to. */
+    override val dbo: Index
 
     /** The order in which results of this [IndexTx] appear. Empty array that there is no particular order. */
     val order: Array<Pair<ColumnDef<*>, SortOrder>>

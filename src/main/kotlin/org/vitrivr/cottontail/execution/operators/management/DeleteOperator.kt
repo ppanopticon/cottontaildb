@@ -23,9 +23,9 @@ import kotlin.time.measureTime
  * [Entity] that it receives.
  *
  * @author Ralph Gasser
- * @version 1.1.0
+ * @version 1.1.1
  */
-class DeleteOperator(parent: Operator, val entity: Entity) : Operator.PipelineOperator(parent) {
+class DeleteOperator(parent: Operator, val entity: EntityTx) : Operator.PipelineOperator(parent) {
     companion object {
         /** The columns produced by the [DeleteOperator]. */
         val COLUMNS: Array<ColumnDef<*>> = arrayOf(
@@ -50,11 +50,10 @@ class DeleteOperator(parent: Operator, val entity: Entity) : Operator.PipelineOp
     override fun toFlow(context: TransactionContext): Flow<Record> {
         var deleted = 0L
         val parent = this.parent.toFlow(context)
-        val tx = context.getTx(this.entity) as EntityTx
         return flow {
             val time = measureTime {
                 parent.collect {
-                    tx.delete(it.tupleId) /* Safe, cause tuple IDs are retained for simple queries. */
+                    this@DeleteOperator.entity.delete(it.tupleId) /* Safe, cause tuple IDs are retained for simple queries. */
                     deleted += 1
                 }
             }

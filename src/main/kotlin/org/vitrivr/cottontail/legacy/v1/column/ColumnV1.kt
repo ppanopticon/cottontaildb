@@ -9,6 +9,7 @@ import org.vitrivr.cottontail.database.column.ColumnTx
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.general.AbstractTx
 import org.vitrivr.cottontail.database.general.DBOVersion
+import org.vitrivr.cottontail.database.general.TxAction
 import org.vitrivr.cottontail.database.general.TxSnapshot
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.model.basics.Name
@@ -128,28 +129,27 @@ class ColumnV1<T : Value>(
         override val dbo: Column<T>
             get() = this@ColumnV1
 
-        /** Tries to acquire a global read-lock on the [ColumnV1]. */
-        init {
-            if (this@ColumnV1.closed) {
-                throw TxException.TxDBOClosedException(this.context.txId)
-            }
-        }
-
         /** The [Serializer] used for de-/serialization of [ColumnV1] entries. */
         private val serializer = this@ColumnV1.type.serializerFactory().mapdb(this@ColumnV1.type.logicalSize)
 
         /** Obtains a global (non-exclusive) read-lock on [ColumnV1]. Prevents enclosing [ColumnV1] from being closed while this [ColumnV1.Tx] is still in use. */
-        private val globalStamp = this@ColumnV1.closeLock.readLock()
+        private val closeStamp = this@ColumnV1.closeLock.readLock()
+
+        /** Tries to acquire a global read-lock on the [ColumnV1]. */
+        init {
+            if (this@ColumnV1.closed) {
+                this@ColumnV1.closeLock.unlockRead(this.closeStamp)
+                throw TxException.TxDBOClosedException(this.context.txId, this@ColumnV1)
+            }
+        }
 
         /** The [TxSnapshot] for this [ColumnV1.Tx] */
         override val snapshot: TxSnapshot = object : TxSnapshot {
-            override fun commit() {
-                throw UnsupportedOperationException("Operation not supported on legacy DBO.")
-            }
+            override val actions: List<TxAction> = emptyList()
+            override fun commit() = throw UnsupportedOperationException("Operation not supported on legacy DBO.")
+            override fun rollback() = throw UnsupportedOperationException("Operation not supported on legacy DBO.")
+            override fun record(action: TxAction): Boolean = throw UnsupportedOperationException("Operation not supported on legacy DBO.")
 
-            override fun rollback() {
-                throw UnsupportedOperationException("Operation not supported on legacy DBO.")
-            }
         }
 
         /**
@@ -227,7 +227,7 @@ class ColumnV1<T : Value>(
         }
 
         override fun cleanup() {
-            this@ColumnV1.closeLock.unlockRead(this.globalStamp)
+            this@ColumnV1.closeLock.unlockRead(this.closeStamp)
         }
     }
 }

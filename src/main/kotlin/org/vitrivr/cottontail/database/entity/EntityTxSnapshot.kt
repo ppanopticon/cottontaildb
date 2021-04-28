@@ -17,10 +17,4 @@ interface EntityTxSnapshot : TxSnapshot {
 
     /** A map of all [Index] structures available to the enclosing [EntityTx]. */
     val indexes: MutableMap<Name.IndexName, Index>
-
-    /** A map of all [Index] structures created by the enclosing [EntityTx]. */
-    val created: MutableMap<Name.IndexName, Index>
-
-    /** A map of all [Index] structures dropped by the enclosing [EntityTx]. */
-    val dropped: MutableMap<Name.IndexName, Index>
 }

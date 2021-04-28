@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.database.queries.planning.nodes.physical.sources
 
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.index.Index
+import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.binding.BindingContext
@@ -18,9 +19,9 @@ import java.lang.Math.floorDiv
  * A [NullaryPhysicalOperatorNode] that formalizes a scan of a physical [Index] in Cottontail DB on a given range.
  *
  * @author Ralph Gasser
- * @version 2.1.0
+ * @version 2.1.1
  */
-class RangedIndexScanPhysicalOperatorNode(override val groupId: Int, val index: Index, val predicate: Predicate, val partitionIndex: Int, val partitions: Int) : NullaryPhysicalOperatorNode() {
+class RangedIndexScanPhysicalOperatorNode(override val groupId: Int, val index: IndexTx, val predicate: Predicate, val partitionIndex: Int, val partitions: Int) : NullaryPhysicalOperatorNode() {
     companion object {
         private const val NODE_NAME = "ScanIndex"
     }
@@ -30,12 +31,12 @@ class RangedIndexScanPhysicalOperatorNode(override val groupId: Int, val index: 
         get() = NODE_NAME
 
 
-    override val outputSize = floorDiv(this.index.parent.statistics.count, this.partitions)
-    override val statistics: RecordStatistics = this.index.parent.statistics
-    override val columns: Array<ColumnDef<*>> = this.index.produces
+    override val outputSize = floorDiv(this.index.dbo.parent.statistics.count, this.partitions)
+    override val statistics: RecordStatistics = this.index.dbo.parent.statistics
+    override val columns: Array<ColumnDef<*>> = this.index.dbo.produces
     override val executable: Boolean = true
     override val canBePartitioned: Boolean = false
-    override val cost = this.index.cost(this.predicate)
+    override val cost = this.index.dbo.cost(this.predicate)
 
     init {
         require(this.partitionIndex >= 0) { "The partitionIndex of a ranged index scan must be greater than zero." }

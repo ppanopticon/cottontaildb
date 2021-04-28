@@ -16,7 +16,7 @@ apply plugin: 'com.github.johnrengelman.shadow'
 
 /* Group and SNAPSHOT version. Update version for each major and minor release. */
 group 'org.vitrivr'
-version '0.12.0'
+version '0.12.7'
 
 /* General application attributes. */
 mainClassName = 'org.vitrivr.cottontail.CottontailKt'
@@ -173,11 +173,16 @@ idea {
     }
 }
 
+// used to pass flags such as windows to test-runner
+test {
+    systemProperties(System.getProperties())
+}
+
 tasks.withType(Test) {
     useJUnitPlatform()
     jvmArgs '--enable-preview'
 }
 
 ///// Default names for distributions
-distZip.archiveName('cottontaildb-bin.zip')
-distTar.archiveName('cottontaildb-bin.tar')
+distZip.archiveFileName = 'cottontaildb-bin.zip'
+distTar.archiveFileName = 'cottontaildb-bin.tar'

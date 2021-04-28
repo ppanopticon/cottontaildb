@@ -15,11 +15,13 @@ import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
 import org.vitrivr.cottontail.database.queries.predicates.knn.KnnPredicate
 import org.vitrivr.cottontail.execution.TransactionContext
-import org.vitrivr.cottontail.math.knn.metrics.Distances
+import org.vitrivr.cottontail.math.knn.basics.DistanceKernel
+import org.vitrivr.cottontail.math.knn.kernels.Distances
 import org.vitrivr.cottontail.math.knn.selection.ComparablePair
 import org.vitrivr.cottontail.math.knn.selection.MinHeapSelection
 import org.vitrivr.cottontail.math.knn.selection.MinSingleSelection
-import org.vitrivr.cottontail.model.basics.*
+import org.vitrivr.cottontail.model.basics.Record
+import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.exceptions.QueryException
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.DoubleValue
@@ -97,7 +99,7 @@ class GGIndex(path: Path, parent: DefaultEntity, config: GGIndexConfig? = null) 
      */
     override fun canProcess(predicate: Predicate) = predicate is KnnPredicate
             && predicate.columns.first() == this.columns[0]
-            && predicate.distance == this.config.distance.kernel
+            && predicate.distance == this.config.distance
 
     /**
      * Calculates the cost estimate if this [AbstractIndex] processing the provided [Predicate].
@@ -153,26 +155,22 @@ class GGIndex(path: Path, parent: DefaultEntity, config: GGIndexConfig? = null) 
                 ((remainingTids.size + config.numGroups - 1) / config.numGroups)  // ceildiv
             val finishedTIds = mutableSetOf<Long>()
             val random = SplittableRandom(this@GGIndex.config.seed)
-            val kernel = this@GGIndex.config.distance.kernel
 
             /* Start rebuilding the index. */
             this@GGIndex.groupsStore.clear()
             while (remainingTids.isNotEmpty()) {
                 /* Randomly pick group seed value. */
                 val groupSeedTid = remainingTids.elementAt(random.nextInt(remainingTids.size))
-                val groupSeedValue =
-                    txn.read(groupSeedTid, this@GGIndex.columns)[this@GGIndex.columns[0]]
+                val groupSeedValue = txn.read(groupSeedTid, this@GGIndex.columns)[this@GGIndex.columns[0]]
                 if (groupSeedValue is VectorValue<*>) {
                     /* Perform kNN for group. */
-                    val knn =
-                        MinHeapSelection<ComparablePair<Pair<TupleId, VectorValue<*>>, DoubleValue>>(
-                            groupSize
-                        )
+                    val kernel = this@GGIndex.config.distance.kernelForQuery(groupSeedValue) as DistanceKernel<VectorValue<*>>
+                    val knn = MinHeapSelection<ComparablePair<Pair<TupleId, VectorValue<*>>, DoubleValue>>(groupSize)
                     remainingTids.forEach { tid ->
                         val r = txn.read(tid, this@GGIndex.columns)
                         val vec = r[this@GGIndex.columns[0]]
                         if (vec is VectorValue<*>) {
-                            val distance = kernel.invoke(vec, groupSeedValue)
+                            val distance = kernel(vec)
                             if (knn.size < groupSize || knn.peek()!!.second > distance) {
                                 knn.offer(ComparablePair(Pair(tid, vec), distance))
                             }
@@ -228,7 +226,7 @@ class GGIndex(path: Path, parent: DefaultEntity, config: GGIndexConfig? = null) 
         override fun filter(predicate: Predicate): Iterator<Record> = object : Iterator<Record> {
 
             /** Cast [KnnPredicate] (if such a cast is possible).  */
-            private val predicate = if (predicate is KnnPredicate && predicate.distance == this@GGIndex.config.distance.kernel) {
+            private val predicate = if (predicate is KnnPredicate && predicate.distance == this@GGIndex.config.distance) {
                 predicate
             } else {
                 throw QueryException.UnsupportedPredicateException("Index '${this@GGIndex.name}' (GGIndex) does not support predicates of type '${predicate::class.simpleName}'.")
@@ -258,7 +256,7 @@ class GGIndex(path: Path, parent: DefaultEntity, config: GGIndexConfig? = null) 
                 /* Scan >= 10% of entries by default */
                 val considerNumGroups = (this@GGIndex.config.numGroups + 9) / 10
                 val txn = this@Tx.context.getTx(this@GGIndex.parent) as EntityTx
-                val kernel = this@GGIndex.config.distance.kernel
+                val kernel = this@GGIndex.config.distance.kernelForQuery(this.vector) as DistanceKernel<VectorValue<*>>
 
                 /** Phase 1): Perform kNN on the groups. */
                 require(this.predicate.k < txn.maxTupleId() / config.numGroups * considerNumGroups) { "Value of k is too large for this index considering $considerNumGroups groups." }
@@ -266,7 +264,7 @@ class GGIndex(path: Path, parent: DefaultEntity, config: GGIndexConfig? = null) 
 
                 LOGGER.debug("Scanning group mean signals.")
                 this@GGIndex.groupsStore.forEach {
-                    groupKnn.offer(ComparablePair(it.value, kernel.invoke(it.key, this.vector)))
+                    groupKnn.offer(ComparablePair(it.value, kernel.invoke(it.key)))
                 }
 
 
@@ -282,7 +280,7 @@ class GGIndex(path: Path, parent: DefaultEntity, config: GGIndexConfig? = null) 
                         val value =
                             txn.read(tupleId, this@GGIndex.columns)[this@GGIndex.columns[0]]
                         if (value is VectorValue<*>) {
-                            val distance = kernel.invoke(value, this.vector)
+                            val distance = kernel.invoke(value)
                             if (knn.size < knn.k || knn.peek()!!.second > distance) {
                                 knn.offer(ComparablePair(tupleId, distance))
                             }

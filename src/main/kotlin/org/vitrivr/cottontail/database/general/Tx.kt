@@ -14,9 +14,9 @@ import org.vitrivr.cottontail.execution.TransactionContext
  * level of isolation and to obtain the necessary locks to safely execute an operation.
  *
  * @author Ralph Gasser
- * @version 1.2.0
+ * @version 1.3.0
  */
-interface Tx : AutoCloseable {
+interface Tx {
     /** The [DBO] this [Tx] belongs to. */
     val dbo: DBO
 

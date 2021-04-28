@@ -12,9 +12,12 @@ import org.vitrivr.cottontail.model.basics.*
  * A [Tx] that operates on a single [Entity]. [Tx]s are a unit of isolation for data operations (read/write).
  *
  * @author Ralph Gasser
- * @version 1.3.0
+ * @version 1.3.1
  */
 interface EntityTx : Tx, Scanable, Countable, Modifiable {
+
+    /** Reference to the [EntityTxSnapshot] held by this [EntityTx]. */
+    override val snapshot: EntityTxSnapshot
 
     /** Reference to the [Entity] this [EntityTx] belongs to. */
     override val dbo: Entity

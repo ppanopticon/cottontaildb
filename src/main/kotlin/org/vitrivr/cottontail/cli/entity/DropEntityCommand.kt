@@ -1,9 +1,8 @@
 package org.vitrivr.cottontail.cli.entity
 
-import com.github.ajalt.clikt.parameters.options.convert
+import com.github.ajalt.clikt.output.TermUi
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
-import com.github.ajalt.clikt.parameters.options.prompt
 import io.grpc.StatusException
 import org.vitrivr.cottontail.database.queries.binding.extensions.proto
 import org.vitrivr.cottontail.grpc.CottontailGrpc
@@ -19,8 +18,11 @@ import kotlin.time.measureTimedValue
  * @version 1.0.3
  */
 @ExperimentalTime
-class DropEntityCommand(private val ddlStub: DDLGrpc.DDLBlockingStub) : AbstractEntityCommand(name = "drop", help = "Drops the given entity from the database. Usage: entity drop <schema>.<entity>") {
-    /** Flag indicating whether CLI should ask for confirmation. */
+class DropEntityCommand(private val ddlStub: DDLGrpc.DDLBlockingStub) : AbstractEntityCommand(
+    name = "drop",
+    help = "Drops the given entity from the database. Usage: entity drop <schema>.<entity>"
+) {
+    /** Flag indicating whether CLI should ask for confirmation. #FIXME: Currently unused and semantically equivalent to "confirm" */
     private val force: Boolean by option(
         "-f",
         "--force",
@@ -32,16 +34,15 @@ class DropEntityCommand(private val ddlStub: DDLGrpc.DDLBlockingStub) : Abstract
         "-c",
         "--confirm",
         help = "Directly provides the confirmation option."
-    ).convert {
-        it.toLowerCase() == "y"
-    }.prompt(
-        "Do you really want to drop the entity ${this.entityName} [y/N]?",
-        default = "n",
-        showDefault = false
-    )
+    ).flag()
 
     override fun exec() {
-        if (this.confirm) {
+        if (this.confirm || TermUi.confirm(
+                "Do you really want to drop the entity ${this.entityName} [y/N]?",
+                default = false,
+                showDefault = false
+            ) == true
+        ) {
             try {
                 val timedTable = measureTimedValue {
                     TabulationUtilities.tabulate(

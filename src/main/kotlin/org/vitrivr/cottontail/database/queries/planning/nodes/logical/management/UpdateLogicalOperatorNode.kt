@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.database.queries.planning.nodes.logical.managemen
 
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
+import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.queries.binding.Binding
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.UnaryLogicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.management.UpdatePhysicalOperatorNode
@@ -12,9 +13,9 @@ import org.vitrivr.cottontail.model.values.types.Value
  * A [DeleteLogicalOperatorNode] that formalizes an UPDATE operation on an [Entity].
  *
  * @author Ralph Gasser
- * @version 2.1.0
+ * @version 2.1.1
  */
-class UpdateLogicalOperatorNode(input: Logical? = null, val entity: Entity, val values: List<Pair<ColumnDef<*>, Binding<Value>>>) : UnaryLogicalOperatorNode(input) {
+class UpdateLogicalOperatorNode(input: Logical? = null, val entity: EntityTx, val values: List<Pair<ColumnDef<*>, Binding<Value>>>) : UnaryLogicalOperatorNode(input) {
 
     companion object {
         private const val NODE_NAME = "Update"

@@ -14,7 +14,9 @@ import org.vitrivr.cottontail.database.statistics.entity.RecordStatistics
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.execution.operators.basics.Operator
 import org.vitrivr.cottontail.execution.operators.projection.DistanceProjectionOperator
+import org.vitrivr.cottontail.math.knn.basics.DistanceKernel
 import org.vitrivr.cottontail.model.values.types.Value
+import org.vitrivr.cottontail.model.values.types.VectorValue
 import org.vitrivr.cottontail.utilities.math.KnnUtilities
 
 /**
@@ -89,10 +91,11 @@ class DistancePhysicalOperatorNode(input: Physical? = null, val predicate: KnnPr
      * @param tx The [TransactionContext] used for execution.
      * @param ctx The [QueryContext] used for the conversion (e.g. late binding).
      */
-    override fun toOperator(tx: TransactionContext, ctx: QueryContext): Operator = DistanceProjectionOperator(
-        this.input?.toOperator(tx, ctx) ?: throw IllegalStateException("Cannot convert disconnected OperatorNode to Operator (node = $this)"),
-        this.predicate.bindValues(ctx.values)
-    )
+    override fun toOperator(tx: TransactionContext, ctx: QueryContext): Operator {
+        val predicate = this.predicate.bindValues(ctx.values)
+        val input = this.input?.toOperator(tx, ctx) ?: throw IllegalStateException("Cannot convert disconnected OperatorNode to Operator (node = $this)")
+        return DistanceProjectionOperator(input, predicate.column, this.predicate.toKernel() as DistanceKernel<VectorValue<*>>)
+    }
 
     /**
      * Binds values from the provided [BindingContext] to this [DistancePhysicalOperatorNode]'s [KnnPredicate].

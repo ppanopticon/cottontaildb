@@ -16,10 +16,9 @@ import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
 import org.vitrivr.cottontail.database.queries.predicates.knn.KnnPredicate
 import org.vitrivr.cottontail.execution.TransactionContext
-import org.vitrivr.cottontail.math.knn.metrics.AbsoluteInnerProductDistance
-import org.vitrivr.cottontail.math.knn.metrics.CosineDistance
-import org.vitrivr.cottontail.math.knn.metrics.RealInnerProductDistance
-import org.vitrivr.cottontail.model.basics.*
+import org.vitrivr.cottontail.math.knn.kernels.Distances
+import org.vitrivr.cottontail.model.basics.Record
+import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.model.exceptions.QueryException
 import org.vitrivr.cottontail.model.recordset.Recordset
@@ -46,6 +45,7 @@ class SuperBitLSHIndex<T : VectorValue<*>>(
 
     companion object {
         private val LOGGER = LoggerFactory.getLogger(SuperBitLSHIndex::class.java)
+        private val SUPPORTED_DISTANCES = arrayOf(Distances.COSINE, Distances.INNERPRODUCT)
     }
 
     /** False since [SuperBitLSHIndex] doesn't supports incremental updates. */
@@ -107,9 +107,7 @@ class SuperBitLSHIndex<T : VectorValue<*>>(
     override fun canProcess(predicate: Predicate): Boolean =
         predicate is KnnPredicate
                 && predicate.columns.first() == this.columns[0]
-                && (predicate.distance is CosineDistance
-                || predicate.distance is RealInnerProductDistance
-                || predicate.distance is AbsoluteInnerProductDistance)
+                && predicate.distance in SUPPORTED_DISTANCES
                 && (!this.config.considerImaginary || predicate.query is ComplexVectorValue<*>)
 
     /**
@@ -164,7 +162,7 @@ class SuperBitLSHIndex<T : VectorValue<*>>(
 
             /* for every record get bucket-signature, then iterate over stages and add tid to the list of that bucket of that stage */
             tx.scan(this@SuperBitLSHIndex.columns).forEach {
-                val value = it[this.columns[0]] ?: throw DatabaseException("Could not find column for entry in index $this") // todo: what if more columns? This should never happen -> need to change type and sort this out on index creation
+                val value = it[this.dbo.columns[0]] ?: throw DatabaseException("Could not find column for entry in index $this") // todo: what if more columns? This should never happen -> need to change type and sort this out on index creation
                 if (value is VectorValue<*>) {
                     val buckets = lsh.hash(value)
                     (buckets zip local).forEach { (bucket, map) ->
@@ -232,7 +230,7 @@ class SuperBitLSHIndex<T : VectorValue<*>>(
 
             /* Performs some sanity checks. */
             init {
-                if (this.predicate.columns.first() != this@SuperBitLSHIndex.columns[0] || !(this.predicate.distance is CosineDistance || this.predicate.distance is AbsoluteInnerProductDistance)) {
+                if (this.predicate.columns.first() != this@SuperBitLSHIndex.columns[0] || !(this.predicate.distance in SUPPORTED_DISTANCES)) {
                     throw QueryException.UnsupportedPredicateException("Index '${this@SuperBitLSHIndex.name}' (lsh-index) does not support the provided predicate.")
                 }
 
@@ -289,7 +287,7 @@ class SuperBitLSHIndex<T : VectorValue<*>>(
          */
         private fun acquireSpecimen(tx: EntityTx): VectorValue<*>? {
             for (index in 0L until tx.maxTupleId()) {
-                val read = tx.read(index, this@SuperBitLSHIndex.columns)[this.columns[0]]
+                val read = tx.read(index, this@SuperBitLSHIndex.columns)[this.dbo.columns[0]]
                 if (read is VectorValue<*>) {
                     return read
                 }

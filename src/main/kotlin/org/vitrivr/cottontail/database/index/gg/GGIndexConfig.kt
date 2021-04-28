@@ -3,7 +3,7 @@ package org.vitrivr.cottontail.database.index.gg
 import org.mapdb.DataInput2
 import org.mapdb.DataOutput2
 import org.vitrivr.cottontail.database.index.IndexConfig
-import org.vitrivr.cottontail.math.knn.metrics.Distances
+import org.vitrivr.cottontail.math.knn.kernels.Distances
 
 /**
  * Configuration class for [GGIndex].

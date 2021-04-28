@@ -11,8 +11,10 @@ import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.column.ColumnTx
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
+import org.vitrivr.cottontail.database.entity.EntityTxSnapshot
 import org.vitrivr.cottontail.database.general.AbstractTx
 import org.vitrivr.cottontail.database.general.DBOVersion
+import org.vitrivr.cottontail.database.general.TxAction
 import org.vitrivr.cottontail.database.general.TxSnapshot
 import org.vitrivr.cottontail.database.index.Index
 import org.vitrivr.cottontail.database.index.IndexTx
@@ -23,15 +25,17 @@ import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.legacy.BrokenIndex
 import org.vitrivr.cottontail.legacy.v1.column.ColumnV1
 import org.vitrivr.cottontail.legacy.v1.schema.SchemaV1
-import org.vitrivr.cottontail.model.basics.*
+import org.vitrivr.cottontail.model.basics.Name
+import org.vitrivr.cottontail.model.basics.Record
+import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.model.exceptions.TxException
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.types.Value
 import org.vitrivr.cottontail.utilities.extensions.write
 import java.nio.file.Path
-import java.util.*
 import java.util.concurrent.locks.StampedLock
+import kotlin.math.min
 
 /**
  * Represents a single entity in the Cottontail DB data model. An [Entity] has name that must remain
@@ -46,7 +50,7 @@ import java.util.concurrent.locks.StampedLock
  * @see EntityTx
  *
  * @author Ralph Gasser
- * @version 1.6.0
+ * @version 1.7.0
  */
 class EntityV1(override val name: Name.EntityName, override val parent: SchemaV1) : Entity {
     /**
@@ -179,18 +183,21 @@ class EntityV1(override val name: Name.EntityName, override val parent: SchemaV1
             get() = this@EntityV1
 
         /** The [TxSnapshot] of this [SchemaTx]. */
-        override val snapshot = object : TxSnapshot {
-            override fun commit() =
-                throw UnsupportedOperationException("Operation not supported on legacy DBO.")
-
-            override fun rollback() =
-                throw UnsupportedOperationException("Operation not supported on legacy DBO.")
+        override val snapshot = object : EntityTxSnapshot {
+            override val statistics: EntityStatistics
+                get() = throw UnsupportedOperationException("Operation not supported on legacy DBO.")
+            override val indexes: MutableMap<Name.IndexName, Index> = mutableMapOf()
+            override val actions: List<TxAction> = emptyList()
+            override fun commit() = throw UnsupportedOperationException("Operation not supported on legacy DBO.")
+            override fun rollback() = throw UnsupportedOperationException("Operation not supported on legacy DBO.")
+            override fun record(action: TxAction): Boolean = throw UnsupportedOperationException("Operation not supported on legacy DBO.")
         }
 
         /** Tries to acquire a global read-lock on this entity. */
         init {
             if (this@EntityV1.closed) {
-                throw TxException.TxDBOClosedException(this.context.txId)
+                this@EntityV1.closeLock.unlockRead(this.closeStamp)
+                throw TxException.TxDBOClosedException(this.context.txId, this@EntityV1)
             }
         }
 
@@ -266,9 +273,21 @@ class EntityV1(override val name: Name.EntityName, override val parent: SchemaV1
             throw UnsupportedOperationException("Operation not supported on legacy DBO.")
         }
 
-        override fun scan(columns: Array<ColumnDef<*>>): Iterator<Record> = scan(columns, 1L..this.maxTupleId())
+        override fun scan(columns: Array<ColumnDef<*>>): Iterator<Record> = scan(columns, 0, 1)
 
-        override fun scan(columns: Array<ColumnDef<*>>, range: LongRange): Iterator<Record> = object : Iterator<Record> {
+        override fun scan(columns: Array<ColumnDef<*>>, partitionIndex: Int, partitions: Int): Iterator<Record> = object : Iterator<Record> {
+
+            /** The [LongRange] to iterate over. */
+            private val range: LongRange
+
+            init {
+                val maximum: Long = this@Tx.maxTupleId()
+                val partitionSize: Long = Math.floorDiv(maximum, partitions.toLong()) + 1L
+                val start: Long = partitionIndex * partitionSize
+                val end = min(((partitionIndex + 1) * partitionSize), maximum)
+                this.range = start until end
+            }
+
             /** The wrapped [Iterator] of the first (primary) column. */
             private val wrapped = this@Tx.withReadLock {
                 (this@Tx.context.getTx(this@EntityV1.columns.values.first()) as ColumnTx<*>).scan(
@@ -321,9 +340,6 @@ class EntityV1(override val name: Name.EntityName, override val parent: SchemaV1
          */
         override fun cleanup() {
             this@EntityV1.closeLock.unlockRead(this.closeStamp)
-            this@EntityV1.columns.values.forEach {
-                this.context.getTx(it).close()
-            }
         }
     }
 }

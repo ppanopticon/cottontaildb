@@ -73,23 +73,13 @@ enum class IndexType(val inexact: Boolean) {
      * @param columns The [ColumnDef] for which to create the [AbstractIndex]
      * @param params Additions configuration params.
      */
-    fun create(
-        path: Path,
-        entity: DefaultEntity,
-        name: Name.IndexName,
-        columns: Array<ColumnDef<*>>,
-        params: Map<String, String> = emptyMap()
-    ): AbstractIndex {
+    fun create(path: Path, entity: DefaultEntity, name: Name.IndexName, columns: Array<ColumnDef<*>>, params: Map<String, String> = emptyMap()): AbstractIndex {
         AbstractIndex.initialize(path, name, this, columns, entity.parent.parent.config)
         return when (this) {
             HASH_UQ -> UniqueHashIndex(path, entity)
             HASH -> NonUniqueHashIndex(path, entity)
             LUCENE -> LuceneIndex(path, entity, LuceneIndexConfig.fromParamMap(params))
-            LSH_SB -> SuperBitLSHIndex<VectorValue<*>>(
-                path,
-                entity,
-                SuperBitLSHIndexConfig.fromParamMap(params)
-            )
+            LSH_SB -> SuperBitLSHIndex<VectorValue<*>>(path, entity, SuperBitLSHIndexConfig.fromParamMap(params))
             VAF -> VAFIndex(path, entity, VAFIndexConfig.fromParamMap(params))
             PQ -> PQIndex(path, entity, PQIndexConfig.fromParamMap(params))
             GG -> GGIndex(path, entity, GGIndexConfig.fromParamsMap(params))

@@ -1,6 +1,7 @@
 package org.vitrivr.cottontail.database.queries.planning.nodes.physical
 
 import org.vitrivr.cottontail.database.column.ColumnDef
+import org.vitrivr.cottontail.database.queries.Digest
 import org.vitrivr.cottontail.database.queries.GroupId
 import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.binding.Binding
@@ -17,7 +18,7 @@ import java.util.*
  * An abstract [OperatorNode.Physical] implementation that has multiple [OperatorNode.Physical]s as input.
  *
  * @author Ralph Gasser
- * @version 2.1.0
+ * @version 2.1.1
  */
 abstract class NAryPhysicalOperatorNode(vararg inputs: Physical) : OperatorNode.Physical() {
 
@@ -156,9 +157,9 @@ abstract class NAryPhysicalOperatorNode(vararg inputs: Physical) : OperatorNode.
     /**
      * Calculates and returns the digest for this [BinaryPhysicalOperatorNode].
      *
-     * @return Digest for this [BinaryPhysicalOperatorNode]
+     * @return [Digest] for this [BinaryPhysicalOperatorNode]
      */
-    override fun digest(): Long {
+    override fun digest(): Digest {
         var result = this.hashCode().toLong()
         for (i in this.inputs) {
             result += 27L * result + i.digest()

@@ -4,10 +4,10 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
 import org.vitrivr.cottontail.TestConstants
 import org.vitrivr.cottontail.math.isApproximatelyTheSame
-import org.vitrivr.cottontail.math.knn.metrics.EuclidianDistance
-import org.vitrivr.cottontail.math.knn.metrics.ManhattanDistance
-import org.vitrivr.cottontail.math.knn.metrics.SquaredEuclidianDistance
+import org.vitrivr.cottontail.math.knn.basics.DistanceKernel
+import org.vitrivr.cottontail.math.knn.kernels.Distances
 import org.vitrivr.cottontail.model.values.IntVectorValue
+import org.vitrivr.cottontail.model.values.types.VectorValue
 import org.vitrivr.cottontail.utilities.VectorUtility
 import kotlin.math.abs
 import kotlin.math.pow
@@ -37,9 +37,11 @@ class IntVectorDistanceTest : AbstractDistanceTest() {
         var time1 = Duration.ZERO
         var time2 = Duration.ZERO
 
+        val kernel = Distances.L1.kernelForQuery(query) as DistanceKernel<VectorValue<*>>
+
         collection.forEach {
             time1 += measureTime {
-                sum1 += ManhattanDistance(it, query).value.toFloat()
+                sum1 += kernel(it).value.toFloat()
             }
             time2 += measureTime {
                 sum2 += (it - query).abs().sum().value
@@ -70,9 +72,12 @@ class IntVectorDistanceTest : AbstractDistanceTest() {
         var time1 = Duration.ZERO
         var time2 = Duration.ZERO
 
+        val kernel = Distances.L2SQUARED.kernelForQuery(query) as DistanceKernel<VectorValue<*>>
+
+
         collection.forEach {
             time1 += measureTime {
-                sum1 += SquaredEuclidianDistance(it, query).value.toFloat()
+                sum1 += kernel(it).value.toFloat()
             }
             time2 += measureTime {
                 sum2 += (it - query).pow(2).sum().value
@@ -103,9 +108,11 @@ class IntVectorDistanceTest : AbstractDistanceTest() {
         var time1 = Duration.ZERO
         var time2 = Duration.ZERO
 
+        val kernel = Distances.L2.kernelForQuery(query) as DistanceKernel<VectorValue<*>>
+
         collection.forEach {
             time1 += measureTime {
-                sum1 += EuclidianDistance(it, query).value.toFloat()
+                sum1 += kernel(it).value.toFloat()
             }
             time2 += measureTime {
                 sum2 += (query - it).pow(2).sum().sqrt().value

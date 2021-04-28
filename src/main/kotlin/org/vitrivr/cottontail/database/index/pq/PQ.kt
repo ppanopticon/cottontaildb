@@ -8,13 +8,13 @@ import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.index.pq.codebook.DoublePrecisionPQCodebook
 import org.vitrivr.cottontail.database.index.pq.codebook.PQCodebook
 import org.vitrivr.cottontail.database.index.pq.codebook.SinglePrecisionPQCodebook
-import org.vitrivr.cottontail.math.knn.metrics.DistanceKernel
+import org.vitrivr.cottontail.math.knn.basics.DistanceKernel
+import org.vitrivr.cottontail.math.knn.kernels.Distances
 import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.DoubleVectorValue
 import org.vitrivr.cottontail.model.values.FloatVectorValue
 import org.vitrivr.cottontail.model.values.types.VectorValue
 import java.util.*
-import kotlin.collections.ArrayList
 
 /**
  * Product Quantizer (PQ) that minimizes inner product error. Input data should be permuted for better results!
@@ -176,18 +176,14 @@ class PQ(val type: Type<*>, val codebooks: List<PQCodebook<VectorValue<*>>>) {
      * Generates and returns a [PQLookupTable] for the given [VectorValue] and the given [DistanceKernel].
      *
      * @param v The [VectorValue] to obtain the [PQLookupTable] for.
-     * @param kernel The [DistanceKernel] to apply.
+     * @param distance The [Distances] to apply.
      * @return The [PQLookupTable] for the given [VectorValue] and the [DistanceKernel]
      */
-    fun getLookupTable(v: VectorValue<*>, kernel: DistanceKernel) = PQLookupTable(
+    fun getLookupTable(v: VectorValue<*>, distance: Distances) = PQLookupTable(
         Array(this.numberOfSubspaces) { k ->
+            val kernel = distance.kernelForQuery(v.subvector(k * this.dimensionsPerSubspace, dimensionsPerSubspace)) as DistanceKernel<VectorValue<*>>
             val codebook = this.codebooks[k]
-            DoubleArray(codebook.numberOfCentroids) {
-                kernel.invoke(
-                    v.subvector(k * this.dimensionsPerSubspace, dimensionsPerSubspace),
-                    codebook[it]
-                ).value
-            }
+            DoubleArray(codebook.numberOfCentroids) { kernel.invoke(codebook[it]).value }
         }
     )
 }

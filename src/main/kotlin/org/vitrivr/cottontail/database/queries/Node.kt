@@ -7,7 +7,7 @@ import org.vitrivr.cottontail.model.values.types.Value
  * A [Node] is an object in the tree-like structure of a query plan, be it logical, physical or operational.
  *
  * @author Ralph Gasser
- * @version 1.1.0
+ * @version 1.2.0
  */
 interface Node {
     /**
@@ -29,7 +29,7 @@ interface Node {
      *
      * Used for caching and re-use of query plans.
      *
-     * @return Digest of this [Node] as [Long]
+     * @return  [Digest] of this [Node]
      */
-    fun digest(): Long
+    fun digest(): Digest
 }

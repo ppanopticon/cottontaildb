@@ -1,6 +1,7 @@
 package org.vitrivr.cottontail.database.queries.planning.nodes.logical
 
 import org.vitrivr.cottontail.database.column.ColumnDef
+import org.vitrivr.cottontail.database.queries.Digest
 import org.vitrivr.cottontail.database.queries.GroupId
 import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.binding.Binding
@@ -13,7 +14,7 @@ import java.io.PrintStream
  * An abstract [OperatorNode.Logical] implementation that has exactly two [OperatorNode.Logical]s as input.
  *
  * @author Ralph Gasser
- * @version 2.1.0
+ * @version 2.1.1
  */
 abstract class BinaryLogicalOperatorNode(left: Logical? = null, right: Logical? = null) : OperatorNode.Logical() {
 
@@ -130,9 +131,9 @@ abstract class BinaryLogicalOperatorNode(left: Logical? = null, right: Logical? 
     /**
      * Calculates and returns the digest for this [BinaryLogicalOperatorNode].
      *
-     * @return Digest for this [BinaryLogicalOperatorNode]
+     * @return [Digest] for this [BinaryLogicalOperatorNode]
      */
-    override fun digest(): Long {
+    override fun digest(): Digest {
         var result = 33L * hashCode() + (this.left?.digest() ?: -1L)
         result = 33L * result + (this.right?.digest() ?: -1L)
         return 33L * result + this.depth.hashCode()

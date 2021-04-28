@@ -14,6 +14,7 @@ import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
 import org.vitrivr.cottontail.database.queries.predicates.knn.KnnPredicate
 import org.vitrivr.cottontail.execution.TransactionContext
+import org.vitrivr.cottontail.math.knn.basics.DistanceKernel
 import org.vitrivr.cottontail.math.knn.selection.ComparablePair
 import org.vitrivr.cottontail.math.knn.selection.MinHeapSelection
 import org.vitrivr.cottontail.math.knn.selection.MinSingleSelection
@@ -191,7 +192,7 @@ class PQIndex(path: Path, parent: DefaultEntity, config: PQIndexConfig? = null) 
 
             /* ... and generate signatures. */
             val signatureMap = Object2ObjectOpenHashMap<PQSignature, LinkedList<TupleId>>(txn.count().toInt())
-            txn.scan(this.columns).forEach { rec ->
+            txn.scan(this.dbo.columns).forEach { rec ->
                 val value = rec[this@PQIndex.columns[0]]
                 if (value is VectorValue<*>) {
                     val sig = pq.getSignature(value)
@@ -323,12 +324,13 @@ class PQIndex(path: Path, parent: DefaultEntity, config: PQIndexConfig? = null) 
                 } else {
                     MinHeapSelection<ComparablePair<TupleId, DoubleValue>>(this.predicate.k)
                 }
+                val kernel = this.predicate.distance.kernelForQuery(this.query) as DistanceKernel<VectorValue<*>>
                 for (j in 0 until preKnn.size) {
                     val tupleIds = preKnn[j].first
                     for (tupleId in tupleIds) {
                         val exact = txn.read(tupleId, this@PQIndex.columns)[this@PQIndex.columns[0]]
                         if (exact is VectorValue<*>) {
-                            val distance = this.predicate.distance(exact, this.query)
+                            val distance = kernel(exact)
                             if (knn.size < this.predicate.k || knn.peek()!!.second > distance) {
                                 knn.offer(ComparablePair(tupleId, distance))
                             }
@@ -355,7 +357,7 @@ class PQIndex(path: Path, parent: DefaultEntity, config: PQIndexConfig? = null) 
             val learningData = LinkedList<VectorValue<*>>()
             val rng = SplittableRandom(this@PQIndex.config.seed)
             val learningDataFraction = this@PQIndex.config.sampleSize.toDouble() / txn.count()
-            txn.scan(this.columns).forEach {
+            txn.scan(this.dbo.columns).forEach {
                 if (rng.nextDouble() <= learningDataFraction) {
                     val value = it[this@PQIndex.columns[0]]
                     if (value is VectorValue<*>) {

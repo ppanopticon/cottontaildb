@@ -12,7 +12,7 @@ import kotlin.math.pow
  * This is an abstraction over a [Float].
  *
  * @author Ralph Gasser
- * @version 1.5.0
+ * @version 1.5.1
  */
 inline class FloatValue(override val value: Float): RealValue<Float> {
 
@@ -30,6 +30,14 @@ inline class FloatValue(override val value: Float): RealValue<Float> {
          */
         fun random(rnd: SplittableRandom = Value.RANDOM) = FloatValue(rnd.nextFloat())
     }
+
+    /**
+     * Constructor for a [Double]. Applies special conversion to prevent loss in precision
+     * in cases that could be prevented.
+     *
+     * @param number The [Double] that should be converted to a [FloatValue]
+     */
+    constructor(number: Double) : this(number.toString().toFloat())
 
     /**
      * Constructor for an arbitrary [Number].

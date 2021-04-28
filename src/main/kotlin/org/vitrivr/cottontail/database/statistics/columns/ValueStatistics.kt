@@ -37,6 +37,7 @@ open class ValueStatistics<T : Value>(val type: Type<T>) {
             out.packInt(value.type.ordinal)
             out.packInt(value.type.logicalSize)
             when (value) {
+                is BooleanValueStatistics -> BooleanValueStatistics.serialize(out, value)
                 is ByteValueStatistics -> ByteValueStatistics.serialize(out, value)
                 is ShortValueStatistics -> ShortValueStatistics.serialize(out, value)
                 is IntValueStatistics -> IntValueStatistics.serialize(out, value)
@@ -58,6 +59,11 @@ open class ValueStatistics<T : Value>(val type: Type<T>) {
 
         override fun deserialize(input: DataInput2, available: Int): ValueStatistics<*> {
             val stat = when (val type = Type.forOrdinal(input.unpackInt(), input.unpackInt())) {
+                Type.Complex32,
+                Type.Complex64,
+                is Type.Complex32Vector,
+                is Type.Complex64Vector,
+                -> ValueStatistics(type)
                 Type.Boolean -> BooleanValueStatistics.deserialize(input, available)
                 Type.Byte -> ByteValueStatistics.deserialize(input, available)
                 Type.Double -> DoubleValueStatistics.deserialize(input, available)
@@ -67,10 +73,6 @@ open class ValueStatistics<T : Value>(val type: Type<T>) {
                 Type.Short -> ShortValueStatistics.deserialize(input, available)
                 Type.String -> StringValueStatistics.deserialize(input, available)
                 Type.Date -> DateValueStatistics.deserialize(input, available)
-                Type.Complex32 -> ValueStatistics(type)
-                Type.Complex64 -> ValueStatistics(type)
-                is Type.Complex32Vector -> ValueStatistics(type)
-                is Type.Complex64Vector -> ValueStatistics(type)
                 is Type.BooleanVector -> BooleanVectorValueStatistics.Serializer(type).deserialize(input, available)
                 is Type.DoubleVector -> DoubleVectorValueStatistics.Serializer(type).deserialize(input, available)
                 is Type.FloatVector -> FloatVectorValueStatistics.Serializer(type).deserialize(input, available)

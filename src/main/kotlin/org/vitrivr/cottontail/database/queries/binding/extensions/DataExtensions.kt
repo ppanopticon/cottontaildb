@@ -6,14 +6,14 @@ import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.exceptions.QueryException
 import org.vitrivr.cottontail.model.values.*
 import org.vitrivr.cottontail.model.values.types.Value
-import org.vitrivr.cottontail.utilities.extensions.toLong
+import org.vitrivr.cottontail.utilities.extensions.*
 import java.util.*
 
 /**
- * Helpers to convert Kotlin data types to gRPC [CottontailGrpc.Literal] and vice versa.
+ * Helpers to convert Cottontail DB [Value] types to gRPC [CottontailGrpc.Literal] and vice versa.
  *
  * @author Ralph Gasser
- * @version 1.2.0
+ * @version 1.2.1
  */
 
 /**
@@ -30,12 +30,8 @@ fun Value.toLiteral(): CottontailGrpc.Literal = when (this) {
     is DoubleValue -> CottontailGrpc.Literal.newBuilder().setDoubleData(this.value).build()
     is FloatValue -> CottontailGrpc.Literal.newBuilder().setFloatData(this.value).build()
     is BooleanValue -> CottontailGrpc.Literal.newBuilder().setBooleanData(this.value).build()
-    is DateValue -> CottontailGrpc.Literal.newBuilder()
-        .setDateData(CottontailGrpc.Date.newBuilder().setUtcTimestamp(this.value)).build()
-    is Complex32Value -> CottontailGrpc.Literal.newBuilder().setComplex32Data(
-        CottontailGrpc.Complex32.newBuilder().setReal(this.real.value)
-            .setImaginary(this.imaginary.value)
-    ).build()
+    is DateValue -> CottontailGrpc.Literal.newBuilder().setDateData(CottontailGrpc.Date.newBuilder().setUtcTimestamp(this.value)).build()
+    is Complex32Value -> CottontailGrpc.Literal.newBuilder().setComplex32Data(CottontailGrpc.Complex32.newBuilder().setReal(this.real.value).setImaginary(this.imaginary.value)).build()
     is Complex64Value -> CottontailGrpc.Literal.newBuilder().setComplex64Data(CottontailGrpc.Complex64.newBuilder().setReal(this.real.value).setImaginary(this.imaginary.value)).build()
     is DoubleVectorValue -> CottontailGrpc.Literal.newBuilder().setVectorData(CottontailGrpc.Vector.newBuilder().setDoubleVector(CottontailGrpc.DoubleVector.newBuilder().addAllVector(this.map { it.value }))).build()
     is FloatVectorValue -> CottontailGrpc.Literal.newBuilder().setVectorData(CottontailGrpc.Vector.newBuilder().setFloatVector(CottontailGrpc.FloatVector.newBuilder().addAllVector(this.map { it.value }))).build()
@@ -54,7 +50,7 @@ fun Value.toLiteral(): CottontailGrpc.Literal = when (this) {
 /**
  * Returns the value of [CottontailGrpc.Literal] as [Value].
  *
- * @return [T]
+ * @return [Value] or null
  * @throws QueryException.UnsupportedCastException If cast is not possible.
  */
 fun CottontailGrpc.Literal.toValue(column: ColumnDef<*>): Value? {
@@ -158,18 +154,12 @@ fun CottontailGrpc.Literal.toBooleanValue(): BooleanValue? = when (this.dataCase
  * @throws QueryException.UnsupportedCastException If cast is not possible.
  */
 fun CottontailGrpc.Literal.toDoubleValue(): DoubleValue? = when (this.dataCase) {
-    CottontailGrpc.Literal.DataCase.BOOLEANDATA -> DoubleValue(
-        if (this.booleanData) {
-            1.0
-        } else {
-            0.0
-        }
-    )
-    CottontailGrpc.Literal.DataCase.INTDATA -> DoubleValue(this.intData.toDouble())
-    CottontailGrpc.Literal.DataCase.LONGDATA -> DoubleValue(this.longData.toDouble())
-    CottontailGrpc.Literal.DataCase.FLOATDATA -> DoubleValue(this.floatData.toDouble())
+    CottontailGrpc.Literal.DataCase.BOOLEANDATA -> DoubleValue(this.booleanData.toDouble())
+    CottontailGrpc.Literal.DataCase.INTDATA -> DoubleValue(this.intData)
+    CottontailGrpc.Literal.DataCase.LONGDATA -> DoubleValue(this.longData)
+    CottontailGrpc.Literal.DataCase.FLOATDATA -> DoubleValue(this.floatData)
     CottontailGrpc.Literal.DataCase.DOUBLEDATA -> DoubleValue(this.doubleData)
-    CottontailGrpc.Literal.DataCase.DATEDATA -> DoubleValue(this.dateData.utcTimestamp.toDouble())
+    CottontailGrpc.Literal.DataCase.DATEDATA -> DoubleValue(this.dateData.utcTimestamp)
     CottontailGrpc.Literal.DataCase.STRINGDATA -> DoubleValue(
         this.stringData.toDoubleOrNull()
             ?: throw QueryException.UnsupportedCastException("A value of type STRING (v='${this.stringData}') cannot be cast to DOUBLE.")
@@ -189,18 +179,12 @@ fun CottontailGrpc.Literal.toDoubleValue(): DoubleValue? = when (this.dataCase) 
  * @throws QueryException.UnsupportedCastException If cast is not possible.
  */
 fun CottontailGrpc.Literal.toFloatValue(): FloatValue? = when (this.dataCase) {
-    CottontailGrpc.Literal.DataCase.BOOLEANDATA -> FloatValue(
-        if (this.booleanData) {
-            1.0f
-        } else {
-            0.0f
-        }
-    )
-    CottontailGrpc.Literal.DataCase.INTDATA -> FloatValue(this.intData.toFloat())
-    CottontailGrpc.Literal.DataCase.LONGDATA -> FloatValue(this.longData.toFloat())
+    CottontailGrpc.Literal.DataCase.BOOLEANDATA -> FloatValue(this.booleanData.toFloat())
+    CottontailGrpc.Literal.DataCase.INTDATA -> FloatValue(this.intData)
+    CottontailGrpc.Literal.DataCase.LONGDATA -> FloatValue(this.longData)
     CottontailGrpc.Literal.DataCase.FLOATDATA -> FloatValue(this.floatData)
-    CottontailGrpc.Literal.DataCase.DOUBLEDATA -> FloatValue(this.doubleData.toFloat())
-    CottontailGrpc.Literal.DataCase.DATEDATA -> FloatValue(this.dateData.utcTimestamp.toFloat())
+    CottontailGrpc.Literal.DataCase.DOUBLEDATA -> FloatValue(this.doubleData)
+    CottontailGrpc.Literal.DataCase.DATEDATA -> FloatValue(this.dateData.utcTimestamp)
     CottontailGrpc.Literal.DataCase.STRINGDATA -> FloatValue(
         this.stringData.toFloatOrNull()
             ?: throw QueryException.UnsupportedCastException("A value of type STRING (v='${this.stringData}') cannot be cast to FLOAT.")
@@ -220,18 +204,12 @@ fun CottontailGrpc.Literal.toFloatValue(): FloatValue? = when (this.dataCase) {
  * @throws QueryException.UnsupportedCastException If cast is not possible.
  */
 fun CottontailGrpc.Literal.toShortValue(): ShortValue? = when (this.dataCase) {
-    CottontailGrpc.Literal.DataCase.BOOLEANDATA -> ShortValue(
-        (if (this.booleanData) {
-            1
-        } else {
-            0
-        }).toShort()
-    )
-    CottontailGrpc.Literal.DataCase.INTDATA -> ShortValue(this.intData.toShort())
-    CottontailGrpc.Literal.DataCase.LONGDATA -> ShortValue(this.longData.toShort())
-    CottontailGrpc.Literal.DataCase.FLOATDATA -> ShortValue(this.floatData.toInt().toShort())
-    CottontailGrpc.Literal.DataCase.DOUBLEDATA -> ShortValue(this.doubleData.toInt().toShort())
-    CottontailGrpc.Literal.DataCase.DATEDATA -> ShortValue(this.dateData.utcTimestamp.toShort())
+    CottontailGrpc.Literal.DataCase.BOOLEANDATA -> ShortValue(this.booleanData.toShort())
+    CottontailGrpc.Literal.DataCase.INTDATA -> ShortValue(this.intData)
+    CottontailGrpc.Literal.DataCase.LONGDATA -> ShortValue(this.longData)
+    CottontailGrpc.Literal.DataCase.FLOATDATA -> ShortValue(this.floatData)
+    CottontailGrpc.Literal.DataCase.DOUBLEDATA -> ShortValue(this.doubleData)
+    CottontailGrpc.Literal.DataCase.DATEDATA -> ShortValue(this.dateData.utcTimestamp)
     CottontailGrpc.Literal.DataCase.STRINGDATA -> ShortValue(
         this.stringData.toShortOrNull()
             ?: throw QueryException.UnsupportedCastException("A value of type STRING (v='${this.stringData}') cannot be cast to SHORT.")
@@ -251,17 +229,11 @@ fun CottontailGrpc.Literal.toShortValue(): ShortValue? = when (this.dataCase) {
  * @throws QueryException.UnsupportedCastException If cast is not possible.
  */
 fun CottontailGrpc.Literal.toByteValue(): ByteValue? = when (this.dataCase) {
-    CottontailGrpc.Literal.DataCase.BOOLEANDATA -> ByteValue(
-        (if (this.booleanData) {
-            1
-        } else {
-            0
-        }).toByte()
-    )
-    CottontailGrpc.Literal.DataCase.INTDATA -> ByteValue(this.intData.toByte())
-    CottontailGrpc.Literal.DataCase.LONGDATA -> ByteValue(this.longData.toByte())
-    CottontailGrpc.Literal.DataCase.FLOATDATA -> ByteValue(this.floatData.toInt().toByte())
-    CottontailGrpc.Literal.DataCase.DOUBLEDATA -> ByteValue(this.doubleData.toInt().toByte())
+    CottontailGrpc.Literal.DataCase.BOOLEANDATA -> ByteValue(this.booleanData.toByte())
+    CottontailGrpc.Literal.DataCase.INTDATA -> ByteValue(this.intData)
+    CottontailGrpc.Literal.DataCase.LONGDATA -> ByteValue(this.longData)
+    CottontailGrpc.Literal.DataCase.FLOATDATA -> ByteValue(this.floatData)
+    CottontailGrpc.Literal.DataCase.DOUBLEDATA -> ByteValue(this.doubleData)
     CottontailGrpc.Literal.DataCase.DATEDATA -> ByteValue(this.dateData.utcTimestamp.toByte())
     CottontailGrpc.Literal.DataCase.STRINGDATA -> ByteValue(
         this.stringData.toByteOrNull()
@@ -282,18 +254,12 @@ fun CottontailGrpc.Literal.toByteValue(): ByteValue? = when (this.dataCase) {
  * @throws QueryException.UnsupportedCastException If cast is not possible.
  */
 fun CottontailGrpc.Literal.toIntValue(): IntValue? = when (this.dataCase) {
-    CottontailGrpc.Literal.DataCase.BOOLEANDATA -> IntValue(
-        if (this.booleanData) {
-            1
-        } else {
-            0
-        }
-    )
+    CottontailGrpc.Literal.DataCase.BOOLEANDATA -> IntValue(this.booleanData.toInt())
     CottontailGrpc.Literal.DataCase.INTDATA -> IntValue(this.intData)
-    CottontailGrpc.Literal.DataCase.LONGDATA -> IntValue(this.longData.toInt())
-    CottontailGrpc.Literal.DataCase.FLOATDATA -> IntValue(this.floatData.toInt())
-    CottontailGrpc.Literal.DataCase.DOUBLEDATA -> IntValue(this.doubleData.toInt())
-    CottontailGrpc.Literal.DataCase.DATEDATA -> IntValue(this.dateData.utcTimestamp.toInt())
+    CottontailGrpc.Literal.DataCase.LONGDATA -> IntValue(this.longData)
+    CottontailGrpc.Literal.DataCase.FLOATDATA -> IntValue(this.floatData)
+    CottontailGrpc.Literal.DataCase.DOUBLEDATA -> IntValue(this.doubleData)
+    CottontailGrpc.Literal.DataCase.DATEDATA -> IntValue(this.dateData.utcTimestamp)
     CottontailGrpc.Literal.DataCase.STRINGDATA -> IntValue(
         this.stringData.toIntOrNull()
             ?: throw QueryException.UnsupportedCastException("A value of type STRING (v='${this.stringData}') cannot be cast to INT.")
@@ -313,17 +279,11 @@ fun CottontailGrpc.Literal.toIntValue(): IntValue? = when (this.dataCase) {
  * @throws QueryException.UnsupportedCastException If cast is not possible.
  */
 fun CottontailGrpc.Literal.toLongValue(): LongValue? = when (this.dataCase) {
-    CottontailGrpc.Literal.DataCase.BOOLEANDATA -> LongValue(
-        if (this.booleanData) {
-            1L
-        } else {
-            0L
-        }
-    )
-    CottontailGrpc.Literal.DataCase.INTDATA -> LongValue(this.intData.toLong())
+    CottontailGrpc.Literal.DataCase.BOOLEANDATA -> LongValue(this.booleanData.toLong())
+    CottontailGrpc.Literal.DataCase.INTDATA -> LongValue(this.intData)
     CottontailGrpc.Literal.DataCase.LONGDATA -> LongValue(this.longData)
-    CottontailGrpc.Literal.DataCase.FLOATDATA -> LongValue(this.floatData.toLong())
-    CottontailGrpc.Literal.DataCase.DOUBLEDATA -> LongValue(this.doubleData.toLong())
+    CottontailGrpc.Literal.DataCase.FLOATDATA -> LongValue(this.floatData)
+    CottontailGrpc.Literal.DataCase.DOUBLEDATA -> LongValue(this.doubleData)
     CottontailGrpc.Literal.DataCase.DATEDATA -> LongValue(this.dateData.utcTimestamp)
     CottontailGrpc.Literal.DataCase.STRINGDATA -> LongValue(
         this.stringData.toLongOrNull()
@@ -345,19 +305,14 @@ fun CottontailGrpc.Literal.toLongValue(): LongValue? = when (this.dataCase) {
  */
 fun CottontailGrpc.Literal.toComplex32Value(): Complex32Value? = when (this.dataCase) {
     CottontailGrpc.Literal.DataCase.BOOLEANDATA -> throw QueryException.UnsupportedCastException("A value of BOOLEAN cannot be cast to COMPLEX32.")
-    CottontailGrpc.Literal.DataCase.INTDATA -> Complex32Value(floatArrayOf(this.intData.toFloat(), 0.0f))
-    CottontailGrpc.Literal.DataCase.LONGDATA -> Complex32Value(floatArrayOf(this.longData.toFloat(), 0.0f))
-    CottontailGrpc.Literal.DataCase.FLOATDATA -> Complex32Value(floatArrayOf(this.floatData, 0.0f))
-    CottontailGrpc.Literal.DataCase.DOUBLEDATA -> Complex32Value(
-        floatArrayOf(
-            this.doubleData.toFloat(),
-            0.0f
-        )
-    )
+    CottontailGrpc.Literal.DataCase.INTDATA -> Complex32Value(this.intData, 0.0f)
+    CottontailGrpc.Literal.DataCase.LONGDATA -> Complex32Value(this.longData, 0.0f)
+    CottontailGrpc.Literal.DataCase.FLOATDATA -> Complex32Value(this.floatData, 0.0f)
+    CottontailGrpc.Literal.DataCase.DOUBLEDATA -> Complex32Value(this.doubleData, 0.0f)
     CottontailGrpc.Literal.DataCase.DATEDATA -> throw QueryException.UnsupportedCastException("A value of DATE cannot be cast to COMPLEX32.")
     CottontailGrpc.Literal.DataCase.STRINGDATA -> throw QueryException.UnsupportedCastException("A value of STRING cannot be cast to COMPLEX32.")
-    CottontailGrpc.Literal.DataCase.COMPLEX32DATA -> Complex32Value(floatArrayOf(this.complex32Data.real, this.complex32Data.imaginary))
-    CottontailGrpc.Literal.DataCase.COMPLEX64DATA -> Complex32Value(floatArrayOf(this.complex64Data.real.toFloat(), this.complex64Data.imaginary.toFloat())) // cave! precision
+    CottontailGrpc.Literal.DataCase.COMPLEX32DATA -> Complex32Value(this.complex32Data.real, this.complex32Data.imaginary)
+    CottontailGrpc.Literal.DataCase.COMPLEX64DATA -> Complex32Value(this.complex64Data.real, this.complex64Data.imaginary)
     CottontailGrpc.Literal.DataCase.VECTORDATA -> throw QueryException.UnsupportedCastException("A value of VECTOR cannot be cast to COMPLEX32.")
     CottontailGrpc.Literal.DataCase.NULLDATA -> null
     CottontailGrpc.Literal.DataCase.DATA_NOT_SET,
@@ -372,15 +327,10 @@ fun CottontailGrpc.Literal.toComplex32Value(): Complex32Value? = when (this.data
  */
 fun CottontailGrpc.Literal.toComplex64Value(): Complex64Value? = when (this.dataCase) {
     CottontailGrpc.Literal.DataCase.BOOLEANDATA -> throw QueryException.UnsupportedCastException("A value of BOOLEAN cannot be cast to COMPLEX64.")
-    CottontailGrpc.Literal.DataCase.INTDATA -> Complex64Value(doubleArrayOf(this.intData.toDouble(), 0.0))
-    CottontailGrpc.Literal.DataCase.LONGDATA -> Complex64Value(doubleArrayOf(this.longData.toDouble(), 0.0))
-    CottontailGrpc.Literal.DataCase.FLOATDATA -> Complex64Value(doubleArrayOf(this.floatData.toDouble(), 0.0))
-    CottontailGrpc.Literal.DataCase.DOUBLEDATA -> Complex64Value(
-        doubleArrayOf(
-            this.doubleData,
-            0.0
-        )
-    )
+    CottontailGrpc.Literal.DataCase.INTDATA -> Complex64Value(this.intData, 0.0)
+    CottontailGrpc.Literal.DataCase.LONGDATA -> Complex64Value(this.longData, 0.0)
+    CottontailGrpc.Literal.DataCase.FLOATDATA -> Complex64Value(this.floatData, 0.0)
+    CottontailGrpc.Literal.DataCase.DOUBLEDATA -> Complex64Value(this.doubleData, 0.0)
     CottontailGrpc.Literal.DataCase.DATEDATA -> throw QueryException.UnsupportedCastException("A value of DATE cannot be cast to COMPLEX32.")
     CottontailGrpc.Literal.DataCase.STRINGDATA -> throw QueryException.UnsupportedCastException("A value of STRING cannot be cast to COMPLEX64.")
     CottontailGrpc.Literal.DataCase.COMPLEX32DATA -> Complex64Value(doubleArrayOf(this.complex32Data.real.toDouble(), this.complex32Data.imaginary.toDouble()))
@@ -398,25 +348,18 @@ fun CottontailGrpc.Literal.toComplex64Value(): Complex64Value? = when (this.data
  * @throws QueryException.UnsupportedCastException If cast is not possible.
  */
 fun CottontailGrpc.Literal.toFloatVectorValue(): FloatVectorValue? = when (this.dataCase) {
-    CottontailGrpc.Literal.DataCase.BOOLEANDATA -> FloatVectorValue(FloatArray(1) {
-        if (this.booleanData) {
-            1.0f
-        } else {
-            0.0f
-        }
-    })
+    CottontailGrpc.Literal.DataCase.BOOLEANDATA -> FloatVectorValue(FloatArray(1) { this.booleanData.toFloat() })
     CottontailGrpc.Literal.DataCase.INTDATA -> FloatVectorValue(FloatArray(1) { this.intData.toFloat() })
     CottontailGrpc.Literal.DataCase.LONGDATA -> FloatVectorValue(FloatArray(1) { this.longData.toFloat() })
     CottontailGrpc.Literal.DataCase.FLOATDATA -> FloatVectorValue(FloatArray(1) { this.floatData })
     CottontailGrpc.Literal.DataCase.DOUBLEDATA -> FloatVectorValue(FloatArray(1) { this.doubleData.toFloat() })
     CottontailGrpc.Literal.DataCase.STRINGDATA -> FloatVectorValue(FloatArray(1) {
-        this.stringData.toFloatOrNull()
-            ?: throw QueryException.UnsupportedCastException("A value of type STRING (v='${this.stringData}') cannot be cast to VECTOR[FLOAT].")
+        this.stringData.toFloatOrNull() ?: throw QueryException.UnsupportedCastException("A value of type STRING (v='${this.stringData}') cannot be cast to VECTOR[FLOAT].")
     })
     CottontailGrpc.Literal.DataCase.DATEDATA -> FloatVectorValue(FloatArray(1) { this.dateData.utcTimestamp.toFloat() })
     CottontailGrpc.Literal.DataCase.VECTORDATA -> this.vectorData.toFloatVectorValue()
-    CottontailGrpc.Literal.DataCase.COMPLEX32DATA -> throw QueryException.UnsupportedCastException("A value of COMPLEX32 cannot be cast to VECTOR.") /* TODO: Change. */
-    CottontailGrpc.Literal.DataCase.COMPLEX64DATA -> throw QueryException.UnsupportedCastException("A value of COMPLEX64 cannot be cast to VECTOR.")  /* TODO: Change. */
+    CottontailGrpc.Literal.DataCase.COMPLEX32DATA -> throw QueryException.UnsupportedCastException("A value of COMPLEX32 cannot be cast to VECTOR.")
+    CottontailGrpc.Literal.DataCase.COMPLEX64DATA -> throw QueryException.UnsupportedCastException("A value of COMPLEX64 cannot be cast to VECTOR.")
     CottontailGrpc.Literal.DataCase.NULLDATA -> null
     CottontailGrpc.Literal.DataCase.DATA_NOT_SET,
     null -> throw QueryException.UnsupportedCastException("A value of NULL cannot be cast to VECTOR[FLOAT].")
@@ -430,13 +373,7 @@ fun CottontailGrpc.Literal.toFloatVectorValue(): FloatVectorValue? = when (this.
  * @throws QueryException.UnsupportedCastException If cast is not possible.
  */
 fun CottontailGrpc.Literal.toDoubleVectorValue(): DoubleVectorValue? = when (this.dataCase) {
-    CottontailGrpc.Literal.DataCase.BOOLEANDATA -> DoubleVectorValue(DoubleArray(1) {
-        if (this.booleanData) {
-            1.0
-        } else {
-            0.0
-        }
-    })
+    CottontailGrpc.Literal.DataCase.BOOLEANDATA -> DoubleVectorValue(DoubleArray(1) { this.booleanData.toDouble() })
     CottontailGrpc.Literal.DataCase.INTDATA -> DoubleVectorValue(DoubleArray(1) { this.intData.toDouble() })
     CottontailGrpc.Literal.DataCase.LONGDATA -> DoubleVectorValue(DoubleArray(1) { this.longData.toDouble() })
     CottontailGrpc.Literal.DataCase.FLOATDATA -> DoubleVectorValue(DoubleArray(1) { this.floatData.toDouble() })
@@ -461,13 +398,7 @@ fun CottontailGrpc.Literal.toDoubleVectorValue(): DoubleVectorValue? = when (thi
  * @throws QueryException.UnsupportedCastException If cast is not possible.
  */
 fun CottontailGrpc.Literal.toLongVectorValue(): LongVectorValue? = when (this.dataCase) {
-    CottontailGrpc.Literal.DataCase.BOOLEANDATA -> LongVectorValue(LongArray(1) {
-        if (this.booleanData) {
-            1L
-        } else {
-            0L
-        }
-    })
+    CottontailGrpc.Literal.DataCase.BOOLEANDATA -> LongVectorValue(LongArray(1) { this.booleanData.toLong() })
     CottontailGrpc.Literal.DataCase.INTDATA -> LongVectorValue(LongArray(1) { this.intData.toLong() })
     CottontailGrpc.Literal.DataCase.LONGDATA -> LongVectorValue(LongArray(1) { this.longData })
     CottontailGrpc.Literal.DataCase.FLOATDATA -> LongVectorValue(LongArray(1) { this.floatData.toLong() })
@@ -492,13 +423,7 @@ fun CottontailGrpc.Literal.toLongVectorValue(): LongVectorValue? = when (this.da
  * @throws QueryException.UnsupportedCastException If cast is not possible.
  */
 fun CottontailGrpc.Literal.toIntVectorValue(): IntVectorValue? = when (this.dataCase) {
-    CottontailGrpc.Literal.DataCase.BOOLEANDATA -> IntVectorValue(IntArray(1) {
-        if (this.booleanData) {
-            1
-        } else {
-            0
-        }
-    })
+    CottontailGrpc.Literal.DataCase.BOOLEANDATA -> IntVectorValue(IntArray(1) { this.booleanData.toInt() })
     CottontailGrpc.Literal.DataCase.INTDATA -> IntVectorValue(IntArray(1) { this.intData })
     CottontailGrpc.Literal.DataCase.LONGDATA -> IntVectorValue(IntArray(1) { this.longData.toInt() })
     CottontailGrpc.Literal.DataCase.FLOATDATA -> IntVectorValue(IntArray(1) { this.floatData.toInt() })

@@ -20,11 +20,8 @@ import org.vitrivr.cottontail.execution.TransactionType
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.utilities.io.TxFileUtilities
-
 import java.nio.file.Files
 import java.util.*
-import java.util.concurrent.Executors
-import java.util.concurrent.ThreadPoolExecutor
 
 /**
  * An abstract class for test cases that test for correctness of [Value] serialization
@@ -64,11 +61,7 @@ abstract class AbstractSerializationTest {
     protected var random = SplittableRandom(this.seed)
 
     /** The [TransactionManager] used for this [CatalogueTest] instance. */
-    protected val manager = TransactionManager(
-        Executors.newFixedThreadPool(1) as ThreadPoolExecutor,
-        this.config.execution.transactionTableSize,
-        this.config.execution.transactionHistorySize
-    )
+    protected val manager = TransactionManager(this.config.execution.transactionTableSize, this.config.execution.transactionHistorySize)
 
     /** The [ColumnDef]s used for the [AbstractSerializationTest]. */
     protected abstract val columns: Array<Pair<ColumnDef<*>,ColumnEngine>>

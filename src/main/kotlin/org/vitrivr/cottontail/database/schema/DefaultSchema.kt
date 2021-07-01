@@ -278,9 +278,7 @@ class DefaultSchema(override val path: Path, override val parent: Catalogue) : S
         override fun dropEntity(name: Name.EntityName) = this.withWriteLock {
             /* Get entity and try to obtain lock. */
             val entity = this.snapshot.entities[name] ?: throw DatabaseException.EntityDoesNotExistException(name)
-            if (this.context.lockOn(entity) != LockMode.EXCLUSIVE) {
-                this.context.requestLock(entity, LockMode.EXCLUSIVE)
-            }
+            this.context.requestLock(entity, LockMode.EXCLUSIVE)
 
             /* Remove entity from local snapshot. */
             this.snapshot.record(DropEntityTxAction(name))

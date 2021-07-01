@@ -1,12 +1,10 @@
 package org.vitrivr.cottontail.model.recordset
 
-import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap
-import it.unimi.dsi.fastutil.objects.Object2ObjectMaps
+import it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.model.basics.Record
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.types.Value
-import java.util.*
 
 /**
  * A [Record] implementation as returned and processed by Cottontail DB. A [StandaloneRecord] can
@@ -17,21 +15,9 @@ import java.util.*
  * large, as each [StandaloneRecord] has its own reference to the [ColumnDef]s it contains.
  *
  * @author Ralph Gasser
- * @version 1.1.0
+ * @version 1.3.0
  */
-class StandaloneRecord(override var tupleId: TupleId, columns: Array<ColumnDef<*>> = emptyArray(), values: Array<Value?> = emptyArray()) : Record {
-
-    /**
-     *
-     */
-    constructor(tupleId: TupleId, collection: Collection<Pair<ColumnDef<*>, Value?>>) : this(tupleId) {
-        collection.forEach {
-            if (!it.first.validate(it.second)) {
-                throw IllegalArgumentException("Provided value ${it.first} is incompatible with column ${it.second}.")
-            }
-            this.map[it.first] = it.second
-        }
-    }
+class StandaloneRecord(override var tupleId: TupleId, override val columns: Array<ColumnDef<*>>, private val values: Array<Value?> = arrayOfNulls(columns.size)) : Record {
 
     /**
      * Constructor for single entry [StandaloneRecord].
@@ -40,38 +26,31 @@ class StandaloneRecord(override var tupleId: TupleId, columns: Array<ColumnDef<*
      * @param column The [ColumnDef] of the [StandaloneRecord].
      * @param value The [Value] of the [StandaloneRecord].
      */
-    constructor(tupleId: TupleId, column: ColumnDef<*>, value: Value?) : this(tupleId) {
-        if (!column.validate(value)) {
-            throw IllegalArgumentException("Provided value $column is incompatible with column $value.")
+    constructor(tupleId: TupleId, column: ColumnDef<*>, value: Value?) : this(tupleId, arrayOf(column), arrayOf(value))
+
+    init {
+        require(this.columns.size == this.values.size) { "Number of values and number of columns must be the same." }
+        for ((i, c) in this.columns.withIndex()) {
+            require(c.validate(this.values[i])) { "Value ${this.values[i]} is incompatible with column $c." }
         }
-        this.map[column] = value
     }
 
-    /** Internal [Object2ObjectLinkedOpenHashMap] that holds all the mappings. */
-    private val map = Object2ObjectLinkedOpenHashMap<ColumnDef<*>, Value>(columns, values)
-
-    /** Returns the [ColumnDef] held by this [StandaloneRecord]. */
-    override val columns: Array<ColumnDef<*>>
-        get() = this.map.keys.toTypedArray()
-
     /**
-     * Copies this [StandaloneRecord] and returns the copy.
+     * Copies this [StandaloneRecord] and returns the copy. Creates a physical copy of the [values] array.
      *
      * @return Copy of this [StandaloneRecord]
      */
-    override fun copy(): Record {
-        val copy = StandaloneRecord(this.tupleId)
-        copy.map.putAll(this.map)
-        return copy
-    }
+    override fun copy(): Record = StandaloneRecord(this.tupleId, this.columns, this.values.copyOf())
 
     /**
      * Iterates over the [ColumnDef] and [Value] pairs in this [Record] in the order specified by [columns].
      *
      * @param action The action to apply to each [ColumnDef], [Value] pair.
      */
-    override fun forEach(action: (ColumnDef<*>, Value?) -> Unit) = Object2ObjectMaps.fastForEach(this.map) { (c, v) ->
-        action(c, v)
+    override fun forEach(action: (ColumnDef<*>, Value?) -> Unit) {
+        for ((i, c) in this.columns.withIndex()) {
+            action(c, this.values[i])
+        }
     }
 
     /**
@@ -80,14 +59,22 @@ class StandaloneRecord(override var tupleId: TupleId, columns: Array<ColumnDef<*
      * @param column The [ColumnDef] specifying the column
      * @return True if record contains the [ColumnDef], false otherwise.
      */
-    override fun has(column: ColumnDef<*>): Boolean = this.map.contains(column)
+    override fun has(column: ColumnDef<*>): Boolean = this.columns.contains(column)
+
+    /**
+     * Returns column index of the given [ColumnDef] within this [Record]. Returns -1 if [ColumnDef] is not contained
+     *
+     * @param column The [ColumnDef] to check.
+     * @return The column index or -1. of [ColumnDef] is not part of this [Record].
+     */
+    override fun indexOf(column: ColumnDef<*>): Int = this.columns.indexOf(column)
 
     /**
      * Returns an unmodifiable [Map] of the data contained in this [StandaloneRecord].
      *
      * @return Unmodifiable [Map] of the data in this [StandaloneRecord].
      */
-    override fun toMap(): Map<ColumnDef<*>, Value?> = Collections.unmodifiableMap(this.map)
+    override fun toMap(): Map<ColumnDef<*>, Value?> = Object2ObjectArrayMap(this.columns, this.values)
 
     /**
      * Retrieves the value for the specified [ColumnDef] from this [StandaloneRecord].
@@ -95,9 +82,17 @@ class StandaloneRecord(override var tupleId: TupleId, columns: Array<ColumnDef<*
      * @param column The [ColumnDef] for which to retrieve the value.
      * @return The value for the [ColumnDef]
      */
-    override fun get(column: ColumnDef<*>): Value? {
-        require(this.map.contains(column)) { "The specified column ${column.name} (type=${column.type.name}) is not contained in this record." }
-        return this.map[column]
+    override fun get(column: ColumnDef<*>): Value? = this.get(this.columns.indexOf(column))
+
+    /**
+     * Retrieves the value for the specified column index from this [StandaloneRecord].
+     *
+     * @param columnIndex The index for which to retrieve the value.
+     * @return The value for the column index.
+     */
+    fun get(columnIndex: Int): Value? {
+        require(columnIndex in (0 until this.size)) { "The specified column $columnIndex is out of bounds." }
+        return this.values[columnIndex]
     }
 
     /**
@@ -106,14 +101,19 @@ class StandaloneRecord(override var tupleId: TupleId, columns: Array<ColumnDef<*
      * @param column The [ColumnDef] for which to set the value.
      * @param value The new value for the [ColumnDef]
      */
-    override fun set(column: ColumnDef<*>, value: Value?) {
-        require(this.map.contains(column)) { "The specified column ${column.name} (type=${column.type.name})  is not contained in this record." }
-        if (!column.validate(value)) {
-            throw IllegalArgumentException("Provided value $value is incompatible with column $column.")
-        }
-        this.map[column] = value
-    }
+    override fun set(column: ColumnDef<*>, value: Value?) = this.set(this.columns.indexOf(column), value)
 
+    /**
+     * Sets the value for the specified column index  in this [StandaloneRecord].
+     *
+     * @param columnIndex The index for which to set the value.
+     * @param value The new [Value]
+     */
+    fun set(columnIndex: Int, value: Value?) {
+        require(columnIndex in (0 until this.size)) { "The specified column $columnIndex is out of bounds." }
+        require(this.columns[columnIndex].validate(value)) { "Provided value $value is incompatible with column ${this.columns[columnIndex]}." }
+        this.values[columnIndex] = value
+    }
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -122,14 +122,17 @@ class StandaloneRecord(override var tupleId: TupleId, columns: Array<ColumnDef<*
         other as StandaloneRecord
 
         if (tupleId != other.tupleId) return false
-        if (this.map != other.map) return false
+        if (this.columns.contentEquals(other.columns)) return false
+        if (this.values.contentEquals(other.values)) return false
 
         return true
     }
 
     override fun hashCode(): Int {
         var result = tupleId.hashCode()
-        result = 31 * result + map.hashCode()
+        result = 31 * result + this.columns.contentHashCode()
+        result = 31 * result + this.columns.contentHashCode()
+
         return result
     }
 }

@@ -30,7 +30,7 @@ inline fun <T> StampedLock.shared(action: () -> T) = read(action)
 
 /**
  * Tries to execute the given [action] under and optimistic read lock of this [StampedLock]. If the optimistic lock
- * fails or a lock was acquire while executing the action, then a fallback to an ordinary read lock is used.
+ * fails or a lock was acquired while executing the action, then a fallback to an ordinary read lock is used.
  *
  * @param action The action to execute. Must be idempotent and side-effect free.
  * @return the return value of the action.

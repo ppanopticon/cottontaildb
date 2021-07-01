@@ -5,11 +5,11 @@ import org.slf4j.LoggerFactory
 import org.vitrivr.cottontail.database.column.*
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.EntityTx
-import org.vitrivr.cottontail.database.events.DataChangeEvent
 import org.vitrivr.cottontail.database.index.AbstractIndex
 import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.index.IndexType
 import org.vitrivr.cottontail.database.index.va.VAFIndex
+import org.vitrivr.cottontail.database.logging.operations.Operation
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
 import org.vitrivr.cottontail.database.queries.predicates.knn.KnnPredicate
@@ -215,13 +215,13 @@ class PQIndex(path: Path, parent: DefaultEntity, config: PQIndexConfig? = null) 
         }
 
         /**
-         * Updates the [PQIndex] with the provided [DataChangeEvent]s. Since the [PQIndex] does
+         * Updates the [PQIndex] with the provided [Operation.DataManagementOperation]s. Since the [PQIndex] does
          * not support incremental updates, calling this method will simply set the [PQIndex] [dirty]
          * flag to true.
          *
          * @param event Collection of [DataChangeEvent]s to process.
          */
-        override fun update(event: DataChangeEvent) = this.withWriteLock {
+        override fun update(event: Operation.DataManagementOperation) = this.withWriteLock {
             this@PQIndex.dirtyField.compareAndSet(false, true)
             Unit
         }

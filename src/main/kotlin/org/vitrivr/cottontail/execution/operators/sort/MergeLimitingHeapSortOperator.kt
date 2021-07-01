@@ -1,15 +1,10 @@
-package org.vitrivr.cottontail.execution.operators.transform
+package org.vitrivr.cottontail.execution.operators.sort
 
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.*
-
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.queries.sort.SortOrder
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.execution.operators.basics.Operator
-import org.vitrivr.cottontail.execution.operators.sort.HeapSortOperator
-import org.vitrivr.cottontail.execution.operators.sort.RecordComparator
 import org.vitrivr.cottontail.math.knn.selection.HeapSelection
 import org.vitrivr.cottontail.model.basics.Record
 
@@ -22,7 +17,7 @@ import org.vitrivr.cottontail.model.basics.Record
  * @author Ralph Gasser
  * @version 1.0.0
  */
-class MergeLimitingHeapSortOperator(parents: List<Operator>, sortOn: Array<Pair<ColumnDef<*>, SortOrder>>, limit: Long) : Operator.MergingPipelineOperator(parents) {
+class MergeLimitingHeapSortOperator(parents: List<Operator>, sortOn: Array<Pair<ColumnDef<*>, SortOrder>>, val limit: Long) : Operator.MergingPipelineOperator(parents) {
 
     /** The columns produced by this [MergeOperator]. */
     override val columns: Array<ColumnDef<*>> = this.parents.first().columns
@@ -38,31 +33,25 @@ class MergeLimitingHeapSortOperator(parents: List<Operator>, sortOn: Array<Pair<
         else -> RecordComparator.MultiNonNullColumnComparator(sortOn)
     }
 
-    /** The [HeapSelection] used for sorting. */
-    private val selection = HeapSelection(limit, this.comparator)
-
     /**
-     * Converts this [MergeOperator] to a [Flow] and returns it.
+     * Converts this [MergeLimitingHeapSortOperator] to a [Flow] and returns it.
      *
      * @param context The [TransactionContext] used for execution
-     * @return [Flow] representing this [MergeOperator]
+     * @return [Flow] representing this [MergeLimitingHeapSortOperator]
      */
     override fun toFlow(context: TransactionContext): Flow<Record> {
-        val parentFlows = this.parents.map { it.toFlow(context) }
         return flow {
-            val ctx = currentCoroutineContext()
-            /* Execute incoming flows and wait for completion. */
-            parentFlows.map { flow ->
-                flow.onEach { record ->
-                    this@MergeLimitingHeapSortOperator.selection.offer(record)
-                }.launchIn(CoroutineScope(ctx))
-            }.forEach {
-                it.join()
-            }
+            val selection = HeapSelection(this@MergeLimitingHeapSortOperator.limit, this@MergeLimitingHeapSortOperator.comparator)
+            val parentFlows = this@MergeLimitingHeapSortOperator.parents.map {
+                it.toFlow(context).onEach { record ->
+                    selection.offer(record.copy())
+                }
+            }.toTypedArray()
+            flowOf(*parentFlows).flattenMerge(this@MergeLimitingHeapSortOperator.parents.size).collect()
 
             /* Emit sorted and limited values. */
-            for (i in 0 until this@MergeLimitingHeapSortOperator.selection.size) {
-                emit(this@MergeLimitingHeapSortOperator.selection[i])
+            for (i in 0 until selection.size) {
+                emit(selection[i])
             }
         }
     }

@@ -4,7 +4,6 @@ import it.unimi.dsi.fastutil.objects.ObjectHeapPriorityQueue
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.onEach
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.queries.sort.SortOrder
 import org.vitrivr.cottontail.execution.TransactionContext
@@ -16,12 +15,9 @@ import org.vitrivr.cottontail.model.basics.Record
  * returns the [Record] in sorted order. Acts as pipeline breaker.
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.1.0
  */
-open class HeapSortOperator(parent: Operator, sortOn: Array<Pair<ColumnDef<*>, SortOrder>>, queueSize: Int) : AbstractSortOperator(parent, sortOn) {
-
-    /** The internal [ObjectHeapPriorityQueue] used for sorting. */
-    protected open val queue = ObjectHeapPriorityQueue(queueSize, this.comparator)
+open class HeapSortOperator(parent: Operator, sortOn: Array<Pair<ColumnDef<*>, SortOrder>>, private val queueSize: Int) : AbstractSortOperator(parent, sortOn) {
 
     /**
      * Converts this [HeapSortOperator] to a [Flow] and returns it.
@@ -32,9 +28,10 @@ open class HeapSortOperator(parent: Operator, sortOn: Array<Pair<ColumnDef<*>, S
     override fun toFlow(context: TransactionContext): Flow<Record> {
         val parentFlow = this.parent.toFlow(context)
         return flow {
-            parentFlow.onEach { this@HeapSortOperator.queue.enqueue(it) }.collect()
-            while (!this@HeapSortOperator.queue.isEmpty) {
-                emit(this@HeapSortOperator.queue.dequeue())
+            val queue = ObjectHeapPriorityQueue(this@HeapSortOperator.queueSize, this@HeapSortOperator.comparator)
+            parentFlow.collect { queue.enqueue(it.copy()) }
+            while (!queue.isEmpty) {
+                emit(queue.dequeue())
             }
         }
     }

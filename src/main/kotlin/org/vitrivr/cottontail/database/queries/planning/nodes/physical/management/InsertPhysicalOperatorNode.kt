@@ -41,7 +41,7 @@ class InsertPhysicalOperatorNode(override val groupId: GroupId, val entity: Enti
     override val outputSize: Long = 1L
 
     /** The [Cost] of this [InsertPhysicalOperatorNode]. */
-    override val cost: Cost = Cost(Cost.COST_DISK_ACCESS_WRITE, Cost.COST_MEMORY_ACCESS) * this.records.size * this.statistics.all().map { it.key.type.physicalSize }.sum()
+    override val cost: Cost = Cost(Cost.COST_DISK_ACCESS_WRITE, Cost.COST_MEMORY_ACCESS) * this.records.size
 
     /** The [InsertPhysicalOperatorNode] cannot be partitioned. */
     override val canBePartitioned: Boolean = false

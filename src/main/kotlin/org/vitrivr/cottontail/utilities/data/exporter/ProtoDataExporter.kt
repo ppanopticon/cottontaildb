@@ -37,7 +37,7 @@ class ProtoDataExporter(override val path: Path) : DataExporter {
         for (tuple in message.tuplesList) {
             val insert = CottontailGrpc.InsertMessage.newBuilder()
             tuple.dataList.zip(message.columnsList).forEach { e ->
-                insert.addInserts(
+                insert.addElements(
                     CottontailGrpc.InsertMessage.InsertElement.newBuilder().setValue(e.first)
                         .setColumn(e.second)
                 )

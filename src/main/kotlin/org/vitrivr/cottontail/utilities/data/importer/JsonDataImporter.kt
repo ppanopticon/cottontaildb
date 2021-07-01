@@ -79,7 +79,7 @@ class JsonDataImporter(override val path: Path, private val schema: Array<Column
                     CottontailGrpc.ColumnName.newBuilder().setName(column.name.simple)
                 )
                 element.setValue(value)
-                message.addInserts(element)
+                message.addElements(element)
             }
         }
         this.reader.endObject()

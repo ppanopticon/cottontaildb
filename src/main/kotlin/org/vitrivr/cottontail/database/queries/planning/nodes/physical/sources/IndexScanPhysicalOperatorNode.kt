@@ -19,8 +19,8 @@ import org.vitrivr.cottontail.database.statistics.entity.RecordStatistics
 import org.vitrivr.cottontail.database.statistics.selectivity.NaiveSelectivityCalculator
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.execution.operators.basics.Operator
+import org.vitrivr.cottontail.execution.operators.sort.MergeLimitingHeapSortOperator
 import org.vitrivr.cottontail.execution.operators.sources.IndexScanOperator
-import org.vitrivr.cottontail.execution.operators.transform.MergeLimitingHeapSortOperator
 import org.vitrivr.cottontail.model.values.types.Value
 
 /**

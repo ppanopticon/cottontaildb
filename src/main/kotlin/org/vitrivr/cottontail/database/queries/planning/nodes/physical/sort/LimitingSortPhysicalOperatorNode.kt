@@ -9,7 +9,7 @@ import org.vitrivr.cottontail.database.queries.sort.SortOrder
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.execution.operators.basics.Operator
 import org.vitrivr.cottontail.execution.operators.sort.LimitingHeapSortOperator
-import org.vitrivr.cottontail.execution.operators.transform.MergeLimitingHeapSortOperator
+import org.vitrivr.cottontail.execution.operators.sort.MergeLimitingHeapSortOperator
 import org.vitrivr.cottontail.model.exceptions.QueryException
 import kotlin.math.min
 

@@ -11,45 +11,49 @@ import org.vitrivr.cottontail.model.basics.Name
  * Inspired by: https://github.com/dstibrany/LockManager
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.1.0
  */
-class LockManager {
+class LockManager<T> {
 
     /** List of all [Lock]s managed by this [LockManager]. */
-    private val locks = Object2ObjectMaps.synchronize(Object2ObjectOpenHashMap<DBO, Lock>())
+    private val locks = Object2ObjectMaps.synchronize(Object2ObjectOpenHashMap<T, Lock<T>>())
 
     /** The [WaitForGraph] data structure used to detect deadlock situations. */
     private val waitForGraph: WaitForGraph = WaitForGraph()
 
     /**
-     * Returns an list all [DBO] [Name]s that are currently locked.
+     * Returns an list all [T] that are currently locked.
      *
-     * @return List of all [DBO]s that are currently locked.
+     * @return List of all [T]s that are currently locked.
      */
-    fun allLocks(): List<Pair<Name, Lock>> = this.locks.map { v -> v.key.name to v.value }
+    fun allLocks(): List<Pair<T, Lock<T>>> = this.locks.map { v -> v.key to v.value }
 
     /**
      * Tries to acquire a lock on [Name] for the given [LockHolder].
      *
      * @param txn [LockHolder] to acquire the lock for.
-     * @param dbo [DBO] of the object to acquire a lock on.
+     * @param obj Object [T] to acquire a lock on.
      * @param mode The [LockMode]
      */
-    fun lock(txn: LockHolder, dbo: DBO, mode: LockMode) = synchronized(dbo) {
+    fun lock(txn: LockHolder<T>, obj: T, mode: LockMode) {
         require(mode != LockMode.NO_LOCK) { "Cannot acquire a lock of mode $mode; try LockManager.release()." }
-        val lockOn = lockOn(txn, dbo)
-        if (lockOn === mode) {
-            return
-        } else if (lockOn === LockMode.EXCLUSIVE && mode === LockMode.SHARED) {
-            return
-        } else if (lockOn === LockMode.SHARED && mode === LockMode.EXCLUSIVE) {
-            val lock: Lock = this.locks.computeIfAbsent(dbo) { Lock(this.waitForGraph) }
-            lock.upgrade(txn)
-            txn.addLock(lock)
-        } else {
-            val lock: Lock = this.locks.computeIfAbsent(dbo) { Lock(this.waitForGraph) }
-            lock.acquire(txn, mode)
-            txn.addLock(lock)
+        this.locks.compute(obj) { _, l ->
+            val lock: Lock<T> = l ?: Lock(this.waitForGraph, obj)
+            when (lock.getMode()) {
+                LockMode.NO_LOCK -> {
+                    lock.acquire(txn, mode)
+                    txn.addLock(lock)
+                }
+                LockMode.SHARED -> {
+                    if (mode == LockMode.EXCLUSIVE) {
+                        lock.upgrade(txn)
+                        txn.addLock(lock)
+                    }
+                }
+                else -> { /* No op. */
+                }
+            }
+            lock
         }
     }
 
@@ -57,29 +61,15 @@ class LockManager {
      * Unlocks the lock on [Name] held by the given [LockHolder].
      *
      * @param txn [LockHolder] to release the lock for.
-     * @param dbo [DBO] of the object to release the lock on.
+     * @param obj Object [T] to release the lock on.
      */
-    fun unlock(txn: LockHolder, dbo: DBO) = synchronized(dbo) {
-        this.locks.computeIfPresent(dbo) { _, lock ->
-            lock.release(txn)
-            txn.removeLock(lock)
-            if (lock.getMode() === LockMode.NO_LOCK) {
-                null
-            } else {
-                lock
-            }
+    fun unlock(txn: LockHolder<T>, obj: T) = this.locks.computeIfPresent(obj) { _, lock ->
+        txn.removeLock(lock)
+        lock.release(txn)
+        if (lock.getMode() === LockMode.NO_LOCK) {
+            null
+        } else {
+            lock
         }
-    }
-
-    /**
-     * Returns the [LockMode] the given [LockHolder] has on the given [DBO]. If it holds
-     * no lock, then [LockMode.NO_LOCK] is returned.
-     *
-     * @param txn The [LockHolder] to check.
-     * @param dbo The [DBO] to check.
-     * @return [LockMode]
-     */
-    fun lockOn(txn: LockHolder, dbo: DBO): LockMode {
-        return txn.getLocks().find { it == this.locks[dbo] }?.getMode() ?: LockMode.NO_LOCK
     }
 }

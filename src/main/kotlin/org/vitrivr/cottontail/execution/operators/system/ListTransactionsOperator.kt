@@ -29,8 +29,8 @@ class ListTransactionsOperator(val manager: TransactionManager) : Operator.Sourc
             ColumnDef(Name.ColumnName("lock_count"), Type.Int, false),
             ColumnDef(Name.ColumnName("tx_count"), Type.Int, false),
             ColumnDef(Name.ColumnName("created"), Type.Date, false),
-            ColumnDef(Name.ColumnName("ended"), Type.Date, false),
-            ColumnDef(Name.ColumnName("duration[s]"), Type.Double, false)
+            ColumnDef(Name.ColumnName("ended"), Type.Date, true),
+            ColumnDef(Name.ColumnName("duration[s]"), Type.Double, true)
 
         )
     }

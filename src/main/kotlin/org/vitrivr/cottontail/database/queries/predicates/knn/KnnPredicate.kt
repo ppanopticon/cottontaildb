@@ -41,9 +41,9 @@ class KnnPredicate(val column: ColumnDef<*>, val k: Int, val distance: Distances
     /** CPU cost required for applying this [KnnPredicate] to a single record. */
     override val atomicCpuCost: Float
         get() = if (this.weight == null) {
-            this.distance.cost(this.column.type.logicalSize, true)
+            this.distance.cost(this.column.type.logicalSize, false)
         } else {
-            2 * this.distance.cost(this.column.type.logicalSize, false)
+            2 * this.distance.cost(this.column.type.logicalSize, true)
         }
 
     /**

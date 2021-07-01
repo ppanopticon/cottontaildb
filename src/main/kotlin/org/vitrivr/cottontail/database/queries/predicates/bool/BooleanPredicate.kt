@@ -108,11 +108,8 @@ sealed class BooleanPredicate : Predicate {
              * @param record The [Record] to check.
              * @return true if [Record] matches this [Atomic], false otherwise.
              */
-            override fun matches(record: Record): Boolean = if (this.not) {
-                !this.operator.match(record[this.left])
-            } else {
-                this.operator.match(record[this.left])
-            }
+            override fun matches(record: Record): Boolean =
+                (!this.not && this.operator.match(record[this.left])) || (this.not && !this.operator.match(record[this.left]))
 
             /**
              * Generates a [String] representation of this [BooleanPredicate].
@@ -174,11 +171,7 @@ sealed class BooleanPredicate : Predicate {
              */
             override fun matches(record: Record): Boolean {
                 this.context.update(this.binaryOperator.right, record[this.right])
-                return if (this.not) {
-                    !this.binaryOperator.match(record[this.left])
-                } else {
-                    this.binaryOperator.match(record[this.left])
-                }
+                return (!this.not && this.binaryOperator.match(record[this.left])) || (this.not && !this.binaryOperator.match(record[this.left]))
             }
 
             /**

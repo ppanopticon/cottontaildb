@@ -12,7 +12,6 @@ import org.apache.lucene.store.NativeFSLockFactory
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.EntityTx
-import org.vitrivr.cottontail.database.events.DataChangeEvent
 import org.vitrivr.cottontail.database.general.TxAction
 import org.vitrivr.cottontail.database.general.TxSnapshot
 import org.vitrivr.cottontail.database.index.AbstractIndex
@@ -20,6 +19,7 @@ import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.index.IndexType
 import org.vitrivr.cottontail.database.index.hash.UniqueHashIndex
 import org.vitrivr.cottontail.database.index.lsh.superbit.SuperBitLSHIndex
+import org.vitrivr.cottontail.database.logging.operations.Operation
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
 import org.vitrivr.cottontail.database.queries.predicates.bool.BooleanPredicate
@@ -314,23 +314,23 @@ class LuceneIndex(path: Path, parent: DefaultEntity, config: LuceneIndexConfig? 
          *
          * @param event [DataChangeEvent] to process.
          */
-        override fun update(event: DataChangeEvent) = this.withWriteLock {
+        override fun update(event: Operation.DataManagementOperation) = this.withWriteLock {
             this.ensureWriterAvailable()
             when (event) {
-                is DataChangeEvent.InsertDataChangeEvent -> {
-                    val new = event.inserts[this.dbo.columns[0]]
+                is Operation.DataManagementOperation.InsertOperation -> {
+                    val new = event.inserts[this.dbo.columns[0].name]
                     if (new is StringValue) {
                         this.writer?.addDocument(this@LuceneIndex.documentFromValue(new, event.tupleId))
                     }
                 }
-                is DataChangeEvent.UpdateDataChangeEvent -> {
+                is Operation.DataManagementOperation.UpdateOperation -> {
                     this.writer?.deleteDocuments(Term(TID_COLUMN, event.tupleId.toString()))
-                    val new = event.updates[this.dbo.columns[0]]?.second
+                    val new = event.updates[this.dbo.columns[0].name]?.second
                     if (new is StringValue) {
                         this.writer?.addDocument(this@LuceneIndex.documentFromValue(new, event.tupleId))
                     }
                 }
-                is DataChangeEvent.DeleteDataChangeEvent -> {
+                is Operation.DataManagementOperation.DeleteOperation -> {
                     this.writer?.deleteDocuments(Term(TID_COLUMN, event.tupleId.toString()))
                 }
             }

@@ -6,11 +6,11 @@ import org.slf4j.LoggerFactory
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.EntityTx
-import org.vitrivr.cottontail.database.events.DataChangeEvent
 import org.vitrivr.cottontail.database.index.AbstractIndex
 import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.index.IndexType
 import org.vitrivr.cottontail.database.index.pq.PQIndex
+import org.vitrivr.cottontail.database.logging.operations.Operation
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
 import org.vitrivr.cottontail.database.queries.predicates.knn.KnnPredicate
@@ -200,7 +200,7 @@ class GGIndex(path: Path, parent: DefaultEntity, config: GGIndexConfig? = null) 
          *
          * @param event [DataChangeEvent]s to process.
          */
-        override fun update(event: DataChangeEvent) = this.withWriteLock {
+        override fun update(event: Operation.DataManagementOperation) = this.withWriteLock {
             this@GGIndex.dirtyField.compareAndSet(false, true)
             Unit
         }

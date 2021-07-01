@@ -5,10 +5,11 @@ import org.mapdb.Serializer
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.EntityTx
-import org.vitrivr.cottontail.database.events.DataChangeEvent
 import org.vitrivr.cottontail.database.index.AbstractIndex
 import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.index.IndexType
+import org.vitrivr.cottontail.database.index.*
+import org.vitrivr.cottontail.database..operations.Operation
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
 import org.vitrivr.cottontail.database.queries.predicates.bool.BooleanPredicate
@@ -143,31 +144,31 @@ class UniqueHashIndex(path: Path, parent: DefaultEntity) : AbstractIndex(path, p
         }
 
         /**
-         * Updates the [UniqueHashIndex] with the provided [DataChangeEvent]s. This method determines,
-         * whether the [Record] affected by the [DataChangeEvent] should be added or updated
+         * Updates the [UniqueHashIndex] with the provided [Operation.DataManagementOperation]s. This method determines,
+         * whether the [Record] affected by the [Operation.DataManagementOperation] should be added or updated
          *
-         * @param event [DataChangeEvent]s to process.
+         * @param event [Operation.DataManagementOperation]s to process.
          */
-        override fun update(event: DataChangeEvent) = this.withWriteLock {
+        override fun update(event: Operation.DataManagementOperation) = this.withWriteLock {
             when (event) {
-                is DataChangeEvent.InsertDataChangeEvent -> {
-                    val value = event.inserts[this.dbo.columns[0]]
+                is Operation.DataManagementOperation.InsertOperation-> {
+                    val value = event.inserts[this.dbo.columns[0].name]
                     if (value != null) {
                         this.addMapping(value, event.tupleId)
                     }
                 }
-                is DataChangeEvent.UpdateDataChangeEvent -> {
-                    val old = event.updates[this.dbo.columns[0]]?.first
+                is Operation.DataManagementOperation.UpdateOperation -> {
+                    val old = event.updates[this.dbo.columns[0].name]?.first
                     if (old != null) {
                         this.removeMapping(old)
                     }
-                    val new = event.updates[this.dbo.columns[0]]?.second
+                    val new = event.updates[this.dbo.columns[0].name]?.second
                     if (new != null) {
                         this.addMapping(new, event.tupleId)
                     }
                 }
-                is DataChangeEvent.DeleteDataChangeEvent -> {
-                    val old = event.deleted[this.dbo.columns[0]]
+                is Operation.DataManagementOperation.DeleteOperation -> {
+                    val old = event.deleted[this.dbo.columns[0].name]
                     if (old != null) {
                         this.removeMapping(old)
                     }

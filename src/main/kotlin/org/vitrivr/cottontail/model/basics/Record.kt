@@ -16,7 +16,7 @@ import org.vitrivr.cottontail.model.values.types.Value
  * @see org.vitrivr.cottontail.database.entity.DefaultEntity
  *
  * @author Ralph Gasser
- * @version 1.3.0
+ * @version 1.4.0
  */
 interface Record {
 
@@ -52,6 +52,14 @@ interface Record {
      * @return True if record contains the [ColumnDef], false otherwise.
      */
     fun has(column: ColumnDef<*>): Boolean
+
+    /**
+     * Returns column index of the given [ColumnDef] within this [Record]. Returns -1 if [ColumnDef] is not contained
+     *
+     * @param column The [ColumnDef] to check.
+     * @return The column index or -1. of [ColumnDef] is not part of this [Record].
+     */
+    fun indexOf(column: ColumnDef<*>): Int
 
     /**
      * Generates and returns a [Map] of the data contained in this [Record]

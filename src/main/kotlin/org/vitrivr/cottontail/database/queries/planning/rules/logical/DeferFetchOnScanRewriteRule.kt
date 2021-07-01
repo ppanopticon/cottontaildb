@@ -22,7 +22,11 @@ object DeferFetchOnScanRewriteRule : RewriteRule {
             while (next != null && next.groupId == originalGroupId) {
                 /* Check if we encounter a node that requires specific but not all of the original columns. */
                 val required = originalColumns.filter { it in next!!.requires }.toTypedArray()
-                if (required.isNotEmpty() && required.size < originalColumns.size) {
+                if (required.isEmpty()) {
+                    next = next.output
+                } else if (required.size == originalColumns.size) {
+                    break
+                } else {
                     val defer = originalColumns.filter { it !in required }.toTypedArray()
 
                     /*
@@ -30,13 +34,12 @@ object DeferFetchOnScanRewriteRule : RewriteRule {
                      * replace the (source) operator and introduce a FetchLogicalOperatorNode in between.
                      */
                     var p = next.copyWithInputs().base.first().output!!.copyWithOutput(EntityScanLogicalOperatorNode(originalGroupId, node.entity, required))
-                    p = FetchLogicalOperatorNode(p, node.entity, defer)
-                    p = next.output?.copyWithOutput(p) ?: p
+                    if (next.output != null) {
+                        p = FetchLogicalOperatorNode(p, node.entity, defer)
+                        p = next.output?.copyWithOutput(p) ?: p
+                    }
                     return p
                 }
-
-                /* Move down the tree. */
-                next = next.output
             }
         }
         return null

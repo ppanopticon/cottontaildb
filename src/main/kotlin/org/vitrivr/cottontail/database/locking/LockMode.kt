@@ -6,15 +6,15 @@ package org.vitrivr.cottontail.database.locking
  * Inspired by: https://github.com/dstibrany/LockManager
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.0.1
  */
 enum class LockMode {
+    /** No lock on the database object. Merely informative, trying to acquiring this type of lock is considered a programmer's error! */
     NO_LOCK,
 
-    /** No lock on the database object. Merely informative, trying to acquiring this type of lock is considered a programmer's error! */
+    /** A shared lock on the object. Can be acquired. */
     SHARED,
 
-    /** A shared lock on the database object. Can be acquired. */
+    /** An exclusive on the object. Can be acquired. */
     EXCLUSIVE
-    /** An exclusive on the database object. Can be acquired. */
 }

@@ -14,7 +14,7 @@ import java.util.concurrent.TimeUnit
 @Serializable
 data class ExecutionConfig(
     val coreThreads: Int = (Runtime.getRuntime().availableProcessors() / 2),
-    val maxThreads: Int = Runtime.getRuntime().availableProcessors(),
+    val maxThreads: Int = 25,
     val keepAliveMs: Long = 1000L,
     val queueSize: Int = 100,
     val transactionTableSize: Int = 100,
@@ -27,8 +27,8 @@ data class ExecutionConfig(
      *  @return [ThreadPoolExecutor]
      */
     fun newExecutor() = ThreadPoolExecutor(
-        this.coreThreads,
-        this.maxThreads,
+        this.coreThreads.coerceAtLeast(1),
+        this.maxThreads.coerceAtLeast(4),
         this.keepAliveMs,
         TimeUnit.MILLISECONDS,
         ArrayBlockingQueue(this.queueSize)

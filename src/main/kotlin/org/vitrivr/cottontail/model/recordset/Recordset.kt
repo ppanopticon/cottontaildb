@@ -6,7 +6,10 @@ import it.unimi.dsi.fastutil.objects.ObjectBigArrayBigList
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
 import org.vitrivr.cottontail.database.queries.predicates.bool.BooleanPredicate
-import org.vitrivr.cottontail.model.basics.*
+import org.vitrivr.cottontail.model.basics.Filterable
+import org.vitrivr.cottontail.model.basics.Record
+import org.vitrivr.cottontail.model.basics.Scanable
+import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.values.types.Value
 import org.vitrivr.cottontail.utilities.extensions.read
 import org.vitrivr.cottontail.utilities.extensions.write
@@ -304,6 +307,14 @@ class Recordset(val columns: Array<ColumnDef<*>>, capacity: Long = 250L) : Scana
          * @return True if record contains the [ColumnDef], false otherwise.
          */
         override fun has(column: ColumnDef<*>): Boolean = this.map.containsKey(column)
+
+        /**
+         * Returns column index of the given [ColumnDef] within this [Record]. Returns -1 if [ColumnDef] is not contained
+         *
+         * @param column The [ColumnDef] to check.
+         * @return The column index or -1. of [ColumnDef] is not part of this [Record].
+         */
+        override fun indexOf(column: ColumnDef<*>): Int = this@Recordset.columns.indexOf(column)
 
         /**
          * Returns an unmodifiable [Map] of the data contained in this [StandaloneRecord].

@@ -1,8 +1,8 @@
 package org.vitrivr.cottontail.database.index
 
 import org.vitrivr.cottontail.database.column.ColumnDef
-import org.vitrivr.cottontail.database.events.DataChangeEvent
 import org.vitrivr.cottontail.database.general.Tx
+import org.vitrivr.cottontail.database.logging.operations.Operation
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
 import org.vitrivr.cottontail.database.queries.sort.SortOrder
 import org.vitrivr.cottontail.model.basics.Countable
@@ -36,15 +36,15 @@ interface IndexTx : Tx, Filterable, Countable {
     fun rebuild()
 
     /**
-     * Updates the [AbstractIndex] underlying this [IndexTx] based on the provided [DataChangeEvent].
+     * Updates the [AbstractIndex] underlying this [IndexTx] based on the provided [Operation.DataManagementOperation].
      *
      * Not all [AbstractIndex] implementations support incremental updates. Should be indicated by [IndexTransaction#supportsIncrementalUpdate()]
      *
-     * @param event [DataChangeEvent] that should be processed.
+     * @param event [Operation.DataManagementOperation] that should be processed.
      * @throws [TxException.TxValidationException] If update of [AbstractIndex] fails for some reason.
      */
     @Throws(TxException.TxValidationException::class)
-    fun update(event: DataChangeEvent)
+    fun update(event: Operation.DataManagementOperation)
 
     /**
      * Clears the [AbstractIndex] underlying this [IndexTx] and removes all entries it contains.

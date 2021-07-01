@@ -13,8 +13,6 @@ import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.utilities.io.TxFileUtilities
 import java.nio.file.Files
-import java.util.concurrent.Executors
-import java.util.concurrent.ThreadPoolExecutor
 
 /**
  * A set of unit tests to test basic [DefaultCatalogue] functionality.
@@ -43,7 +41,6 @@ class CatalogueTest {
 
     /** The [TransactionManager] used for this [CatalogueTest] instance. */
     private val manager = TransactionManager(
-        Executors.newFixedThreadPool(1) as ThreadPoolExecutor,
         this.config.execution.transactionTableSize,
         this.config.execution.transactionHistorySize
     )

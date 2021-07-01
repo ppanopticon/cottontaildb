@@ -1,11 +1,11 @@
 package org.vitrivr.cottontail.execution
 
-import org.vitrivr.cottontail.database.events.DataChangeEvent
 import org.vitrivr.cottontail.database.general.DBO
 import org.vitrivr.cottontail.database.general.Tx
 import org.vitrivr.cottontail.database.locking.Lock
 import org.vitrivr.cottontail.database.locking.LockManager
 import org.vitrivr.cottontail.database.locking.LockMode
+import org.vitrivr.cottontail.database.logging.operations.Operation
 import org.vitrivr.cottontail.model.basics.TransactionId
 
 /**
@@ -34,14 +34,6 @@ interface TransactionContext {
     fun getTx(dbo: DBO): Tx
 
     /**
-     * Returns the [LockMode] this [TransactionContext] has on the given [DBO].
-     *
-     * @param dbo [DBO] The [DBO] to query the [LockMode] for.
-     * @return [LockMode]
-     */
-    fun lockOn(dbo: DBO): LockMode
-
-    /**
      * Acquires a [Lock] on a [DBO] for the given [LockMode]. This call is delegated to the
      * [LockManager] and really just a convenient way for [Tx] objects to obtain locks.
      *
@@ -51,12 +43,12 @@ interface TransactionContext {
     fun requestLock(dbo: DBO, mode: LockMode)
 
     /**
-     * Signals a [DataChangeEvent] to this [TransactionContext].
+     * Signals a [DataManagementOperation] to this [TransactionContext].
      *
-     * Implementing methods must process these [DataChangeEvent]s quickly, since they are usually
+     * Implementing methods must process these [DataManagementOperation]s quickly, since they are usually
      * triggered during an ongoing transaction.
      *
-     * @param event The [DataChangeEvent] that has been reported.
+     * @param action The [DataManagementOperation] that has been reported.
      */
-    fun signalEvent(event: DataChangeEvent)
+    fun signalEvent(action: Operation.DataManagementOperation)
 }

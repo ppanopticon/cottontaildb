@@ -3,6 +3,7 @@ package org.vitrivr.cottontail.execution.operators.system
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import org.vitrivr.cottontail.database.column.ColumnDef
+import org.vitrivr.cottontail.database.general.DBO
 import org.vitrivr.cottontail.database.locking.LockManager
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.execution.operators.basics.Operator
@@ -20,7 +21,7 @@ import org.vitrivr.cottontail.model.values.types.Value
  * @author Ralph Gasser
  * @version 1.0.1
  */
-class ListLocksOperator(val manager: LockManager) : Operator.SourceOperator() {
+class ListLocksOperator(val manager: LockManager<DBO>) : Operator.SourceOperator() {
 
     companion object {
         val COLUMNS: Array<ColumnDef<*>> = arrayOf(
@@ -38,7 +39,7 @@ class ListLocksOperator(val manager: LockManager) : Operator.SourceOperator() {
             var row = 0L
             val values = Array<Value?>(this@ListLocksOperator.columns.size) { null }
             this@ListLocksOperator.manager.allLocks().forEach { lock ->
-                values[0] = StringValue(lock.first.toString())
+                values[0] = StringValue(lock.first.name.toString())
                 values[1] = StringValue(lock.second.getMode().toString())
                 val owners = lock.second.getOwners().map { it.txId }
                 values[2] = IntValue(owners.size)

@@ -35,7 +35,7 @@ For Kotlin and Java, there is also a Maven dependency, which includes pre-built 
 <dependency>
   <groupId>org.vitrivr</groupId>
   <artifactId>cottontaildb-proto</artifactId>
-  <version>0.12.0</version>
+  <version>0.12.1</version>
 </dependency>
 ```
 

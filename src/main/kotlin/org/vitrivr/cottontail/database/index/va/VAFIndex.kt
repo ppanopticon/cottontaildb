@@ -6,7 +6,6 @@ import org.slf4j.LoggerFactory
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.EntityTx
-import org.vitrivr.cottontail.database.events.DataChangeEvent
 import org.vitrivr.cottontail.database.index.AbstractIndex
 import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.index.IndexType
@@ -14,6 +13,7 @@ import org.vitrivr.cottontail.database.index.va.bounds.*
 import org.vitrivr.cottontail.database.index.va.signature.Marks
 import org.vitrivr.cottontail.database.index.va.signature.MarksGenerator
 import org.vitrivr.cottontail.database.index.va.signature.VAFSignature
+import org.vitrivr.cottontail.database.logging.operations.Operation
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
 import org.vitrivr.cottontail.database.queries.predicates.knn.KnnPredicate
@@ -201,13 +201,12 @@ class VAFIndex(path: Path, parent: DefaultEntity, config: VAFIndexConfig? = null
         }
 
         /**
-         * Updates the [VAFIndex] with the provided [DataChangeEvent]s. Since the [VAFIndex] does
-         * not support incremental updates, calling this method will simply set the [VAFIndex]
-         * [dirty] flag to true.
+         * Updates the [VAFIndex] with the provided [Operation.DataManagementOperation]s. Since the [VAFIndex] does
+         * not support incremental updates, calling this method will simply set the [VAFIndex] [dirty] flag to true.
          *
-         * @param event [DataChangeEvent]s to process.
+         * @param event [Operation.DataManagementOperation]s to process.
          */
-        override fun update(event: DataChangeEvent) = this.withWriteLock {
+        override fun update(event: Operation.DataManagementOperation) = this.withWriteLock {
             this@VAFIndex.dirtyField.compareAndSet(false, true)
             Unit
         }

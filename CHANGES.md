@@ -1,5 +1,24 @@
 # Change log for Cottontail DB
 
+## Version 0.12.9
+
+* Added UnitTests for gRPC endpoint stability
+* Added latches to all `AbstractTx` to prevent concurrent access from same transaction.
+
+### Bugfixes
+
+* Fixed an error in `DeferFetchOnScanRewriteRule` that could case fetching of unnecessary columns.
+* Fixed an error in `Distances` that caused distance calculation without a weighted version to fail. Up
+
+## Version 0.12.8
+
+* gRPC endpoint was migrated to Kotlin gRPC
+* Implemented various optimizations that should speed up query execution.
+
+### Bugfixes
+
+* Fixed issue in query execution that could cause Cottontail DB to hang itself up in a concurrent environment.
+
 ## Version 0.12.7
 
 ### Bugfixes
@@ -74,7 +93,7 @@
 * Added support for incremental updates to indexes upon INSERT, UPDATE or DELETE, if an indexes supports this (#10)
 * Added PQ and VA indexes for nearest neighbor search
 * Added column statistics that can be used for query planning
-* Re-added support for SELECT DISTINCT projectsion (#68)
+* Re-added support for SELECT DISTINCT projection (#68)
 * Re-structured query planner, which should now scale better to more complex query plans
 
 ### Bugfixes

@@ -242,9 +242,8 @@ class DefaultCatalogue(override val config: Config) : Catalogue {
         override fun dropSchema(name: Name.SchemaName) = this.withWriteLock {
             /* Obtain schema and acquire exclusive lock on it. */
             val schema = this.snapshot.schemas[name] ?: throw DatabaseException.SchemaDoesNotExistException(name)
-            if (this.context.lockOn(schema) !== LockMode.EXCLUSIVE) {
-                this.context.requestLock(schema, LockMode.EXCLUSIVE)
-            }
+            this.context.requestLock(schema, LockMode.EXCLUSIVE)
+
 
             /* Remove dropped schema from local snapshot. */
             this.snapshot.record(DropSchemaTxAction(name))

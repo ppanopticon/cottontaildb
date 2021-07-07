@@ -4,6 +4,7 @@ import org.vitrivr.cottontail.functions.FunctionRegistry
 import org.vitrivr.cottontail.functions.basics.Function
 import org.vitrivr.cottontail.functions.basics.Signature
 import org.vitrivr.cottontail.functions.math.distance.binary.*
+import org.vitrivr.cottontail.functions.math.distance.binary.simd.ManhattanDistance
 import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.DoubleValue
 import org.vitrivr.cottontail.model.values.types.VectorValue
